@@ -367,3 +367,176 @@ Worker 根据 `hosts.last_seen_at` 判定 Host 在线状态：
 - 超过 15 分钟 → `offline`
 
 该判定为查询时动态计算，不持久化。
+
+## 实现步骤（原子化提交计划）
+
+> 前置条件：Monorepo 基础设施 + 6DQ 门禁 + D1 migration 已完成（见 02-d1-schema.md）。
+
+### Worker 路由框架
+
+**Commit 10: Worker 骨架 + Hono 路由框架**
+
+```
+packages/worker/src/index.ts — Hono app 入口
+packages/worker/src/env.ts — D1 binding 类型定义
+packages/worker/wrangler.toml — D1 binding 配置
+packages/worker/src/middleware/auth.ts — API Key 认证中间件骨架
+packages/worker/src/lib/response.ts — 统一响应/错误格式工具
+测试：vitest 验证 Hono app 初始化 + 健康检查端点
+```
+
+**Commit 11: 认证中间件实现**
+
+```
+packages/worker/src/middleware/auth.ts — 完整实现：
+  - 从 Authorization header 提取 Bearer token
+  - 对比 api_key_hash 确定 host_id 和角色 (admin / host)
+  - 注入角色和 host_id 到请求上下文
+packages/worker/src/middleware/auth.test.ts
+测试：vitest 验证三种角色 + 无效 key + 缺失 header
+```
+
+### Host 管理端点
+
+**Commit 12: POST /hosts/register + GET /hosts**
+
+```
+packages/worker/src/routes/hosts.ts
+  - POST /hosts/register: 生成 UUID + API Key，存哈希，返回明文
+  - GET /hosts: 列出全部 Host，含动态 online/offline 状态
+packages/worker/src/routes/hosts.test.ts
+测试：vitest 验证注册流程 + Key 哈希 + 列表查询 + 在线状态计算
+```
+
+**Commit 13: GET /hosts/:id**
+
+```
+packages/worker/src/routes/hosts.ts — 追加详情端点
+测试：vitest 验证正常查询 + 404
+```
+
+### 快照上报端点
+
+**Commit 14: POST /snapshot — Agent upsert 逻辑**
+
+```
+packages/worker/src/routes/snapshot.ts
+  - 验证 host key → 确定 host_id
+  - 更新 hosts.last_seen_at
+  - Agent: 以 (host_id, match_key) 匹配 → 更新扫描字段
+  - Agent: 未注册忽略
+  - Agent: 未出现 → status='missing'
+packages/worker/src/routes/snapshot.test.ts
+测试（TDD 先写）：
+  - 已注册 Agent 正常更新 (running / stopped)
+  - 未注册 Agent 忽略
+  - 已注册 Agent 未出现 → missing
+  - 重新出现 → 恢复状态
+```
+
+**Commit 15: POST /snapshot — Data Source upsert 逻辑**
+
+```
+packages/worker/src/routes/snapshot.ts — 追加 Data Source 处理
+  - 以 (host_id, type, name) 匹配
+  - 存在 → UPDATE
+  - 不存在 → INSERT
+  - 未出现 → status='missing'
+packages/worker/src/routes/snapshot.test.ts — 追加
+测试（TDD 先写）：
+  - 已有 Data Source 更新
+  - 新发现 Data Source 自动创建
+  - Data Source 消失 → missing
+  - 重新发现 → active
+```
+
+### Agent CRUD 端点
+
+**Commit 16: POST /agents + GET /agents**
+
+```
+packages/worker/src/routes/agents.ts
+  - POST: 注册新 Agent (admin + host 角色)
+  - GET: 列表，支持 host_id / lane_id / status 筛选 + 游标分页
+测试：vitest 验证注册 + match_key 唯一冲突 409 + 列表筛选
+```
+
+**Commit 17: GET /agents/:id + PATCH /agents/:id**
+
+```
+packages/worker/src/routes/agents.ts — 追加
+  - GET: 详情
+  - PATCH: 更新人工元数据 (nickname, role, lane_id, metadata shallow merge)
+测试：vitest 验证详情 + 404 + 元数据更新 + metadata merge
+```
+
+**Commit 18: POST /agents/:id/metadata**
+
+```
+packages/worker/src/routes/agents.ts — 追加 Agent CLI 附加元数据端点
+  - host 角色，校验 Agent 属于该 Host
+  - extra JSON shallow merge
+测试：vitest 验证写入 + 权限校验
+```
+
+### Data Source CRUD 端点
+
+**Commit 19: GET /data-sources + GET /data-sources/:id**
+
+```
+packages/worker/src/routes/data-sources.ts
+  - GET 列表：支持 host_id / lane_id / status 筛选 + 游标分页
+  - GET 详情
+测试：vitest 验证列表 + 筛选 + 详情 + 404
+```
+
+**Commit 20: PATCH /data-sources/:id + PUT /data-sources/:id/lanes**
+
+```
+packages/worker/src/routes/data-sources.ts — 追加
+  - PATCH: metadata JSON shallow merge
+  - PUT lanes: 全量替换 data_source_lanes
+测试：vitest 验证 metadata merge + lanes 替换（增删改）
+```
+
+### 绑定关系端点
+
+**Commit 21: bindings CRUD**
+
+```
+packages/worker/src/routes/bindings.ts
+  - GET: 列出全部绑定
+  - POST: 创建绑定（含跨 Host 校验 → 403）
+  - DELETE: 删除绑定
+测试（TDD 先写）：
+  - 正常绑定创建
+  - 跨 Host 绑定 → 403
+  - 重复绑定 → 409
+  - 删除 + 204
+```
+
+### 全局总览端点
+
+**Commit 22: GET /overview + GET /lanes**
+
+```
+packages/worker/src/routes/overview.ts
+  - 聚合查询：hosts total/online/offline, agents by status/lane, data_sources by status
+packages/worker/src/routes/lanes.ts
+  - 返回预置 Lane 列表
+测试：vitest 验证聚合数值正确性
+```
+
+### L2 集成测试基础
+
+**Commit 23: L2 E2E 测试框架 + Husky pre-push hook**
+
+```
+packages/worker/test/e2e/run-e2e.ts — 自动启停 wrangler dev + 真 HTTP
+packages/worker/test/e2e/setup.ts — D1 测试隔离验证 (steed-db-test)
+.husky/pre-push — 并行执行：
+  L2: bun run test:e2e
+  G2: osv-scanner + gitleaks
+wrangler.toml [env.test] — 绑定 steed-db-test
+验证：pre-push hook 触发，L2 跑通至少 health check E2E
+```
