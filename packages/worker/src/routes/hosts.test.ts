@@ -161,7 +161,7 @@ describe("Hosts Routes", () => {
       expect(res.status).toBe(403);
     });
 
-    it("should return 409 when unique constraint violated", async () => {
+    it("should return 500 when unique constraint violated (api_key_hash collision)", async () => {
       const mockDb = {
         prepare: vi.fn(() => ({
           bind: vi.fn(() => ({
@@ -186,9 +186,10 @@ describe("Hosts Routes", () => {
         { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
       );
 
-      expect(res.status).toBe(409);
+      // Unique constraint on api_key_hash is an internal error (should never happen)
+      expect(res.status).toBe(500);
       const body = await res.json();
-      expect(body).toHaveProperty("error.code", "conflict");
+      expect(body).toHaveProperty("error.code", "internal_error");
     });
 
     it("should return 500 on other errors", async () => {

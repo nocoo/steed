@@ -82,11 +82,8 @@ hosts.post("/register", requireRole("dashboard"), async (c) => {
     };
 
     return jsonResponse(c, response, 201);
-  } catch (error) {
-    // Check for unique constraint violation
-    if (error instanceof Error && error.message.includes("UNIQUE")) {
-      return errors.conflict(c, "Host with this name already exists");
-    }
+  } catch {
+    // Any DB error (including unlikely api_key_hash collision) is internal error
     return errors.internalError(c);
   }
 });
