@@ -407,7 +407,7 @@ Worker 根据 `hosts.last_seen_at` 判定 Host 在线状态：
 | GET/POST/DELETE `/api/v1/bindings` | 绑定关系 CRUD |
 | GET `/api/v1/lanes` | Lane 列表 |
 
-对应 Commit：16–21，加 22/23 扩展测试
+对应 Commit：16–21, 22b, 23b
 
 ### Phase B — 人工管理能力
 
