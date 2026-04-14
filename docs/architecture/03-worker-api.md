@@ -389,7 +389,9 @@ Worker 根据 `hosts.last_seen_at` 判定 Host 在线状态：
 | POST `/api/v1/snapshot` | 上报 Host 资源快照（Agent upsert + Data Source upsert + missing 标记） |
 | GET `/api/v1/overview` | 全局总览聚合 |
 
-对应 Commit：1–15, 22, 23（最小版）
+对应 Commit：1–15, 22a, 23a
+
+> **测试数据准备**：Phase A 不包含 POST /agents 端点，但验收要求验证"已注册 Agent 的快照更新"。Phase A 的 L1/L2 测试通过**测试夹具直接 seed D1**（INSERT INTO agents）准备已注册 Agent，不经过公开 API。Phase B 实现 POST /agents 后再补充完整链路测试。
 
 **Out of scope（Phase B — 人工管理能力）**：
 
