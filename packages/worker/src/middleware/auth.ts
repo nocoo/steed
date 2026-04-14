@@ -26,12 +26,21 @@ declare module "hono" {
 }
 
 /**
- * Extract Bearer token from Authorization header
+ * Result of parsing Authorization header
  */
-function extractBearerToken(header: string | undefined): string | null {
-  if (!header) return null;
+type AuthHeaderResult =
+  | { status: "absent" }
+  | { status: "valid"; token: string }
+  | { status: "malformed" };
+
+/**
+ * Parse Authorization header for Bearer token
+ */
+function parseAuthHeader(header: string | undefined): AuthHeaderResult {
+  if (!header) return { status: "absent" };
   const match = /^Bearer\s+(.+)$/i.exec(header);
-  return match?.[1] ?? null;
+  if (!match) return { status: "malformed" };
+  return { status: "valid", token: match[1] };
 }
 
 /**
@@ -62,21 +71,30 @@ async function verifyHostApiKey(
  * Auth middleware - validates Bearer token and sets auth context
  *
  * Priority:
- * 1. No token → role: public, invalidToken: false
- * 2. Check if token matches DASHBOARD_SERVICE_TOKEN → role: dashboard
- * 3. Check if token hash matches hosts.api_key_hash → role: host, set hostId
- * 4. Invalid token → role: public, invalidToken: true (will trigger 401)
+ * 1. No Authorization header → role: public, invalidToken: false
+ * 2. Malformed header (not "Bearer xxx") → role: public, invalidToken: true (triggers 401)
+ * 3. Check if token matches DASHBOARD_SERVICE_TOKEN → role: dashboard
+ * 4. Check if token hash matches hosts.api_key_hash → role: host, set hostId
+ * 5. Invalid token → role: public, invalidToken: true (will trigger 401)
  */
 export const authMiddleware = createMiddleware<{ Bindings: Env }>(
   async (c, next) => {
     const authHeader = c.req.header("Authorization");
-    const token = extractBearerToken(authHeader);
+    const parsed = parseAuthHeader(authHeader);
 
-    // No token → public role (not an error, just unauthenticated)
-    if (!token) {
+    // No header → public role (not an error, just unauthenticated)
+    if (parsed.status === "absent") {
       c.set("auth", { role: "public", hostId: null, invalidToken: false });
       return next();
     }
+
+    // Malformed header (e.g., "Basic xxx" or "Bearer" without token)
+    if (parsed.status === "malformed") {
+      c.set("auth", { role: "public", hostId: null, invalidToken: true });
+      return next();
+    }
+
+    const token = parsed.token;
 
     // Check dashboard service token first
     if (token === c.env.DASHBOARD_SERVICE_TOKEN) {

@@ -109,21 +109,72 @@ describe("Auth Middleware", () => {
       expect(body.invalidToken).toBe(true);
     });
 
-    it("should handle malformed Authorization header", async () => {
+    it("should set invalidToken=true for malformed Authorization header (not Bearer)", async () => {
       const app = new Hono<{ Bindings: Env }>();
       app.use("*", authMiddleware);
       app.get("/test", (c) => c.json(c.get("auth")));
 
       const res = await app.request(
         "/test",
-        { headers: { Authorization: "NotBearer token" } },
+        { headers: { Authorization: "Basic dXNlcjpwYXNz" } },
         { DB: createMockDb([]), DASHBOARD_SERVICE_TOKEN: "dashboard-token" }
       );
 
       expect(res.status).toBe(200);
       const body = (await res.json()) as AuthContext;
       expect(body.role).toBe("public");
-      expect(body.invalidToken).toBe(false); // No token extracted, not invalid
+      expect(body.invalidToken).toBe(true);
+    });
+
+    it("should set invalidToken=true for Bearer without token", async () => {
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", authMiddleware);
+      app.get("/test", (c) => c.json(c.get("auth")));
+
+      const res = await app.request(
+        "/test",
+        { headers: { Authorization: "Bearer " } },
+        { DB: createMockDb([]), DASHBOARD_SERVICE_TOKEN: "dashboard-token" }
+      );
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as AuthContext;
+      expect(body.role).toBe("public");
+      expect(body.invalidToken).toBe(true);
+    });
+
+    it("should set invalidToken=true for just 'Bearer' without space", async () => {
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", authMiddleware);
+      app.get("/test", (c) => c.json(c.get("auth")));
+
+      const res = await app.request(
+        "/test",
+        { headers: { Authorization: "Bearer" } },
+        { DB: createMockDb([]), DASHBOARD_SERVICE_TOKEN: "dashboard-token" }
+      );
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as AuthContext;
+      expect(body.role).toBe("public");
+      expect(body.invalidToken).toBe(true);
+    });
+
+    it("should set invalidToken=true for random garbage in Authorization header", async () => {
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", authMiddleware);
+      app.get("/test", (c) => c.json(c.get("auth")));
+
+      const res = await app.request(
+        "/test",
+        { headers: { Authorization: "garbage" } },
+        { DB: createMockDb([]), DASHBOARD_SERVICE_TOKEN: "dashboard-token" }
+      );
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as AuthContext;
+      expect(body.role).toBe("public");
+      expect(body.invalidToken).toBe(true);
     });
   });
 
