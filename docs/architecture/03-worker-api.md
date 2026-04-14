@@ -149,7 +149,8 @@ Host Service 心跳上报。每 10 分钟一次全量快照。
 
 注册新 Agent。dashboard 或 host 角色。
 
-host 角色只能在自己的 Host 下注册。
+- **host 角色**：忽略请求体中的 `host_id`，直接使用认证上下文中的 `host_id`（防止越权）
+- **dashboard 角色**：使用请求体中的 `host_id`（必填）
 
 **请求**：
 
@@ -407,7 +408,7 @@ packages/worker/src/lib/response.ts — 统一响应/错误格式工具
 packages/worker/src/middleware/auth.ts — 完整实现：
   - 从 Authorization header 提取 Bearer token
   - 优先匹配 DASHBOARD_SERVICE_TOKEN 环境变量 → 角色 dashboard
-  - 否则对 hosts.api_key_hash 做哈希比对 → 确定 host_id，角色 host
+  - 否则校验 Host API Key 与 hosts.api_key_hash 是否匹配 → 确定 host_id，角色 host
   - 均不匹配 → 401 unauthorized
   - 注入角色和 host_id（若 host）到请求上下文
 packages/worker/src/middleware/auth.test.ts
@@ -475,8 +476,10 @@ packages/worker/src/routes/snapshot.test.ts — 追加
 ```
 packages/worker/src/routes/agents.ts
   - POST: 注册新 Agent (dashboard + host 角色)
+    host 角色：忽略请求体中的 host_id，直接使用认证上下文中的 host_id
+    dashboard 角色：使用请求体中的 host_id（必填）
   - GET: 列表，支持 host_id / lane_id / status 筛选 + 游标分页
-测试：vitest 验证注册 + match_key 唯一冲突 409 + 列表筛选
+测试：vitest 验证注册 + match_key 唯一冲突 409 + 列表筛选 + host 角色 host_id 覆盖
 ```
 
 **Commit 17: GET /agents/:id + PATCH /agents/:id**
@@ -551,7 +554,11 @@ packages/worker/src/routes/lanes.ts
 
 ```
 packages/worker/test/e2e/run-e2e.ts — 自动启停 wrangler dev + 真 HTTP
-packages/worker/test/e2e/setup.ts — D1 测试隔离验证 (steed-db-test)
+packages/worker/test/e2e/setup.ts — 测试库初始化 + 隔离验证 (steed-db-test)：
+  1. DROP 所有已有表（reset 清空）
+  2. 按序执行全部 migrations（0001~0004）
+  3. 校验 lanes seed 数据存在（3 条预置行）
+  4. 写入 _test_marker 行，验证确实连接的是 steed-db-test 而非生产库
 .husky/pre-push — 并行执行：
   L2: bun run test:e2e
   G2: osv-scanner + gitleaks
