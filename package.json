@@ -9,13 +9,15 @@
     "lint": "eslint --max-warnings=0 .",
     "test": "vitest run --coverage",
     "test:watch": "vitest",
-    "check-coverage": "bun scripts/check-coverage.ts"
+    "check-coverage": "bun scripts/check-coverage.ts",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260414.1",
     "@types/node": "^25.6.0",
     "@vitest/coverage-v8": "^4.1.4",
     "eslint": "^10.2.0",
+    "husky": "^9.1.7",
     "jiti": "^2.6.1",
     "typescript": "^6.0.2",
     "typescript-eslint": "^8.58.2",
