@@ -286,3 +286,24 @@ Phase A（Worker + D1 MVP 闭环）完成后，以下场景必须全部通过：
 6. **Host 在线状态**：GET /hosts 返回动态计算的 online/offline 状态（last_seen_at 15 分钟阈值）
 7. **全局总览聚合**：GET /overview 返回 hosts / agents / data_sources 的正确统计数值
 8. **L2 E2E 跑通**：pre-push hook 触发 E2E 测试，覆盖 health / hosts/register / snapshot / hosts / overview 五个端点
+
+## Phase B 验收标准
+
+Phase B 分为 B1（Agent 管理）和 B2（Data Source + Binding 管理）两个子阶段。
+
+### Phase B1 验收标准
+
+1. **Agent 注册**：POST /agents 支持 dashboard 和 host 角色；host 角色自动绑定当前 Host，忽略 body.host_id；重复 `(host_id, match_key)` 返回 409
+2. **Agent 列表**：GET /agents 支持 host_id / lane_id / status 筛选及游标分页
+3. **Agent 详情**：GET /agents/:id 返回完整 Agent 对象（含 metadata / extra JSON）
+4. **Agent 元数据更新**：PATCH /agents/:id 支持 nickname / role / lane_id / metadata 更新；metadata 采用 shallow merge；非法 lane_id 返回 400
+5. **L2 E2E 跑通**：E2E 测试覆盖 Agent 完整生命周期（注册 → 列表 → 详情 → 更新）
+
+### Phase B2 验收标准
+
+1. **Data Source 列表与详情**：GET /data-sources 支持 host_id / lane_id / status 筛选；GET /data-sources/:id 返回完整对象
+2. **Data Source 元数据更新**：PATCH /data-sources/:id 支持 metadata shallow merge
+3. **Data Source Lane 归属**：PUT /data-sources/:id/lanes 全量替换 data_source_lanes 记录；非法 lane_id 返回 400
+4. **Binding CRUD**：POST /bindings 创建绑定；GET /bindings 列出绑定（支持 agent_id / data_source_id 筛选）；DELETE /bindings/:agent_id/:data_source_id 删除绑定
+5. **跨 Host 校验**：绑定创建时校验 Agent 和 Data Source 属于同一 Host，否则返回 403
+6. **L2 E2E 跑通**：E2E 测试覆盖 Data Source 管理 + Binding 完整生命周期

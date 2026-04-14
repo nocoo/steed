@@ -15,7 +15,7 @@
 | 角色 | 凭证 | 权限范围 |
 |------|------|---------|
 | `dashboard` | `DASHBOARD_SERVICE_TOKEN`（环境变量，Dashboard Server 持有） | 全部读写（代表已通过 Google OAuth 的管理员） |
-| `host` | Host API Key（注册时生成，数据库存哈希） | 限该 Host 下的快照上报 + Agent 附加元数据 |
+| `host` | Host API Key（注册时生成，数据库存哈希） | 限该 Host 下的快照上报 + Agent 注册 + Agent 附加元数据 |
 | `public` | 无 | 仅健康检查 |
 
 > **认证架构说明**：用户通过 Google Account（白名单）登录 Dashboard；Dashboard 验证身份后，以内部 `DASHBOARD_SERVICE_TOKEN` 代理调用 Worker。Worker 不感知 Google 身份，只校验 Service Token 的合法性。该 Token 作为 CF Worker 环境变量配置，不存入 D1。
