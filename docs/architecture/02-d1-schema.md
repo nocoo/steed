@@ -273,3 +273,16 @@ Hooks 映射：
 - pre-commit (<30s): G1 ‖ L1
 - pre-push (<3min): L2 ‖ G2（L2 连接 steed-db-test 隔离实例）
 - 按需: L3
+
+## Phase A 验收标准
+
+Phase A（Worker + D1 MVP 闭环）完成后，以下场景必须全部通过：
+
+1. **Host 注册与持久化**：POST /hosts/register 创建 Host，返回明文 API Key；数据库仅存哈希；GET /hosts 和 GET /hosts/:id 返回正确数据
+2. **快照上报认证**：使用 Host API Key 成功调用 POST /snapshot；无效 Key 返回 401
+3. **Agent 快照更新**：已注册 Agent 按 `(host_id, match_key)` 匹配更新 runtime_app / runtime_version / status / last_seen_at；未注册 Agent 被忽略，不自动创建
+4. **Data Source 快照更新**：已有 Data Source 按 `(host_id, type, name)` 匹配更新；新发现 Data Source 自动创建，status='active'
+5. **缺失标记**：该 Host 下本次快照中未出现的已注册 Agent → status='missing'；未出现的 Data Source → status='missing'；后续快照中重新出现 → 恢复正常状态
+6. **Host 在线状态**：GET /hosts 返回动态计算的 online/offline 状态（last_seen_at 15 分钟阈值）
+7. **全局总览聚合**：GET /overview 返回 hosts / agents / data_sources 的正确统计数值
+8. **L2 E2E 跑通**：pre-push hook 触发 E2E 测试，覆盖 health / hosts/register / snapshot / hosts / overview 五个端点

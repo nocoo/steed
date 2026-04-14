@@ -372,6 +372,47 @@ Worker 根据 `hosts.last_seen_at` 判定 Host 在线状态：
 
 该判定为查询时动态计算，不持久化。
 
+## 实现阶段划分
+
+### Phase A — Worker + D1 MVP 闭环
+
+目标：验证 Host 注册 → 快照上报 → D1 落库 → missing 处理 → 聚合查询的完整生命线。
+
+**In scope**：
+
+| 端点 | 说明 |
+|------|------|
+| GET `/api/v1/health` | 健康检查 |
+| POST `/api/v1/hosts/register` | 注册新 Host，返回 API Key |
+| GET `/api/v1/hosts` | 列出所有 Host（含在线/离线状态） |
+| GET `/api/v1/hosts/:id` | 获取单个 Host 详情 |
+| POST `/api/v1/snapshot` | 上报 Host 资源快照（Agent upsert + Data Source upsert + missing 标记） |
+| GET `/api/v1/overview` | 全局总览聚合 |
+
+对应 Commit：1–15, 22, 23（最小版）
+
+**Out of scope（Phase B — 人工管理能力）**：
+
+| 端点 | 说明 |
+|------|------|
+| POST `/api/v1/agents` | Agent 注册 |
+| GET `/api/v1/agents`, GET `/api/v1/agents/:id` | Agent 列表/详情 |
+| PATCH `/api/v1/agents/:id` | Agent 元数据管理 |
+| POST `/api/v1/agents/:id/metadata` | Agent CLI 附加元数据 |
+| GET `/api/v1/data-sources`, GET `/api/v1/data-sources/:id` | Data Source 列表/详情 |
+| PATCH `/api/v1/data-sources/:id` | Data Source 元数据管理 |
+| PUT `/api/v1/data-sources/:id/lanes` | Data Source Lane 归属 |
+| GET/POST/DELETE `/api/v1/bindings` | 绑定关系 CRUD |
+| GET `/api/v1/lanes` | Lane 列表 |
+
+对应 Commit：16–21，加 22/23 扩展测试
+
+### Phase B — 人工管理能力
+
+目标：在 MVP 闭环基础上，补全 Agent/Data Source/Binding 的管理 CRUD，为 Dashboard 提供完整的元数据维护接口。
+
+> Phase B 的详细规划在 Phase A 完成后展开。
+
 ## 实现步骤（原子化提交计划）
 
 > 前置条件：Monorepo 基础设施 + 6DQ 门禁 + D1 migration 已完成（见 02-d1-schema.md）。
@@ -469,6 +510,48 @@ packages/worker/src/routes/snapshot.test.ts — 追加
   - 重新发现 → active
 ```
 
+### 全局总览端点（Phase A）
+
+**Commit 22a: GET /overview**
+
+```
+packages/worker/src/routes/overview.ts
+  - 聚合查询：hosts total/online/offline, agents by status/lane, data_sources by status
+测试：vitest 验证聚合数值正确性
+```
+
+### L2 集成测试基础（Phase A 最小版）
+
+**Commit 23a: L2 E2E 测试框架 + Husky pre-push hook（最小版）**
+
+```
+packages/worker/test/e2e/run-e2e.ts — 自动启停 wrangler dev + 真 HTTP
+packages/worker/test/e2e/setup.ts — 测试库初始化 + 隔离验证 (steed-db-test)：
+  1. DROP 所有已有表（reset 清空）
+  2. 按序执行全部 migrations（0001~0004）
+  3. 校验 lanes seed 数据存在（3 条预置行）
+  4. 写入 _test_marker 行，验证确实连接的是 steed-db-test 而非生产库
+.husky/pre-push — 并行执行：
+  L2: bun run test:e2e
+  G2: osv-scanner + gitleaks
+wrangler.toml [env.test] — 绑定 steed-db-test
+E2E 最小覆盖范围（Phase A）：
+  - GET /health
+  - POST /hosts/register
+  - POST /snapshot（含 Agent upsert + DS upsert + missing 标记）
+  - GET /hosts
+  - GET /overview
+验证：pre-push hook 触发，Phase A 端点 E2E 跑通
+```
+
+> **Phase A 到此结束。** 以上 Commit 1–15, 22a, 23a 构成 Worker + D1 MVP 闭环。
+
+---
+
+### Phase B — 人工管理能力
+
+> Phase A 完成后开展。补全 Agent/Data Source/Binding 管理 CRUD，为 Dashboard 提供完整元数据维护接口。
+
 ### Agent CRUD 端点
 
 **Commit 16: POST /agents + GET /agents**
@@ -536,32 +619,27 @@ packages/worker/src/routes/bindings.ts
   - 删除 + 204
 ```
 
-### 全局总览端点
+### GET /lanes + 扩展测试（Phase B 收尾）
 
-**Commit 22: GET /overview + GET /lanes**
+**Commit 22b: GET /lanes**
 
 ```
-packages/worker/src/routes/overview.ts
-  - 聚合查询：hosts total/online/offline, agents by status/lane, data_sources by status
 packages/worker/src/routes/lanes.ts
   - 返回预置 Lane 列表
-测试：vitest 验证聚合数值正确性
+测试：vitest 验证 3 条预置 Lane 返回
 ```
 
-### L2 集成测试基础
-
-**Commit 23: L2 E2E 测试框架 + Husky pre-push hook**
+**Commit 23b: L2 E2E 扩展 — Phase B 端点全覆盖**
 
 ```
-packages/worker/test/e2e/run-e2e.ts — 自动启停 wrangler dev + 真 HTTP
-packages/worker/test/e2e/setup.ts — 测试库初始化 + 隔离验证 (steed-db-test)：
-  1. DROP 所有已有表（reset 清空）
-  2. 按序执行全部 migrations（0001~0004）
-  3. 校验 lanes seed 数据存在（3 条预置行）
-  4. 写入 _test_marker 行，验证确实连接的是 steed-db-test 而非生产库
-.husky/pre-push — 并行执行：
-  L2: bun run test:e2e
-  G2: osv-scanner + gitleaks
-wrangler.toml [env.test] — 绑定 steed-db-test
-验证：pre-push hook 触发，L2 跑通至少 health check E2E
+packages/worker/test/e2e/ — 追加 Phase B 端点 E2E 用例：
+  - POST /agents（dashboard + host 角色）
+  - PATCH /agents/:id
+  - POST /agents/:id/metadata
+  - GET /data-sources, GET /data-sources/:id
+  - PATCH /data-sources/:id
+  - PUT /data-sources/:id/lanes
+  - GET/POST/DELETE /bindings
+  - GET /lanes
+验证：L2 覆盖 100% API 端点
 ```
