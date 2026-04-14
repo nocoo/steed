@@ -13,15 +13,20 @@ import type {
 const ONLINE_THRESHOLD_MS = 15 * 60 * 1000;
 
 /**
- * Generate a random API key
+ * Generate a cryptographically secure random API key
+ * Uses crypto.getRandomValues for secure randomness
  */
 function generateApiKey(): string {
-  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-  let key = "sk_host_";
-  for (let i = 0; i < 32; i++) {
-    key += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return key;
+  const randomBytes = new Uint8Array(24); // 24 bytes = 32 base64url chars
+  crypto.getRandomValues(randomBytes);
+
+  // Convert to base64url encoding (URL-safe, no padding)
+  const base64 = btoa(String.fromCharCode(...randomBytes))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=/g, "");
+
+  return `sk_host_${base64}`;
 }
 
 /**
