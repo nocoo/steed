@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { generateId } from "@steed/shared";
 import type { Env } from "../env";
 import { requireRole } from "../middleware/auth";
 import { jsonResponse, errors } from "../lib/response";
@@ -41,6 +42,9 @@ snapshot.post("/", requireRole("host"), async (c) => {
   // Track stats
   let agentsUpdated = 0;
   let agentsMissing = 0;
+  let dataSourcesUpdated = 0;
+  let dataSourcesCreated = 0;
+  let dataSourcesMissing = 0;
 
   // 2. Process Agents: match by (host_id, match_key)
   const reportedMatchKeys = new Set<string>();
@@ -89,13 +93,76 @@ snapshot.post("/", requireRole("host"), async (c) => {
     }
   }
 
+  // 3. Process Data Sources: match by (host_id, type, name)
+  const reportedDataSources = new Set<string>();
+
+  for (const dsSnapshot of body.data_sources ?? []) {
+    const dsKey = `${dsSnapshot.type}:${dsSnapshot.name}`;
+    reportedDataSources.add(dsKey);
+
+    // Try to find existing data source
+    const existing = await c.env.DB.prepare(
+      `SELECT id FROM data_sources WHERE host_id = ? AND type = ? AND name = ?`
+    )
+      .bind(hostId, dsSnapshot.type, dsSnapshot.name)
+      .first<{ id: string }>();
+
+    if (existing) {
+      // Update existing data source
+      await c.env.DB.prepare(
+        `UPDATE data_sources SET version = ?, auth_status = ?, status = 'active', last_seen_at = ? WHERE id = ?`
+      )
+        .bind(dsSnapshot.version, dsSnapshot.auth_status, now, existing.id)
+        .run();
+      dataSourcesUpdated++;
+    } else {
+      // Create new data source
+      const id = generateId("ds");
+      await c.env.DB.prepare(
+        `INSERT INTO data_sources (id, host_id, type, name, version, auth_status, status, metadata, created_at, last_seen_at)
+         VALUES (?, ?, ?, ?, ?, ?, 'active', '{}', ?, ?)`
+      )
+        .bind(
+          id,
+          hostId,
+          dsSnapshot.type,
+          dsSnapshot.name,
+          dsSnapshot.version,
+          dsSnapshot.auth_status,
+          now,
+          now
+        )
+        .run();
+      dataSourcesCreated++;
+    }
+  }
+
+  // 5. Mark Data Sources not in snapshot as missing
+  const allDataSources = await c.env.DB.prepare(
+    `SELECT id, type, name FROM data_sources WHERE host_id = ?`
+  )
+    .bind(hostId)
+    .all<{ id: string; type: string; name: string }>();
+
+  for (const ds of allDataSources.results ?? []) {
+    const dsKey = `${ds.type}:${ds.name}`;
+    if (!reportedDataSources.has(dsKey)) {
+      await c.env.DB.prepare(
+        `UPDATE data_sources SET status = 'missing' WHERE id = ?`
+      )
+        .bind(ds.id)
+        .run();
+      dataSourcesMissing++;
+    }
+  }
+
   const response: SnapshotResponse = {
     host_id: hostId,
     agents_updated: agentsUpdated,
     agents_missing: agentsMissing,
-    data_sources_updated: 0,
-    data_sources_created: 0,
-    data_sources_missing: 0,
+    data_sources_updated: dataSourcesUpdated,
+    data_sources_created: dataSourcesCreated,
+    data_sources_missing: dataSourcesMissing,
   };
 
   return jsonResponse(c, response);

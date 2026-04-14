@@ -30,9 +30,18 @@ function createMockDb(options: {
     match_key: string;
     status: string;
   }>;
+  existingDataSources?: Array<{
+    id: string;
+    host_id: string;
+    type: string;
+    name: string;
+    status: string;
+  }>;
 } = {}) {
   const agents = options.existingAgents ?? [];
+  const dataSources = options.existingDataSources ?? [];
   const updates: Array<{ table: string; id: string; values: Record<string, unknown> }> = [];
+  const inserts: Array<{ table: string; id: string; values: Record<string, unknown> }> = [];
   let hostUpdated = false;
 
   return {
@@ -61,12 +70,44 @@ function createMockDb(options: {
             });
             return { success: true };
           }
+          if (sql.includes("UPDATE data_sources SET version")) {
+            const [version, authStatus, lastSeenAt, id] = args;
+            updates.push({
+              table: "data_sources",
+              id: id as string,
+              values: { version, auth_status: authStatus, status: "active", last_seen_at: lastSeenAt },
+            });
+            return { success: true };
+          }
+          if (sql.includes("INSERT INTO data_sources")) {
+            const [id, hostId, type, name, version, authStatus, createdAt, lastSeenAt] = args;
+            inserts.push({
+              table: "data_sources",
+              id: id as string,
+              values: { host_id: hostId, type, name, version, auth_status: authStatus, created_at: createdAt, last_seen_at: lastSeenAt },
+            });
+            return { success: true };
+          }
+          if (sql.includes("UPDATE data_sources SET status = 'missing'")) {
+            const [id] = args;
+            updates.push({
+              table: "data_sources",
+              id: id as string,
+              values: { status: "missing" },
+            });
+            return { success: true };
+          }
           return { success: true };
         }),
         first: vi.fn(async () => {
           if (sql.includes("SELECT id FROM agents WHERE host_id = ? AND match_key = ?")) {
             const [hostId, matchKey] = args as [string, string];
             const found = agents.find(a => a.host_id === hostId && a.match_key === matchKey);
+            return found ? { id: found.id } : null;
+          }
+          if (sql.includes("SELECT id FROM data_sources WHERE host_id = ? AND type = ? AND name = ?")) {
+            const [hostId, type, name] = args as [string, string, string];
+            const found = dataSources.find(d => d.host_id === hostId && d.type === type && d.name === name);
             return found ? { id: found.id } : null;
           }
           return null;
@@ -77,14 +118,21 @@ function createMockDb(options: {
             const hostAgents = agents.filter(a => a.host_id === hostId);
             return { results: hostAgents };
           }
+          if (sql.includes("SELECT id, type, name FROM data_sources WHERE host_id = ?")) {
+            const [hostId] = args as [string];
+            const hostDs = dataSources.filter(d => d.host_id === hostId);
+            return { results: hostDs };
+          }
           return { results: [] };
         }),
       })),
     })),
     _getUpdates: () => updates,
+    _getInserts: () => inserts,
     _isHostUpdated: () => hostUpdated,
   } as unknown as D1Database & {
     _getUpdates: () => Array<{ table: string; id: string; values: Record<string, unknown> }>;
+    _getInserts: () => Array<{ table: string; id: string; values: Record<string, unknown> }>;
     _isHostUpdated: () => boolean;
   };
 }
@@ -347,6 +395,211 @@ describe("Snapshot Routes", () => {
       expect(res.status).toBe(200);
       const body = (await res.json()) as SnapshotResponse;
       expect(body.agents_updated).toBe(0);
+    });
+  });
+
+  describe("Data Source upsert", () => {
+    it("should create new data source when not exists", async () => {
+      const mockDb = createMockDb({ existingDataSources: [] });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockHostAuth("host_123"));
+      app.route("/", snapshot);
+
+      const request: SnapshotRequest = {
+        agents: [],
+        data_sources: [
+          {
+            type: "personal_cli",
+            name: "nmem",
+            version: "1.2.0",
+            auth_status: "authenticated",
+          },
+        ],
+      };
+
+      const res = await app.request(
+        "/",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(request),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as SnapshotResponse;
+      expect(body.data_sources_created).toBe(1);
+      expect(body.data_sources_updated).toBe(0);
+
+      const inserts = mockDb._getInserts();
+      expect(inserts).toHaveLength(1);
+      expect(inserts[0]?.values.type).toBe("personal_cli");
+      expect(inserts[0]?.values.name).toBe("nmem");
+      expect(inserts[0]?.values.version).toBe("1.2.0");
+    });
+
+    it("should update existing data source", async () => {
+      const mockDb = createMockDb({
+        existingDataSources: [
+          { id: "ds_1", host_id: "host_123", type: "personal_cli", name: "nmem", status: "active" },
+        ],
+      });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockHostAuth("host_123"));
+      app.route("/", snapshot);
+
+      const request: SnapshotRequest = {
+        agents: [],
+        data_sources: [
+          {
+            type: "personal_cli",
+            name: "nmem",
+            version: "1.3.0",
+            auth_status: "authenticated",
+          },
+        ],
+      };
+
+      const res = await app.request(
+        "/",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(request),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as SnapshotResponse;
+      expect(body.data_sources_updated).toBe(1);
+      expect(body.data_sources_created).toBe(0);
+
+      const updates = mockDb._getUpdates();
+      const dsUpdate = updates.find(u => u.table === "data_sources" && u.id === "ds_1");
+      expect(dsUpdate).toBeDefined();
+      expect(dsUpdate?.values.version).toBe("1.3.0");
+      expect(dsUpdate?.values.status).toBe("active");
+    });
+
+    it("should mark missing data sources as status=missing", async () => {
+      const mockDb = createMockDb({
+        existingDataSources: [
+          { id: "ds_1", host_id: "host_123", type: "personal_cli", name: "nmem", status: "active" },
+          { id: "ds_2", host_id: "host_123", type: "third_party_cli", name: "wrangler", status: "active" },
+        ],
+      });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockHostAuth("host_123"));
+      app.route("/", snapshot);
+
+      // Only report ds_1, ds_2 should become missing
+      const request: SnapshotRequest = {
+        agents: [],
+        data_sources: [
+          {
+            type: "personal_cli",
+            name: "nmem",
+            version: "1.2.0",
+            auth_status: "authenticated",
+          },
+        ],
+      };
+
+      const res = await app.request(
+        "/",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(request),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as SnapshotResponse;
+      expect(body.data_sources_updated).toBe(1);
+      expect(body.data_sources_missing).toBe(1);
+
+      const updates = mockDb._getUpdates();
+      const missingUpdate = updates.find(u => u.table === "data_sources" && u.id === "ds_2" && u.values.status === "missing");
+      expect(missingUpdate).toBeDefined();
+    });
+
+    it("should not mark data sources from other hosts as missing", async () => {
+      const mockDb = createMockDb({
+        existingDataSources: [
+          { id: "ds_1", host_id: "host_123", type: "personal_cli", name: "nmem", status: "active" },
+          { id: "ds_other", host_id: "host_other", type: "third_party_cli", name: "wrangler", status: "active" },
+        ],
+      });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockHostAuth("host_123"));
+      app.route("/", snapshot);
+
+      // Empty data_sources - only host_123's data sources should be marked missing
+      const request: SnapshotRequest = { agents: [], data_sources: [] };
+
+      const res = await app.request(
+        "/",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(request),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as SnapshotResponse;
+      expect(body.data_sources_missing).toBe(1); // Only ds_1
+    });
+
+    it("should handle empty data_sources array", async () => {
+      const mockDb = createMockDb();
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockHostAuth("host_123"));
+      app.route("/", snapshot);
+
+      const request: SnapshotRequest = { agents: [], data_sources: [] };
+
+      const res = await app.request(
+        "/",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(request),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as SnapshotResponse;
+      expect(body.data_sources_created).toBe(0);
+      expect(body.data_sources_updated).toBe(0);
+      expect(body.data_sources_missing).toBe(0);
+    });
+
+    it("should handle missing data_sources field gracefully", async () => {
+      const mockDb = createMockDb();
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockHostAuth("host_123"));
+      app.route("/", snapshot);
+
+      const res = await app.request(
+        "/",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ agents: [] }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as SnapshotResponse;
+      expect(body.data_sources_created).toBe(0);
     });
   });
 });
