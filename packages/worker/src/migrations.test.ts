@@ -80,4 +80,19 @@ describe("D1 Migrations", () => {
     expect(content).toContain("metadata");
     expect(content).toContain("idx_data_sources_host_id");
   });
+
+  it("0004 should create relation tables with cascade", () => {
+    const content = readFileSync(
+      join(migrationsDir, "0004_create_relations.sql"),
+      "utf-8"
+    );
+
+    expect(content).toContain("CREATE TABLE data_source_lanes");
+    expect(content).toContain("CREATE TABLE agent_data_source_bindings");
+    expect(content).toContain("REFERENCES data_sources(id) ON DELETE CASCADE");
+    expect(content).toContain("REFERENCES agents(id) ON DELETE CASCADE");
+    expect(content).toContain("REFERENCES lanes(id)");
+    expect(content).toContain("PRIMARY KEY (data_source_id, lane_id)");
+    expect(content).toContain("PRIMARY KEY (agent_id, data_source_id)");
+  });
 });
