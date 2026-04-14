@@ -3,6 +3,7 @@ import type { Env } from "./env";
 import { authMiddleware } from "./middleware/auth";
 import { hosts } from "./routes/hosts";
 import { snapshot } from "./routes/snapshot";
+import { overview } from "./routes/overview";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -20,5 +21,6 @@ app.get("/api/v1/health", (c) => {
 // Mount routes
 app.route("/api/v1/hosts", hosts);
 app.route("/api/v1/snapshot", snapshot);
+app.route("/api/v1/overview", overview);
 
 export default app;
