@@ -112,4 +112,38 @@ hosts.get("/", requireRole("dashboard"), async (c) => {
   return jsonResponse(c, hostsWithStatus);
 });
 
+/**
+ * GET /hosts/:id - Get a single host by ID
+ * Requires: dashboard role
+ */
+hosts.get("/:id", requireRole("dashboard"), async (c) => {
+  const id = c.req.param("id");
+
+  const result = await c.env.DB.prepare(
+    `SELECT id, name, created_at, last_seen_at FROM hosts WHERE id = ?`
+  )
+    .bind(id)
+    .first<{
+      id: string;
+      name: string;
+      created_at: string;
+      last_seen_at: string | null;
+    }>();
+
+  if (!result) {
+    return errors.notFound(c, "Host");
+  }
+
+  const host: HostWithStatus = {
+    id: result.id,
+    name: result.name,
+    api_key_hash: "", // Never expose hash
+    created_at: result.created_at,
+    last_seen_at: result.last_seen_at,
+    status: calculateStatus(result.last_seen_at),
+  };
+
+  return jsonResponse(c, host);
+});
+
 export { hosts, calculateStatus, hashApiKey };

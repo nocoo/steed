@@ -241,6 +241,87 @@ describe("Hosts Routes", () => {
     });
   });
 
+  describe("GET /:id", () => {
+    it("should return host with status when found", async () => {
+      const mockDb = {
+        prepare: vi.fn((sql: string) => ({
+          bind: vi.fn(() => ({
+            first: vi.fn(async () => {
+              if (sql.includes("SELECT") && sql.includes("WHERE id = ?")) {
+                return {
+                  id: "host_123",
+                  name: "test-host",
+                  created_at: "2026-04-14T00:00:00Z",
+                  last_seen_at: new Date().toISOString(),
+                };
+              }
+              return null;
+            }),
+          })),
+        })),
+      } as unknown as D1Database;
+
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", hosts);
+
+      const res = await app.request(
+        "/host_123",
+        {},
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as HostWithStatus;
+      expect(body.id).toBe("host_123");
+      expect(body.name).toBe("test-host");
+      expect(body.status).toBe("online");
+      expect(body.api_key_hash).toBe(""); // Should not expose hash
+    });
+
+    it("should return 404 when host not found", async () => {
+      const mockDb = {
+        prepare: vi.fn(() => ({
+          bind: vi.fn(() => ({
+            first: vi.fn(async () => null),
+          })),
+        })),
+      } as unknown as D1Database;
+
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", hosts);
+
+      const res = await app.request(
+        "/host_nonexistent",
+        {},
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(404);
+      const body = await res.json();
+      expect(body).toHaveProperty("error.code", "not_found");
+    });
+
+    it("should return 403 when not dashboard role", async () => {
+      const mockDb = createMockDb();
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", async (c, next) => {
+        c.set("auth", { role: "host", hostId: "host_456" });
+        await next();
+      });
+      app.route("/", hosts);
+
+      const res = await app.request(
+        "/host_123",
+        {},
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(403);
+    });
+  });
+
   describe("GET /", () => {
     it("should return empty list when no hosts", async () => {
       const mockDb = createMockDb();
