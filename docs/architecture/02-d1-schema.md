@@ -34,7 +34,7 @@ CREATE TABLE hosts (
   id           TEXT PRIMARY KEY,
   name         TEXT NOT NULL,
   api_key_hash TEXT NOT NULL UNIQUE,  -- bcrypt/sha256 哈希，不存明文
-  created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+  created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
   last_seen_at TEXT  -- 最近一次心跳时间，由快照上报更新
 );
 ```
@@ -51,11 +51,13 @@ CREATE TABLE agents (
   nickname        TEXT,               -- 人工：显示名称
   role            TEXT,               -- 人工：职责/角色描述
   lane_id         TEXT REFERENCES lanes(id),  -- 人工：业务线归属
+  metadata        TEXT DEFAULT '{}',  -- 人工：JSON，扩展元数据（notes, tags 等）
+  extra           TEXT DEFAULT '{}',  -- Agent CLI 补充的附加信息（JSON）
   runtime_app     TEXT,               -- 扫描：宿主程序
   runtime_version TEXT,               -- 扫描：版本
   status          TEXT NOT NULL DEFAULT 'stopped'
                   CHECK (status IN ('running', 'stopped', 'missing')),
-  created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+  created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
   last_seen_at    TEXT,               -- 扫描：最近一次被发现的时间
 
   UNIQUE (host_id, match_key)         -- 同一 Host 下 match_key 唯一
@@ -79,7 +81,8 @@ CREATE TABLE data_sources (
               CHECK (auth_status IN ('authenticated', 'unauthenticated', 'unknown')),
   status      TEXT NOT NULL DEFAULT 'active'
               CHECK (status IN ('active', 'missing')),
-  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  metadata    TEXT DEFAULT '{}',       -- 人工：JSON，扩展元数据（notes, tags 等）
+  created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
   last_seen_at TEXT,                   -- 扫描：最近一次被发现的时间
 
   UNIQUE (host_id, type, name)         -- v1 产品约束：同 Host 下 (type, name) 唯一
@@ -105,11 +108,13 @@ CREATE TABLE data_source_lanes (
 
 Agent ↔ Data Source 的手工绑定关系，独立于 Lane 归属。
 
+> **跨 Host 限制**：v1 禁止跨 Host 绑定。Agent 只能绑定同一 Host 下的 Data Source。该约束由 Worker API 层校验（SQLite 不便表达跨表条件 CHECK）。
+
 ```sql
 CREATE TABLE agent_data_source_bindings (
   agent_id       TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
   data_source_id TEXT NOT NULL REFERENCES data_sources(id) ON DELETE CASCADE,
-  created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+  created_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
 
   PRIMARY KEY (agent_id, data_source_id)
 );
@@ -123,7 +128,7 @@ CREATE TABLE agent_data_source_bindings (
   2. 更新 hosts.last_seen_at
   3. 对快照中每个 Agent：
      - 以 (host_id, match_key) 查找已有记录
-     - 存在 → UPDATE runtime_app, runtime_version, status='running', last_seen_at
+     - 存在 → UPDATE runtime_app, runtime_version, status=快照上报的 status, last_seen_at
      - 不存在 → 忽略（未注册的 Agent 不自动创建记录）
   4. 对快照中每个 Data Source：
      - 以 (host_id, type, name) 查找已有记录
@@ -145,3 +150,8 @@ CREATE TABLE agent_data_source_bindings (
 - Data Source 记录可由扫描自动创建
 - 不支持同一 Host 上同名 Data Source 多实例（v1 产品约束）
 - 不做软删除，`missing` 状态已提供足够的缺失语义
+- Agent 和 Data Source 均有 `metadata` TEXT (JSON) 列，用于人工扩展元数据（notes, tags 等）
+- Agent 额外有 `extra` TEXT (JSON) 列，用于 Agent CLI 补充附加信息
+- 绑定关系禁止跨 Host，由 Worker API 层校验
+- 快照中 Agent 的 `status` 由 Host Service 实际采集上报（running / stopped），Worker 原样写入；缺失时由 Worker 标记 `missing`
+- 时间字段统一使用 `strftime('%Y-%m-%dT%H:%M:%SZ', 'now')` 确保 ISO 8601 格式
