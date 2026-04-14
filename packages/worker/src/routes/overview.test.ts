@@ -9,7 +9,7 @@ const mockDashboardAuth = async (
   c: { set: (key: string, value: unknown) => void },
   next: () => Promise<void>
 ) => {
-  c.set("auth", { role: "dashboard", hostId: null });
+  c.set("auth", { role: "dashboard", hostId: null, invalidToken: false });
   await next();
 };
 
@@ -18,7 +18,7 @@ const mockHostAuth = async (
   c: { set: (key: string, value: unknown) => void },
   next: () => Promise<void>
 ) => {
-  c.set("auth", { role: "host", hostId: "host_123" });
+  c.set("auth", { role: "host", hostId: "host_123", invalidToken: false });
   await next();
 };
 

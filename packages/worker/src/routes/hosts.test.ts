@@ -9,7 +9,7 @@ const mockDashboardAuth = async (
   c: { set: (key: string, value: unknown) => void },
   next: () => Promise<void>
 ) => {
-  c.set("auth", { role: "dashboard", hostId: null });
+  c.set("auth", { role: "dashboard", hostId: null, invalidToken: false });
   await next();
 };
 
@@ -143,7 +143,7 @@ describe("Hosts Routes", () => {
       const mockDb = createMockDb();
       const app = new Hono<{ Bindings: Env }>();
       app.use("*", async (c, next) => {
-        c.set("auth", { role: "host", hostId: "host_123" });
+        c.set("auth", { role: "host", hostId: "host_123", invalidToken: false });
         await next();
       });
       app.route("/", hosts);
@@ -307,7 +307,7 @@ describe("Hosts Routes", () => {
       const mockDb = createMockDb();
       const app = new Hono<{ Bindings: Env }>();
       app.use("*", async (c, next) => {
-        c.set("auth", { role: "host", hostId: "host_456" });
+        c.set("auth", { role: "host", hostId: "host_456", invalidToken: false });
         await next();
       });
       app.route("/", hosts);
@@ -372,7 +372,7 @@ describe("Hosts Routes", () => {
       const mockDb = createMockDb();
       const app = new Hono<{ Bindings: Env }>();
       app.use("*", async (c, next) => {
-        c.set("auth", { role: "public", hostId: null });
+        c.set("auth", { role: "public", hostId: null, invalidToken: false });
         await next();
       });
       app.route("/", hosts);

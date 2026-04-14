@@ -47,6 +47,7 @@ describe("Auth Middleware", () => {
       const body = (await res.json()) as AuthContext;
       expect(body.role).toBe("public");
       expect(body.hostId).toBeNull();
+      expect(body.invalidToken).toBe(false);
     });
 
     it("should set dashboard role when token matches DASHBOARD_SERVICE_TOKEN", async () => {
@@ -64,6 +65,7 @@ describe("Auth Middleware", () => {
       const body = (await res.json()) as AuthContext;
       expect(body.role).toBe("dashboard");
       expect(body.hostId).toBeNull();
+      expect(body.invalidToken).toBe(false);
     });
 
     it("should set host role when token hash matches host API key", async () => {
@@ -87,9 +89,10 @@ describe("Auth Middleware", () => {
       const body = (await res.json()) as AuthContext;
       expect(body.role).toBe("host");
       expect(body.hostId).toBe("host_abc123");
+      expect(body.invalidToken).toBe(false);
     });
 
-    it("should set public role when token is invalid", async () => {
+    it("should set public role with invalidToken=true when token is invalid", async () => {
       const app = new Hono<{ Bindings: Env }>();
       app.use("*", authMiddleware);
       app.get("/test", (c) => c.json(c.get("auth")));
@@ -103,6 +106,7 @@ describe("Auth Middleware", () => {
       expect(res.status).toBe(200);
       const body = (await res.json()) as AuthContext;
       expect(body.role).toBe("public");
+      expect(body.invalidToken).toBe(true);
     });
 
     it("should handle malformed Authorization header", async () => {
@@ -119,6 +123,7 @@ describe("Auth Middleware", () => {
       expect(res.status).toBe(200);
       const body = (await res.json()) as AuthContext;
       expect(body.role).toBe("public");
+      expect(body.invalidToken).toBe(false); // No token extracted, not invalid
     });
   });
 
@@ -126,7 +131,7 @@ describe("Auth Middleware", () => {
     it("should allow matching role", async () => {
       const app = new Hono<{ Bindings: Env }>();
       app.use("*", async (c, next) => {
-        c.set("auth", { role: "dashboard", hostId: null });
+        c.set("auth", { role: "dashboard", hostId: null, invalidToken: false });
         await next();
       });
       app.get("/test", requireRole("dashboard"), (c) => c.json({ ok: true }));
@@ -138,7 +143,7 @@ describe("Auth Middleware", () => {
     it("should allow any of multiple roles", async () => {
       const app = new Hono<{ Bindings: Env }>();
       app.use("*", async (c, next) => {
-        c.set("auth", { role: "host", hostId: "host_123" });
+        c.set("auth", { role: "host", hostId: "host_123", invalidToken: false });
         await next();
       });
       app.get(
@@ -151,10 +156,38 @@ describe("Auth Middleware", () => {
       expect(res.status).toBe(200);
     });
 
-    it("should reject non-matching role with 403", async () => {
+    it("should return 401 when token was provided but invalid", async () => {
       const app = new Hono<{ Bindings: Env }>();
       app.use("*", async (c, next) => {
-        c.set("auth", { role: "public", hostId: null });
+        c.set("auth", { role: "public", hostId: null, invalidToken: true });
+        await next();
+      });
+      app.get("/test", requireRole("dashboard"), (c) => c.json({ ok: true }));
+
+      const res = await app.request("/test");
+      expect(res.status).toBe(401);
+      const body = await res.json();
+      expect(body).toHaveProperty("error.code", "unauthorized");
+    });
+
+    it("should return 403 when authenticated but wrong role", async () => {
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", async (c, next) => {
+        c.set("auth", { role: "host", hostId: "host_123", invalidToken: false });
+        await next();
+      });
+      app.get("/test", requireRole("dashboard"), (c) => c.json({ ok: true }));
+
+      const res = await app.request("/test");
+      expect(res.status).toBe(403);
+      const body = await res.json();
+      expect(body).toHaveProperty("error.code", "forbidden");
+    });
+
+    it("should return 403 when no token provided (public) for protected route", async () => {
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", async (c, next) => {
+        c.set("auth", { role: "public", hostId: null, invalidToken: false });
         await next();
       });
       app.get("/test", requireRole("dashboard"), (c) => c.json({ ok: true }));
