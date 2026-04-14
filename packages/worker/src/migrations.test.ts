@@ -64,4 +64,20 @@ describe("D1 Migrations", () => {
     expect(content).toContain("idx_agents_host_id");
     expect(content).toContain("idx_agents_lane_id");
   });
+
+  it("0003 should create data_sources table with constraints", () => {
+    const content = readFileSync(
+      join(migrationsDir, "0003_create_data_sources.sql"),
+      "utf-8"
+    );
+
+    expect(content).toContain("CREATE TABLE data_sources");
+    expect(content).toContain("REFERENCES hosts(id)");
+    expect(content).toContain("CHECK (type IN ('personal_cli', 'third_party_cli', 'mcp'))");
+    expect(content).toContain("CHECK (auth_status IN ('authenticated', 'unauthenticated', 'unknown'))");
+    expect(content).toContain("CHECK (status IN ('active', 'missing'))");
+    expect(content).toContain("UNIQUE (host_id, type, name)");
+    expect(content).toContain("metadata");
+    expect(content).toContain("idx_data_sources_host_id");
+  });
 });
