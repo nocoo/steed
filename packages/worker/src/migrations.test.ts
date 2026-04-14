@@ -46,4 +46,22 @@ describe("D1 Migrations", () => {
     expect(content).toContain("api_key_hash");
     expect(content).toContain("last_seen_at");
   });
+
+  it("0002 should create agents table with constraints", () => {
+    const content = readFileSync(
+      join(migrationsDir, "0002_create_agents.sql"),
+      "utf-8"
+    );
+
+    expect(content).toContain("CREATE TABLE agents");
+    expect(content).toContain("REFERENCES hosts(id)");
+    expect(content).toContain("REFERENCES lanes(id)");
+    expect(content).toContain("match_key");
+    expect(content).toContain("UNIQUE (host_id, match_key)");
+    expect(content).toContain("CHECK (status IN ('running', 'stopped', 'missing'))");
+    expect(content).toContain("metadata");
+    expect(content).toContain("extra");
+    expect(content).toContain("idx_agents_host_id");
+    expect(content).toContain("idx_agents_lane_id");
+  });
 });
