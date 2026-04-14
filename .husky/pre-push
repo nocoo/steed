@@ -1,0 +1,39 @@
+#!/bin/sh
+# Pre-push hook: L2 + G2 in parallel (<3min target)
+
+set -e
+
+echo "🚀 Running pre-push checks..."
+
+# Run L2 (E2E) and G2 (security) in parallel
+bun run test:e2e &
+pid_e2e=$!
+
+osv-scanner --lockfile=bun.lock &
+pid_osv=$!
+
+gitleaks detect --source . --no-git &
+pid_gitleaks=$!
+
+# Wait for all and collect exit codes
+wait $pid_e2e
+exit_e2e=$?
+
+wait $pid_osv
+exit_osv=$?
+
+wait $pid_gitleaks
+exit_gitleaks=$?
+
+# Report results
+echo ""
+if [ $exit_e2e -eq 0 ] && [ $exit_osv -eq 0 ] && [ $exit_gitleaks -eq 0 ]; then
+  echo "✅ All pre-push checks passed"
+  exit 0
+else
+  echo "❌ Pre-push checks failed:"
+  [ $exit_e2e -ne 0 ] && echo "   - E2E tests failed"
+  [ $exit_osv -ne 0 ] && echo "   - OSV dependency scan found vulnerabilities"
+  [ $exit_gitleaks -ne 0 ] && echo "   - Gitleaks found secrets"
+  exit 1
+fi
