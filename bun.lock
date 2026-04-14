@@ -1,0 +1,43 @@
+{
+  "lockfileVersion": 1,
+  "configVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "steed",
+    },
+    "packages/cli": {
+      "name": "@steed/cli",
+      "version": "0.0.1",
+      "dependencies": {
+        "@steed/shared": "workspace:*",
+      },
+    },
+    "packages/dashboard": {
+      "name": "@steed/dashboard",
+      "version": "0.0.1",
+      "dependencies": {
+        "@steed/shared": "workspace:*",
+      },
+    },
+    "packages/shared": {
+      "name": "@steed/shared",
+      "version": "0.0.1",
+    },
+    "packages/worker": {
+      "name": "@steed/worker",
+      "version": "0.0.1",
+      "dependencies": {
+        "@steed/shared": "workspace:*",
+      },
+    },
+  },
+  "packages": {
+    "@steed/cli": ["@steed/cli@workspace:packages/cli"],
+
+    "@steed/dashboard": ["@steed/dashboard@workspace:packages/dashboard"],
+
+    "@steed/shared": ["@steed/shared@workspace:packages/shared"],
+
+    "@steed/worker": ["@steed/worker@workspace:packages/worker"],
+  }
+}

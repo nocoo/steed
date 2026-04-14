@@ -1,0 +1,10 @@
+{
+  "name": "steed",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "test": "echo 'placeholder'"
+  }
+}
