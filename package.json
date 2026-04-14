@@ -9,6 +9,7 @@
     "lint": "eslint --max-warnings=0 .",
     "test": "vitest run --coverage",
     "test:watch": "vitest",
+    "test:e2e": "bun scripts/run-e2e.ts",
     "check-coverage": "bun scripts/check-coverage.ts",
     "prepare": "husky"
   },
