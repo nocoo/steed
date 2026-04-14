@@ -81,7 +81,7 @@ Six-dimension quality system: L1/L2/L3 + G1/G2 + D1.
 
 ### Key Decisions
 
-- **Dashboard** deploys to Railway, calls Worker API via server-side only (no direct DB access, browser never holds Worker credentials)
+- **Dashboard** deploys to Railway, calls Worker API via server-side only (no direct DB access, browser never holds Worker credentials). User auth via Google OAuth whitelist; Worker calls use internal `DASHBOARD_SERVICE_TOKEN`
 - **CF Worker** is the single API gateway, owns D1 connection
 - **Host Service** runs as a resident process, heartbeat snapshot every 10 minutes; CLI for manual scan/register/debug
 - **D1** is the sole persistent store
@@ -90,6 +90,7 @@ Six-dimension quality system: L1/L2/L3 + G1/G2 + D1.
 - **Data source detection**: PATH probe + config file scan (dual confirmation) + version collection. Scan only discovers resources, does NOT auto-establish Agent ↔ Data Source relationships
 - **Lane assignment**: Agent belongs to one Lane (manual). Data Source belongs to one or more Lanes (manual, multi-select). Binding relationships are independent of Lane assignment
 - **Agent boundary**: Autonomous agent systems only (OpenClaw, Hermes, etc.). Interactive dev tools (Claude Code, Codex, Cursor) are NOT Agent entities in v1
+- **Two-layer auth**: Google OAuth whitelist at Dashboard (D1 stores no admin info); Worker only recognizes `DASHBOARD_SERVICE_TOKEN` (dashboard role) and Host API Key (host role). Worker never handles Google identity directly
 
 ### Core Concepts
 

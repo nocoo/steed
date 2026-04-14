@@ -58,12 +58,17 @@ steed/
 
 | 场景 | 方式 | 说明 |
 |------|------|------|
-| Host Service → Worker | API Key | 每台 Host 注册时获取独立 Key |
+| Host Service → Worker | Host API Key | 每台 Host 注册时获取独立 Key，数据库存哈希 |
 | Agent CLI → Worker | Host API Key | 复用所在 Host 的 Key，权限限定为该 Host 下的 Agent 附加元数据写入 |
-| Browser → Dashboard | 用户登录态 | 浏览器通过 Dashboard 的登录机制认证 |
-| Dashboard Server → Worker | API Key | 服务端持有管理级 API Key |
+| Browser → Dashboard | Google OAuth | 白名单 Google Account 登录，Next.js session 维护登录态 |
+| Dashboard Server → Worker | `DASHBOARD_SERVICE_TOKEN` | 内部 Service Token，CF Worker 环境变量配置 |
 
-所有来自 Dashboard 的 Worker 调用由 Next.js 服务端发起。Host Service 和 Agent CLI 使用同一 Host API Key 直连 Worker，但 Agent CLI 的权限范围仅限该 Host 下已注册 Agent 的附加元数据提交。
+**两层认证原则**：
+
+1. **用户认证**（Dashboard 端）：Google OAuth 白名单，仅允许授权 Google Account 登录。白名单配置在 Dashboard 环境变量中，D1 不存储管理员信息
+2. **服务认证**（Worker 端）：Worker 不直接处理 Google 身份，仅识别两种凭证——`DASHBOARD_SERVICE_TOKEN`（dashboard 角色）和 Host API Key（host 角色）
+
+所有来自 Dashboard 的 Worker 调用由 Next.js 服务端发起，附加 `DASHBOARD_SERVICE_TOKEN`。Host Service 和 Agent CLI 使用同一 Host API Key 直连 Worker，但 Agent CLI 的权限范围仅限该 Host 下已注册 Agent 的附加元数据提交。
 
 ## 核心数据流
 
