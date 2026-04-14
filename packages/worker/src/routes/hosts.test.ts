@@ -369,7 +369,7 @@ describe("Hosts Routes", () => {
       expect(body[0]?.api_key_hash).toBe(""); // Should not expose hash
     });
 
-    it("should return 403 when not dashboard role", async () => {
+    it("should return 401 when not authenticated", async () => {
       const mockDb = createMockDb();
       const app = new Hono<{ Bindings: Env }>();
       app.use("*", async (c, next) => {
@@ -384,7 +384,7 @@ describe("Hosts Routes", () => {
         { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
       );
 
-      expect(res.status).toBe(403);
+      expect(res.status).toBe(401);
     });
   });
 });

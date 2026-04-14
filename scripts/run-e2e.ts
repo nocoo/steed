@@ -336,10 +336,10 @@ async function runTests(): Promise<void> {
   })();
 
   // 9. Auth rejection tests
-  // No token → 403 (public role, not allowed)
-  await test("No token request to protected route returns 403", async () => {
+  // No token → 401 (missing authentication)
+  await test("No token request to protected route returns 401", async () => {
     const res = await request("/api/v1/hosts");
-    assertEqual(res.status, 403, "status");
+    assertEqual(res.status, 401, "status");
   })();
 
   // Invalid token → 401 (token provided but invalid)

@@ -235,7 +235,7 @@ describe("Auth Middleware", () => {
       expect(body).toHaveProperty("error.code", "forbidden");
     });
 
-    it("should return 403 when no token provided (public) for protected route", async () => {
+    it("should return 401 when no token provided (public) for protected route", async () => {
       const app = new Hono<{ Bindings: Env }>();
       app.use("*", async (c, next) => {
         c.set("auth", { role: "public", hostId: null, invalidToken: false });
@@ -244,9 +244,10 @@ describe("Auth Middleware", () => {
       app.get("/test", requireRole("dashboard"), (c) => c.json({ ok: true }));
 
       const res = await app.request("/test");
-      expect(res.status).toBe(403);
+      expect(res.status).toBe(401);
       const body = await res.json();
-      expect(body).toHaveProperty("error.code", "forbidden");
+      expect(body).toHaveProperty("error.code", "unauthorized");
+      expect(body.error.message).toBe("Authentication required");
     });
   });
 });

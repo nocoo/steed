@@ -117,22 +117,27 @@ export const authMiddleware = createMiddleware<{ Bindings: Env }>(
 
 /**
  * Require specific role(s) for a route
- * Returns 401 if token was provided but invalid
- * Returns 403 if authenticated but wrong role
+ * Returns 401 if:
+ *   - No token provided (role=public, invalidToken=false)
+ *   - Token provided but invalid/malformed (role=public, invalidToken=true)
+ * Returns 403 if authenticated but wrong role (e.g., host accessing dashboard-only)
  */
 export function requireRole(...roles: AuthRole[]) {
   return createMiddleware<{ Bindings: Env }>(async (c, next) => {
     const auth = c.get("auth");
 
-    // Invalid token → 401 Unauthorized
-    if (auth.invalidToken) {
+    // Public role (no token or invalid token) accessing protected route → 401
+    if (auth.role === "public") {
+      const message = auth.invalidToken
+        ? "Invalid or expired token"
+        : "Authentication required";
       return c.json(
-        { error: { code: "unauthorized", message: "Invalid or expired token" } },
+        { error: { code: "unauthorized", message } },
         401
       );
     }
 
-    // Valid auth but wrong role → 403 Forbidden
+    // Authenticated but wrong role → 403 Forbidden
     if (!roles.includes(auth.role)) {
       return c.json(
         { error: { code: "forbidden", message: "Permission denied" } },
