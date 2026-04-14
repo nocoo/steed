@@ -1,0 +1,16 @@
+name = "steed-worker"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+
+# Production D1 binding
+[[d1_databases]]
+binding = "DB"
+database_name = "steed-db"
+database_id = "placeholder-will-be-replaced"
+
+# Test environment
+[env.test]
+[[env.test.d1_databases]]
+binding = "DB"
+database_name = "steed-db-test"
+database_id = "placeholder-test-will-be-replaced"
