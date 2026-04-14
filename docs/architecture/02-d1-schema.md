@@ -155,3 +155,121 @@ CREATE TABLE agent_data_source_bindings (
 - 绑定关系禁止跨 Host，由 Worker API 层校验
 - 快照中 Agent 的 `status` 由 Host Service 实际采集上报（running / stopped），Worker 原样写入；缺失时由 Worker 标记 `missing`
 - 时间字段统一使用 `strftime('%Y-%m-%dT%H:%M:%SZ', 'now')` 确保 ISO 8601 格式
+
+## 实现步骤（原子化提交计划）
+
+### 前置：Monorepo 基础设施 + 6DQ 门禁
+
+> 以下步骤在 Worker 实现之前完成，为整个项目建立质量基线。
+
+**Commit 1: 初始化 Bun workspace monorepo**
+
+```
+创建 package.json (workspace root)
+创建 packages/worker/package.json
+创建 packages/shared/package.json
+创建 packages/dashboard/package.json
+创建 packages/cli/package.json
+bun install 验证 workspace 联通
+```
+
+**Commit 2: 配置 G1 — TypeScript strict + ESLint strict**
+
+```
+packages/shared/tsconfig.json — strict: true, noUncheckedIndexedAccess: true
+packages/worker/tsconfig.json — extends shared, 适配 CF Worker
+根目录 eslint.config.ts — tseslint.configs.strict + --max-warnings=0
+根目录 .editorconfig
+验证：tsc --noEmit 通过，eslint 零警告
+```
+
+**Commit 3: 配置 L1 — vitest + 覆盖率门控**
+
+```
+根目录 vitest.workspace.ts — monorepo 多包配置
+packages/shared/vitest.config.ts
+packages/worker/vitest.config.ts
+scripts/check-coverage.ts — 覆盖率 ≥ 90% 门控脚本
+创建第一个占位测试确保 vitest 跑通
+验证：bun run test 通过，覆盖率检查通过
+```
+
+**Commit 4: 配置 Husky pre-commit hook (G1 + L1)**
+
+```
+bun add -d husky
+bunx husky init
+.husky/pre-commit — 并行执行：
+  G1: tsc --noEmit && eslint --max-warnings=0
+  L1: vitest run && check-coverage
+验证：git commit 触发 hook，全部通过
+```
+
+### Worker D1 Migration 实现
+
+**Commit 5: 创建 D1 migration — lanes + hosts 表**
+
+```
+packages/worker/migrations/0001_create_lanes_and_hosts.sql
+包含 lanes 预置数据 INSERT
+包含 hosts 表
+测试：vitest 验证 SQL 语法正确性（解析验证）
+```
+
+**Commit 6: 创建 D1 migration — agents 表**
+
+```
+packages/worker/migrations/0002_create_agents.sql
+包含 UNIQUE (host_id, match_key) 约束
+包含 CHECK 约束和索引
+测试：vitest 验证 SQL 语法 + 约束行为
+```
+
+**Commit 7: 创建 D1 migration — data_sources 表**
+
+```
+packages/worker/migrations/0003_create_data_sources.sql
+包含 UNIQUE (host_id, type, name) 约束
+包含 CHECK 约束和索引
+测试：vitest 验证 SQL 语法 + 约束行为
+```
+
+**Commit 8: 创建 D1 migration — 关系表**
+
+```
+packages/worker/migrations/0004_create_relations.sql
+包含 data_source_lanes 和 agent_data_source_bindings
+包含 ON DELETE CASCADE
+测试：vitest 验证级联删除行为
+```
+
+**Commit 9: shared 包 — 共享类型定义**
+
+```
+packages/shared/src/types/host.ts
+packages/shared/src/types/agent.ts
+packages/shared/src/types/data-source.ts
+packages/shared/src/types/lane.ts
+packages/shared/src/types/binding.ts
+packages/shared/src/types/snapshot.ts — 快照上报 payload 类型
+packages/shared/src/index.ts — barrel export
+测试：类型编译验证
+```
+
+### 6DQ 质量维度规划
+
+本项目 6DQ 维度映射：
+
+| 维度 | 工具 | 运行时机 | 目标 |
+|------|------|---------|------|
+| L1 | vitest + check-coverage ≥ 90% | pre-commit | 单元测试 |
+| L2 | 自定义 run-e2e.ts，真 HTTP 调用 Worker | pre-push | 100% API 端点覆盖 |
+| L3 | Playwright | 按需 | Dashboard 核心流程 |
+| G1 | tsc --noEmit (strict) + ESLint strict --max-warnings=0 | pre-commit | 静态分析 |
+| G2 | osv-scanner + gitleaks | pre-push | 安全扫描 |
+| D1 | steed-db-test 独立 D1 实例 + _test_marker 三重验证 | pre-push (L2) | 测试隔离 |
+
+Hooks 映射：
+- pre-commit (<30s): G1 ‖ L1
+- pre-push (<3min): L2 ‖ G2（L2 连接 steed-db-test 隔离实例）
+- 按需: L3
