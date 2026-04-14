@@ -4,14 +4,13 @@
  * Runs integration tests against a local Wrangler dev server with isolated D1.
  * Uses true HTTP requests to validate the complete Worker lifecycle.
  *
- * Usage: bun scripts/run-e2e.ts
+ * Each test run starts with a fresh database state for reliable, reproducible results.
  *
- * Required environment:
- * - CF_D1_TEST_DB_ID: D1 database ID for test environment
- * - DASHBOARD_SERVICE_TOKEN: Service token for dashboard auth
+ * Usage: bun scripts/run-e2e.ts
  */
 
 import { spawn, type Subprocess } from "bun";
+import { rmSync, existsSync } from "fs";
 
 const TEST_PORT = 8787;
 const BASE_URL = `http://localhost:${TEST_PORT}`;
@@ -20,6 +19,23 @@ const DASHBOARD_TOKEN = process.env.DASHBOARD_SERVICE_TOKEN ?? "test-dashboard-t
 let wranglerProcess: Subprocess | null = null;
 let testHostApiKey: string | null = null;
 let testHostId: string | null = null;
+
+/**
+ * Clean up previous test state for isolation
+ */
+function cleanupTestState(): void {
+  console.log("🧹 Cleaning up previous test state...");
+
+  const rootDir = import.meta.dir.replace("/scripts", "");
+  const e2eStatePath = `${rootDir}/packages/worker/.wrangler/state/e2e`;
+
+  if (existsSync(e2eStatePath)) {
+    rmSync(e2eStatePath, { recursive: true, force: true });
+    console.log("✅ Previous state cleaned");
+  } else {
+    console.log("✅ No previous state to clean");
+  }
+}
 
 /**
  * Initialize local D1 database with migrations
@@ -273,24 +289,23 @@ async function runTests(): Promise<void> {
     assertEqual(body.status, "online", "body.status");
   })();
 
-  // 7. Get overview
-  await test("GET /api/v1/overview returns aggregates", async () => {
+  // 7. Get overview - with clean state, we know exact counts
+  await test("GET /api/v1/overview returns exact aggregates", async () => {
     const res = await request("/api/v1/overview", { auth: "dashboard" });
     assertEqual(res.status, 200, "status");
     const body = await res.json() as {
-      hosts: { total: number; online: number };
-      data_sources: { total: number; active: number };
+      hosts: { total: number; online: number; offline: number };
+      agents: { total: number };
+      data_sources: { total: number; active: number; missing: number };
     };
-    // At least 1 host (may have more from previous runs)
-    if (body.hosts.total < 1) {
-      throw new Error(`hosts.total should be >= 1, got ${body.hosts.total}`);
-    }
-    if (body.hosts.online < 1) {
-      throw new Error(`hosts.online should be >= 1, got ${body.hosts.online}`);
-    }
-    if (body.data_sources.total < 2) {
-      throw new Error(`data_sources.total should be >= 2, got ${body.data_sources.total}`);
-    }
+    // With clean state, we know exactly what exists
+    assertEqual(body.hosts.total, 1, "hosts.total");
+    assertEqual(body.hosts.online, 1, "hosts.online");
+    assertEqual(body.hosts.offline, 0, "hosts.offline");
+    assertEqual(body.agents.total, 0, "agents.total"); // No agents registered yet
+    assertEqual(body.data_sources.total, 2, "data_sources.total");
+    assertEqual(body.data_sources.active, 2, "data_sources.active");
+    assertEqual(body.data_sources.missing, 0, "data_sources.missing");
   })();
 
   // 8. Second snapshot marks missing data sources
@@ -362,6 +377,7 @@ async function main(): Promise<void> {
   console.log("🧪 Steed E2E Test Suite\n");
 
   try {
+    cleanupTestState();
     await initDatabase();
     await startWrangler();
     await runTests();
