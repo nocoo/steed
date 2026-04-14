@@ -538,4 +538,393 @@ describe("Snapshot Routes", () => {
       expect(body.data_sources_created).toBe(0);
     });
   });
+
+  describe("Payload validation", () => {
+    it("should reject non-object request body", async () => {
+      const mockDb = createMockDb();
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockHostAuth("host_123"));
+      app.route("/", snapshot);
+
+      const res = await app.request(
+        "/",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify("not an object"),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body).toHaveProperty("error.code", "invalid_request");
+    });
+
+    it("should reject non-array agents field", async () => {
+      const mockDb = createMockDb();
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockHostAuth("host_123"));
+      app.route("/", snapshot);
+
+      const res = await app.request(
+        "/",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ agents: "not an array" }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body).toHaveProperty("error.code", "invalid_request");
+      expect(body.error.message).toContain("agents");
+    });
+
+    it("should reject agent with invalid status enum", async () => {
+      const mockDb = createMockDb();
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockHostAuth("host_123"));
+      app.route("/", snapshot);
+
+      const res = await app.request(
+        "/",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            agents: [{
+              match_key: "test:/path",
+              runtime_app: "test",
+              runtime_version: "1.0",
+              status: "invalid_status",
+            }],
+          }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body).toHaveProperty("error.code", "invalid_request");
+      expect(body.error.message).toContain("status");
+    });
+
+    it("should reject agent with missing match_key", async () => {
+      const mockDb = createMockDb();
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockHostAuth("host_123"));
+      app.route("/", snapshot);
+
+      const res = await app.request(
+        "/",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            agents: [{
+              runtime_app: "test",
+              runtime_version: "1.0",
+              status: "running",
+            }],
+          }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body).toHaveProperty("error.code", "invalid_request");
+      expect(body.error.message).toContain("match_key");
+    });
+
+    it("should reject agent with empty match_key", async () => {
+      const mockDb = createMockDb();
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockHostAuth("host_123"));
+      app.route("/", snapshot);
+
+      const res = await app.request(
+        "/",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            agents: [{
+              match_key: "",
+              runtime_app: "test",
+              runtime_version: "1.0",
+              status: "running",
+            }],
+          }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error.message).toContain("match_key");
+    });
+
+    it("should reject agent with missing runtime_app", async () => {
+      const mockDb = createMockDb();
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockHostAuth("host_123"));
+      app.route("/", snapshot);
+
+      const res = await app.request(
+        "/",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            agents: [{
+              match_key: "test:/path",
+              runtime_version: "1.0",
+              status: "running",
+            }],
+          }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error.message).toContain("runtime_app");
+    });
+
+    it("should reject agent with missing runtime_version", async () => {
+      const mockDb = createMockDb();
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockHostAuth("host_123"));
+      app.route("/", snapshot);
+
+      const res = await app.request(
+        "/",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            agents: [{
+              match_key: "test:/path",
+              runtime_app: "test",
+              status: "running",
+            }],
+          }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error.message).toContain("runtime_version");
+    });
+
+    it("should reject non-array data_sources field", async () => {
+      const mockDb = createMockDb();
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockHostAuth("host_123"));
+      app.route("/", snapshot);
+
+      const res = await app.request(
+        "/",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ data_sources: { not: "array" } }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error.message).toContain("data_sources");
+    });
+
+    it("should reject data source with invalid type enum", async () => {
+      const mockDb = createMockDb();
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockHostAuth("host_123"));
+      app.route("/", snapshot);
+
+      const res = await app.request(
+        "/",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            data_sources: [{
+              type: "invalid_type",
+              name: "test",
+              version: "1.0",
+              auth_status: "authenticated",
+            }],
+          }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error.message).toContain("type");
+    });
+
+    it("should reject data source with invalid auth_status enum", async () => {
+      const mockDb = createMockDb();
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockHostAuth("host_123"));
+      app.route("/", snapshot);
+
+      const res = await app.request(
+        "/",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            data_sources: [{
+              type: "personal_cli",
+              name: "test",
+              version: "1.0",
+              auth_status: "invalid_auth",
+            }],
+          }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error.message).toContain("auth_status");
+    });
+
+    it("should reject data source with missing name", async () => {
+      const mockDb = createMockDb();
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockHostAuth("host_123"));
+      app.route("/", snapshot);
+
+      const res = await app.request(
+        "/",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            data_sources: [{
+              type: "personal_cli",
+              version: "1.0",
+              auth_status: "authenticated",
+            }],
+          }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error.message).toContain("name");
+    });
+
+    it("should reject data source with empty name", async () => {
+      const mockDb = createMockDb();
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockHostAuth("host_123"));
+      app.route("/", snapshot);
+
+      const res = await app.request(
+        "/",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            data_sources: [{
+              type: "personal_cli",
+              name: "",
+              version: "1.0",
+              auth_status: "authenticated",
+            }],
+          }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error.message).toContain("name");
+    });
+
+    it("should reject data source with missing version", async () => {
+      const mockDb = createMockDb();
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockHostAuth("host_123"));
+      app.route("/", snapshot);
+
+      const res = await app.request(
+        "/",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            data_sources: [{
+              type: "personal_cli",
+              name: "test",
+              auth_status: "authenticated",
+            }],
+          }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error.message).toContain("version");
+    });
+
+    it("should reject agent that is not an object", async () => {
+      const mockDb = createMockDb();
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockHostAuth("host_123"));
+      app.route("/", snapshot);
+
+      const res = await app.request(
+        "/",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            agents: ["not an object"],
+          }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error.message).toContain("agents[0]");
+    });
+
+    it("should reject data source that is not an object", async () => {
+      const mockDb = createMockDb();
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockHostAuth("host_123"));
+      app.route("/", snapshot);
+
+      const res = await app.request(
+        "/",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            data_sources: [null],
+          }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error.message).toContain("data_sources[0]");
+    });
+  });
 });

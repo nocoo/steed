@@ -3,9 +3,106 @@ import { generateId } from "@steed/shared";
 import type { Env } from "../env";
 import { requireRole } from "../middleware/auth";
 import { jsonResponse, errors } from "../lib/response";
-import type { SnapshotRequest, SnapshotResponse } from "@steed/shared";
+import type {
+  SnapshotRequest,
+  SnapshotResponse,
+  AgentSnapshot,
+  DataSourceSnapshot,
+} from "@steed/shared";
 
 const snapshot = new Hono<{ Bindings: Env }>();
+
+// Valid enum values
+const VALID_AGENT_STATUS = ["running", "stopped"] as const;
+const VALID_DS_TYPE = ["personal_cli", "third_party_cli", "mcp"] as const;
+const VALID_DS_AUTH_STATUS = ["authenticated", "unauthenticated", "unknown"] as const;
+
+/**
+ * Validate agent snapshot payload
+ */
+function validateAgentSnapshot(agent: unknown, index: number): string | null {
+  if (typeof agent !== "object" || agent === null) {
+    return `agents[${index}]: must be an object`;
+  }
+  const a = agent as Record<string, unknown>;
+
+  if (typeof a.match_key !== "string" || a.match_key.length === 0) {
+    return `agents[${index}].match_key: required string`;
+  }
+  if (typeof a.runtime_app !== "string") {
+    return `agents[${index}].runtime_app: required string`;
+  }
+  if (typeof a.runtime_version !== "string") {
+    return `agents[${index}].runtime_version: required string`;
+  }
+  if (!VALID_AGENT_STATUS.includes(a.status as typeof VALID_AGENT_STATUS[number])) {
+    return `agents[${index}].status: must be 'running' or 'stopped'`;
+  }
+  return null;
+}
+
+/**
+ * Validate data source snapshot payload
+ */
+function validateDataSourceSnapshot(ds: unknown, index: number): string | null {
+  if (typeof ds !== "object" || ds === null) {
+    return `data_sources[${index}]: must be an object`;
+  }
+  const d = ds as Record<string, unknown>;
+
+  if (!VALID_DS_TYPE.includes(d.type as typeof VALID_DS_TYPE[number])) {
+    return `data_sources[${index}].type: must be 'personal_cli', 'third_party_cli', or 'mcp'`;
+  }
+  if (typeof d.name !== "string" || d.name.length === 0) {
+    return `data_sources[${index}].name: required string`;
+  }
+  if (typeof d.version !== "string") {
+    return `data_sources[${index}].version: required string`;
+  }
+  if (!VALID_DS_AUTH_STATUS.includes(d.auth_status as typeof VALID_DS_AUTH_STATUS[number])) {
+    return `data_sources[${index}].auth_status: must be 'authenticated', 'unauthenticated', or 'unknown'`;
+  }
+  return null;
+}
+
+/**
+ * Validate entire snapshot request payload
+ */
+function validateSnapshotRequest(body: unknown): { valid: true; data: SnapshotRequest } | { valid: false; error: string } {
+  if (typeof body !== "object" || body === null) {
+    return { valid: false, error: "Request body must be an object" };
+  }
+
+  const b = body as Record<string, unknown>;
+
+  // Validate agents array (optional, defaults to empty)
+  const agents: AgentSnapshot[] = [];
+  if (b.agents !== undefined) {
+    if (!Array.isArray(b.agents)) {
+      return { valid: false, error: "agents: must be an array" };
+    }
+    for (let i = 0; i < b.agents.length; i++) {
+      const err = validateAgentSnapshot(b.agents[i], i);
+      if (err) return { valid: false, error: err };
+      agents.push(b.agents[i] as AgentSnapshot);
+    }
+  }
+
+  // Validate data_sources array (optional, defaults to empty)
+  const data_sources: DataSourceSnapshot[] = [];
+  if (b.data_sources !== undefined) {
+    if (!Array.isArray(b.data_sources)) {
+      return { valid: false, error: "data_sources: must be an array" };
+    }
+    for (let i = 0; i < b.data_sources.length; i++) {
+      const err = validateDataSourceSnapshot(b.data_sources[i], i);
+      if (err) return { valid: false, error: err };
+      data_sources.push(b.data_sources[i] as DataSourceSnapshot);
+    }
+  }
+
+  return { valid: true, data: { agents, data_sources } };
+}
 
 /**
  * POST /snapshot - Upload host resource snapshot (heartbeat)
@@ -26,11 +123,18 @@ snapshot.post("/", requireRole("host"), async (c) => {
     return errors.internalError(c);
   }
 
-  const body = await c.req.json<SnapshotRequest>().catch(() => null);
+  const rawBody = await c.req.json().catch(() => null);
 
-  if (!body) {
+  if (rawBody === null) {
     return errors.invalidRequest(c, "Invalid JSON body");
   }
+
+  // Validate payload structure and enum values
+  const validation = validateSnapshotRequest(rawBody);
+  if (!validation.valid) {
+    return errors.invalidRequest(c, validation.error);
+  }
+  const body = validation.data;
 
   const now = new Date().toISOString();
 
