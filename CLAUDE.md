@@ -26,10 +26,23 @@ Every change must be an atomic commit — one logical change per commit.
 
 Pre-commit and pre-push hooks are mandatory infrastructure.
 
-- **pre-commit**: Lint, format, type-check
-- **pre-push**: Full test suite
+- **pre-commit** (<30s): G1 (tsc --noEmit + ESLint strict --max-warnings=0) ‖ L1 (vitest + coverage ≥ 90%)
+- **pre-push** (<3min): L2 (E2E true HTTP, D1 test isolation) ‖ G2 (osv-scanner + gitleaks)
 - Hooks must NEVER be skipped (`--no-verify` is forbidden)
 - All commits must pass hooks before being accepted
+
+### 4. 6DQ Quality Framework
+
+Six-dimension quality system: L1/L2/L3 + G1/G2 + D1.
+
+| Dimension | Tool | Gate | Target |
+|-----------|------|------|--------|
+| L1 Unit | vitest + check-coverage ≥ 90% | pre-commit | Unit tests |
+| L2 Integration | run-e2e.ts, true HTTP | pre-push | 100% API endpoint coverage |
+| L3 System | Playwright | on-demand | Dashboard core flows |
+| G1 Static | tsc strict + ESLint tseslint.configs.strict --max-warnings=0 | pre-commit | Zero warnings |
+| G2 Security | osv-scanner + gitleaks | pre-push | Dependency + secret scan |
+| D1 Isolation | steed-db-test D1 instance + _test_marker verification | pre-push (L2) | Test isolation |
 
 ## Tooling
 
