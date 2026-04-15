@@ -1,16 +1,7 @@
 import { defineWorkspace } from "vitest/config";
 
 export default defineWorkspace([
-  {
-    extends: "packages/shared/vitest.config.ts",
-    test: {
-      root: "packages/shared",
-    },
-  },
-  {
-    extends: "packages/worker/vitest.config.ts",
-    test: {
-      root: "packages/worker",
-    },
-  },
+  "packages/shared",
+  "packages/worker",
+  // dashboard runs separately due to jsdom environment requirement
 ]);
