@@ -1,0 +1,8 @@
+title = "Steed gitleaks config"
+
+[allowlist]
+  description = "Known non-secret patterns"
+
+  paths = [
+    '''\.env\..*\.example$''',
+  ]
