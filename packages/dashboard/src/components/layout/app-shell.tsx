@@ -1,8 +1,10 @@
 "use client";
 
-import { type ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
+import { usePathname } from "next/navigation";
+import { Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useSidebar } from "./sidebar-context";
+import { SidebarProvider, useSidebar } from "./sidebar-context";
 import { useMobile } from "@/hooks/use-mobile";
 import { Sidebar } from "./sidebar";
 import { Breadcrumbs } from "./breadcrumbs";
@@ -15,9 +17,27 @@ interface AppShellProps {
   children: ReactNode;
 }
 
-export function AppShell({ children }: AppShellProps) {
-  const { isExpanded } = useSidebar();
+function AppShellInner({ children }: AppShellProps) {
+  const { isExpanded, isMobileOpen, toggleMobile, closeMobile } = useSidebar();
   const isMobile = useMobile();
+  const pathname = usePathname();
+
+  // Close mobile sidebar on route change
+  useEffect(() => {
+    closeMobile();
+  }, [pathname, closeMobile]);
+
+  // Prevent body scroll when mobile sidebar is open
+  useEffect(() => {
+    if (isMobileOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isMobileOpen]);
 
   // Calculate main content margin based on sidebar state
   const marginLeft = isMobile
@@ -27,31 +47,48 @@ export function AppShell({ children }: AppShellProps) {
       : SIDEBAR_WIDTH_COLLAPSED;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex min-h-screen w-full bg-background">
       <Sidebar />
 
       {/* Main content area */}
       <main
-        className={cn("flex flex-col transition-all duration-300 ease-in-out")}
+        className="flex flex-1 flex-col min-h-screen min-w-0 transition-all duration-300 ease-in-out"
         style={{ marginLeft }}
       >
-        {/* Header with breadcrumbs */}
-        <header
-          className={cn(
-            "flex h-16 items-center px-4 md:px-6",
-            isMobile && "pl-16" // Space for mobile menu button
-          )}
-        >
-          <Breadcrumbs />
+        {/* Header */}
+        <header className="flex h-14 shrink-0 items-center justify-between px-4 md:px-6">
+          <div className="flex items-center gap-3">
+            {isMobile && (
+              <button
+                onClick={toggleMobile}
+                aria-label="Open navigation"
+                className={cn(
+                  "flex h-8 w-8 items-center justify-center rounded-lg",
+                  "text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                )}
+              >
+                <Menu className="h-5 w-5" aria-hidden="true" strokeWidth={1.5} />
+              </button>
+            )}
+            <Breadcrumbs />
+          </div>
         </header>
 
-        {/* Content island */}
+        {/* Floating island content area */}
         <div className="flex-1 px-2 pb-2 md:px-3 md:pb-3">
-          <div className="h-full min-h-[calc(100vh-5rem)] rounded-[16px] bg-card p-3 md:rounded-[20px] md:p-5">
+          <div className="h-full min-h-[calc(100vh-4.5rem)] rounded-[16px] md:rounded-[20px] bg-card p-3 md:p-5 overflow-y-auto">
             {children}
           </div>
         </div>
       </main>
     </div>
+  );
+}
+
+export function AppShell({ children }: AppShellProps) {
+  return (
+    <SidebarProvider>
+      <AppShellInner>{children}</AppShellInner>
+    </SidebarProvider>
   );
 }
