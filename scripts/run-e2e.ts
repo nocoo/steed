@@ -368,6 +368,206 @@ async function runTests(): Promise<void> {
     });
     assertEqual(res.status, 403, "status");
   })();
+
+  // ==========================================
+  // Agent CRUD Tests (Phase B1)
+  // ==========================================
+
+  let testAgentId: string | null = null;
+
+  // 10. Register Agent (host role)
+  await test("POST /api/v1/agents creates agent with host role", async () => {
+    const res = await request("/api/v1/agents", {
+      method: "POST",
+      auth: "host",
+      body: JSON.stringify({
+        match_key: "openclaw:/home/agent/workspace",
+        nickname: "E2E Test Agent",
+        role: "Automated testing",
+      }),
+    });
+    assertEqual(res.status, 201, "status");
+    const body = await res.json() as {
+      id: string;
+      host_id: string;
+      match_key: string;
+      nickname: string;
+      role: string;
+      status: string;
+      lane_id: string | null;
+    };
+    assertExists(body.id, "body.id");
+    assertEqual(body.host_id, testHostId!, "body.host_id");
+    assertEqual(body.match_key, "openclaw:/home/agent/workspace", "body.match_key");
+    assertEqual(body.nickname, "E2E Test Agent", "body.nickname");
+    assertEqual(body.role, "Automated testing", "body.role");
+    assertEqual(body.status, "stopped", "body.status");
+    assertEqual(body.lane_id, null, "body.lane_id");
+    testAgentId = body.id;
+  })();
+
+  // 11. Register Agent (dashboard role)
+  await test("POST /api/v1/agents creates agent with dashboard role", async () => {
+    assertExists(testHostId, "testHostId");
+    const res = await request("/api/v1/agents", {
+      method: "POST",
+      auth: "dashboard",
+      body: JSON.stringify({
+        host_id: testHostId,
+        match_key: "hermes:/projects/bot",
+        nickname: "Dashboard Created Agent",
+      }),
+    });
+    assertEqual(res.status, 201, "status");
+    const body = await res.json() as { id: string; host_id: string };
+    assertExists(body.id, "body.id");
+    assertEqual(body.host_id, testHostId, "body.host_id");
+  })();
+
+  // 12. Duplicate match_key should fail
+  await test("POST /api/v1/agents rejects duplicate match_key", async () => {
+    const res = await request("/api/v1/agents", {
+      method: "POST",
+      auth: "host",
+      body: JSON.stringify({
+        match_key: "openclaw:/home/agent/workspace", // Already exists
+      }),
+    });
+    assertEqual(res.status, 409, "status");
+  })();
+
+  // 13. List Agents
+  await test("GET /api/v1/agents returns agents list", async () => {
+    const res = await request("/api/v1/agents", { auth: "dashboard" });
+    assertEqual(res.status, 200, "status");
+    const body = await res.json() as {
+      data: Array<{ id: string; match_key: string }>;
+      next_cursor: string | null;
+    };
+    assertEqual(body.data.length, 2, "body.data.length"); // 2 agents created
+    const found = body.data.find((a) => a.id === testAgentId);
+    assertExists(found, "test agent in list");
+  })();
+
+  // 14. List Agents with host_id filter
+  await test("GET /api/v1/agents filters by host_id", async () => {
+    assertExists(testHostId, "testHostId");
+    const res = await request(`/api/v1/agents?host_id=${testHostId}`, {
+      auth: "dashboard",
+    });
+    assertEqual(res.status, 200, "status");
+    const body = await res.json() as { data: Array<{ host_id: string }> };
+    assertEqual(body.data.length, 2, "body.data.length");
+    body.data.forEach((a) => assertEqual(a.host_id, testHostId!, "agent.host_id"));
+  })();
+
+  // 15. Get single Agent
+  await test("GET /api/v1/agents/:id returns agent details", async () => {
+    assertExists(testAgentId, "testAgentId");
+    const res = await request(`/api/v1/agents/${testAgentId}`, {
+      auth: "dashboard",
+    });
+    assertEqual(res.status, 200, "status");
+    const body = await res.json() as {
+      id: string;
+      nickname: string;
+      metadata: Record<string, unknown>;
+      extra: Record<string, unknown>;
+    };
+    assertEqual(body.id, testAgentId, "body.id");
+    assertEqual(body.nickname, "E2E Test Agent", "body.nickname");
+    assertEqual(typeof body.metadata, "object", "metadata is object");
+    assertEqual(typeof body.extra, "object", "extra is object");
+  })();
+
+  // 16. Get non-existent Agent
+  await test("GET /api/v1/agents/:id returns 404 for non-existent", async () => {
+    const res = await request("/api/v1/agents/agent_nonexistent", {
+      auth: "dashboard",
+    });
+    assertEqual(res.status, 404, "status");
+  })();
+
+  // 17. Update Agent
+  await test("PATCH /api/v1/agents/:id updates agent", async () => {
+    assertExists(testAgentId, "testAgentId");
+    const res = await request(`/api/v1/agents/${testAgentId}`, {
+      method: "PATCH",
+      auth: "dashboard",
+      body: JSON.stringify({
+        nickname: "Updated Agent Name",
+        role: "Updated role description",
+        metadata: { notes: "E2E test notes", priority: "high" },
+      }),
+    });
+    assertEqual(res.status, 200, "status");
+    const body = await res.json() as {
+      id: string;
+      nickname: string;
+      role: string;
+      metadata: Record<string, unknown>;
+    };
+    assertEqual(body.id, testAgentId, "body.id");
+    assertEqual(body.nickname, "Updated Agent Name", "body.nickname");
+    assertEqual(body.role, "Updated role description", "body.role");
+    assertEqual(body.metadata.notes, "E2E test notes", "body.metadata.notes");
+    assertEqual(body.metadata.priority, "high", "body.metadata.priority");
+  })();
+
+  // 18. Clear field with null
+  await test("PATCH /api/v1/agents/:id clears field with null", async () => {
+    assertExists(testAgentId, "testAgentId");
+    const res = await request(`/api/v1/agents/${testAgentId}`, {
+      method: "PATCH",
+      auth: "dashboard",
+      body: JSON.stringify({ role: null }),
+    });
+    assertEqual(res.status, 200, "status");
+    const body = await res.json() as { role: string | null };
+    assertEqual(body.role, null, "body.role");
+  })();
+
+  // 19. Verify Agent persisted state
+  await test("GET /api/v1/agents/:id shows updated state", async () => {
+    assertExists(testAgentId, "testAgentId");
+    const res = await request(`/api/v1/agents/${testAgentId}`, {
+      auth: "dashboard",
+    });
+    assertEqual(res.status, 200, "status");
+    const body = await res.json() as {
+      nickname: string;
+      role: string | null;
+      metadata: Record<string, unknown>;
+    };
+    assertEqual(body.nickname, "Updated Agent Name", "body.nickname");
+    assertEqual(body.role, null, "body.role cleared");
+    assertEqual(body.metadata.notes, "E2E test notes", "metadata preserved");
+  })();
+
+  // 20. Host role cannot list agents (403)
+  await test("Host role cannot list agents (403)", async () => {
+    const res = await request("/api/v1/agents", { auth: "host" });
+    assertEqual(res.status, 403, "status");
+  })();
+
+  // 21. Host role cannot update agents (403)
+  await test("Host role cannot update agents (403)", async () => {
+    assertExists(testAgentId, "testAgentId");
+    const res = await request(`/api/v1/agents/${testAgentId}`, {
+      method: "PATCH",
+      auth: "host",
+      body: JSON.stringify({ nickname: "Should not work" }),
+    });
+    assertEqual(res.status, 403, "status");
+  })();
+
+  // 22. Overview shows Agent count
+  await test("GET /api/v1/overview shows updated agent count", async () => {
+    const res = await request("/api/v1/overview", { auth: "dashboard" });
+    assertEqual(res.status, 200, "status");
+    const body = await res.json() as { agents: { total: number } };
+    assertEqual(body.agents.total, 2, "agents.total"); // 2 agents created
+  })();
 }
 
 /**
