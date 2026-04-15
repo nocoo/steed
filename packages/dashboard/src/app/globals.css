@@ -117,8 +117,8 @@
   --destructive: 0 72% 48%;
   --destructive-foreground: 0 0% 100%;
 
-  --border: 180 8% 85%;
-  --input: 180 8% 85%;
+  --border: 180 8% 88%;
+  --input: 180 8% 88%;
   --ring: 175 70% 38%;
 
   --radius: 0.75rem;
@@ -129,7 +129,7 @@
   --sidebar-primary-foreground: 0 0% 100%;
   --sidebar-accent: 180 8% 88%;
   --sidebar-accent-foreground: 180 10% 10%;
-  --sidebar-border: 180 8% 85%;
+  --sidebar-border: 180 8% 88%;
   --sidebar-ring: 175 70% 38%;
 
   --success: 142 71% 32%;
