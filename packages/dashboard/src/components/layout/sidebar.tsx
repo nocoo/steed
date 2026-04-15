@@ -6,8 +6,6 @@ import { useSession, signOut } from "next-auth/react";
 import {
   ChevronLeft,
   ChevronRight,
-  Menu,
-  X,
   LogOut,
   type LucideIcon,
 } from "lucide-react";
@@ -31,7 +29,7 @@ const SIDEBAR_WIDTH_COLLAPSED = "68px";
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { isExpanded, isMobileOpen, toggle, toggleMobile, closeMobile } =
+  const { isExpanded, isMobileOpen, toggle, closeMobile } =
     useSidebar();
   const isMobile = useMobile();
   const { data: session } = useSession();
@@ -50,21 +48,6 @@ export function Sidebar() {
 
   return (
     <TooltipProvider delayDuration={0}>
-      {/* Mobile toggle button */}
-      {isMobile && (
-        <button
-          onClick={toggleMobile}
-          className="fixed left-4 top-4 z-50 flex h-10 w-10 items-center justify-center rounded-lg bg-card text-foreground shadow-md md:hidden"
-          aria-label="Toggle menu"
-        >
-          {isMobileOpen ? (
-            <X className="h-5 w-5" />
-          ) : (
-            <Menu className="h-5 w-5" />
-          )}
-        </button>
-      )}
-
       {/* Mobile overlay */}
       {isMobile && isMobileOpen && (
         <div
