@@ -306,27 +306,29 @@ async function workerFetch<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const workerApi = {
   overview: {
-    get: () => workerFetch<OverviewData>("/api/v1/overview"),
+    get: () => workerFetch<OverviewResponse>("/api/v1/overview"),
   },
   hosts: {
-    list: (params?: { limit?: number; cursor?: string }) =>
-      workerFetch<{ data: Host[]; next_cursor: string | null }>(
-        `/api/v1/hosts?${new URLSearchParams(params as Record<string, string>)}`
-      ),
+    // GET /hosts returns HostWithStatus[] directly (no pagination wrapper)
+    list: () => workerFetch<HostWithStatus[]>("/api/v1/hosts"),
+    get: (id: string) => workerFetch<HostWithStatus>(`/api/v1/hosts/${id}`),
   },
   agents: {
+    // GET /agents returns { data, next_cursor } pagination wrapper
     list: (params?: { host_id?: string; status?: string; limit?: number; cursor?: string }) =>
       workerFetch<{ data: AgentListItem[]; next_cursor: string | null }>(
         `/api/v1/agents?${new URLSearchParams(params as Record<string, string>)}`
       ),
   },
   dataSources: {
+    // GET /data-sources returns { data, next_cursor } pagination wrapper
     list: (params?: { host_id?: string; limit?: number; cursor?: string }) =>
       workerFetch<{ data: DataSourceListItem[]; next_cursor: string | null }>(
         `/api/v1/data-sources?${new URLSearchParams(params as Record<string, string>)}`
       ),
   },
   lanes: {
+    // GET /lanes returns { data } wrapper (no pagination)
     list: () => workerFetch<{ data: Lane[] }>("/api/v1/lanes"),
   },
 };
@@ -340,19 +342,16 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { workerApi } from "@/lib/worker-api";
 
-export async function GET(request: Request) {
+export async function GET() {
   const session = await auth();
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { searchParams } = new URL(request.url);
-  const limit = searchParams.get("limit") ?? undefined;
-  const cursor = searchParams.get("cursor") ?? undefined;
-
   try {
-    const data = await workerApi.hosts.list({ limit: limit ? Number(limit) : undefined, cursor });
-    return NextResponse.json(data);
+    // GET /hosts returns HostWithStatus[] directly
+    const hosts = await workerApi.hosts.list();
+    return NextResponse.json(hosts);
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Unknown error" },
@@ -368,10 +367,10 @@ export async function GET(request: Request) {
 // src/viewmodels/useHostsViewModel.ts
 "use client";
 import { useState, useEffect } from "react";
-import type { Host } from "@steed/shared";
+import type { HostWithStatus } from "@steed/shared";
 
 interface HostsViewModelState {
-  hosts: Host[];
+  hosts: HostWithStatus[];
   loading: boolean;
   error: string | null;
 }
@@ -385,12 +384,13 @@ export function useHostsViewModel() {
 
   useEffect(() => {
     // 调用 Dashboard 自己的 BFF API，不是 Worker
+    // BFF 返回 HostWithStatus[] 直接数组
     fetch("/api/hosts")
       .then((res) => {
         if (!res.ok) throw new Error("Failed to fetch hosts");
         return res.json();
       })
-      .then((data) => setState({ hosts: data.data, loading: false, error: null }))
+      .then((hosts: HostWithStatus[]) => setState({ hosts, loading: false, error: null }))
       .catch((err) => setState({ hosts: [], loading: false, error: err.message }));
   }, []);
 
@@ -420,15 +420,57 @@ export function useHostsViewModel() {
 
 ### 6.2 pre-commit Hook
 
+与 Worker 侧保持一致的稳定写法，分别收集退出码并输出失败原因：
+
 ```bash
 #!/bin/sh
+# Pre-commit hook: G1 + L1 in parallel (<30s target)
+
 set -e
+
 echo "🔍 Running pre-commit checks..."
+
+# Run G1 (typecheck + lint) and L1 (test + coverage) in parallel
 bun run --cwd packages/dashboard typecheck &
+pid_typecheck=$!
+
 bun run --cwd packages/dashboard lint &
+pid_lint=$!
+
 bun run --cwd packages/dashboard test &
-wait
-echo "✅ All pre-commit checks passed"
+pid_test=$!
+
+# Wait for all and collect exit codes
+wait $pid_typecheck
+exit_typecheck=$?
+
+wait $pid_lint
+exit_lint=$?
+
+wait $pid_test
+exit_test=$?
+
+# Check coverage after tests complete
+if [ $exit_test -eq 0 ]; then
+  bun run --cwd packages/dashboard check-coverage
+  exit_coverage=$?
+else
+  exit_coverage=1
+fi
+
+# Report results
+echo ""
+if [ $exit_typecheck -eq 0 ] && [ $exit_lint -eq 0 ] && [ $exit_test -eq 0 ] && [ $exit_coverage -eq 0 ]; then
+  echo "✅ All pre-commit checks passed"
+  exit 0
+else
+  echo "❌ Pre-commit checks failed:"
+  [ $exit_typecheck -ne 0 ] && echo "   - typecheck failed"
+  [ $exit_lint -ne 0 ] && echo "   - lint failed"
+  [ $exit_test -ne 0 ] && echo "   - test failed"
+  [ $exit_coverage -ne 0 ] && echo "   - coverage below threshold"
+  exit 1
+fi
 ```
 
 ## 7. 实现计划
