@@ -3,7 +3,7 @@ import { generateId } from "@steed/shared";
 import type { Env } from "../env";
 import { requireRole } from "../middleware/auth";
 import { jsonResponse, errors } from "../lib/response";
-import type { Agent, AgentStatus, CreateAgentRequest } from "@steed/shared";
+import type { Agent, AgentStatus, CreateAgentRequest, UpdateAgentRequest } from "@steed/shared";
 import type { LaneId } from "@steed/shared";
 
 const agents = new Hono<{ Bindings: Env }>();
@@ -263,9 +263,149 @@ agents.get("/:id", requireRole("dashboard"), async (c) => {
 /**
  * PATCH /agents/:id - Update Agent metadata
  * Requires: dashboard role
+ * Supports: nickname, role, lane_id, metadata (shallow merge)
  */
 agents.patch("/:id", requireRole("dashboard"), async (c) => {
-  return jsonResponse(c, { error: "Not implemented" }, 501);
+  const id = c.req.param("id");
+  const body = await c.req.json<UpdateAgentRequest>().catch(() => null);
+
+  if (!body || typeof body !== "object") {
+    return errors.invalidRequest(c, "Invalid JSON body");
+  }
+
+  // First, check if agent exists and get current state
+  const existing = await c.env.DB.prepare(
+    `SELECT id, host_id, match_key, nickname, role, lane_id,
+            metadata, extra, runtime_app, runtime_version, status,
+            created_at, last_seen_at
+     FROM agents WHERE id = ?`
+  )
+    .bind(id)
+    .first<{
+      id: string;
+      host_id: string;
+      match_key: string;
+      nickname: string | null;
+      role: string | null;
+      lane_id: string | null;
+      metadata: string;
+      extra: string;
+      runtime_app: string | null;
+      runtime_version: string | null;
+      status: string;
+      created_at: string;
+      last_seen_at: string | null;
+    }>();
+
+  if (!existing) {
+    return errors.notFound(c, "Agent");
+  }
+
+  // Validate lane_id if provided (and not null)
+  if (body.lane_id !== undefined && body.lane_id !== null) {
+    const lane = await c.env.DB.prepare("SELECT id FROM lanes WHERE id = ?")
+      .bind(body.lane_id)
+      .first<{ id: string }>();
+    if (!lane) {
+      return errors.invalidRequest(c, "Invalid lane_id");
+    }
+  }
+
+  // Build update fields
+  const updates: string[] = [];
+  const params: unknown[] = [];
+
+  if (body.nickname !== undefined) {
+    updates.push("nickname = ?");
+    params.push(body.nickname);
+  }
+  if (body.role !== undefined) {
+    updates.push("role = ?");
+    params.push(body.role);
+  }
+  if (body.lane_id !== undefined) {
+    updates.push("lane_id = ?");
+    params.push(body.lane_id);
+  }
+
+  // Handle metadata shallow merge
+  if (body.metadata !== undefined) {
+    let existingMetadata: Record<string, unknown> = {};
+    try {
+      existingMetadata = JSON.parse(existing.metadata || "{}");
+    } catch {
+      // Keep empty on parse error
+    }
+    const mergedMetadata = { ...existingMetadata, ...body.metadata };
+    updates.push("metadata = ?");
+    params.push(JSON.stringify(mergedMetadata));
+  }
+
+  // Only run update if there are fields to update
+  if (updates.length > 0) {
+    params.push(id);
+    await c.env.DB.prepare(
+      `UPDATE agents SET ${updates.join(", ")} WHERE id = ?`
+    )
+      .bind(...params)
+      .run();
+  }
+
+  // Fetch updated agent
+  const updated = await c.env.DB.prepare(
+    `SELECT id, host_id, match_key, nickname, role, lane_id,
+            metadata, extra, runtime_app, runtime_version, status,
+            created_at, last_seen_at
+     FROM agents WHERE id = ?`
+  )
+    .bind(id)
+    .first<{
+      id: string;
+      host_id: string;
+      match_key: string;
+      nickname: string | null;
+      role: string | null;
+      lane_id: string | null;
+      metadata: string;
+      extra: string;
+      runtime_app: string | null;
+      runtime_version: string | null;
+      status: string;
+      created_at: string;
+      last_seen_at: string | null;
+    }>();
+
+  if (!updated) {
+    return errors.internalError(c);
+  }
+
+  // Parse JSON fields
+  let metadata: Record<string, unknown> = {};
+  let extra: Record<string, unknown> = {};
+  try {
+    metadata = JSON.parse(updated.metadata || "{}");
+    extra = JSON.parse(updated.extra || "{}");
+  } catch {
+    // Keep empty objects on parse error
+  }
+
+  const agent: Agent = {
+    id: updated.id,
+    host_id: updated.host_id,
+    match_key: updated.match_key,
+    nickname: updated.nickname,
+    role: updated.role,
+    lane_id: updated.lane_id as LaneId | null,
+    metadata,
+    extra,
+    runtime_app: updated.runtime_app,
+    runtime_version: updated.runtime_version,
+    status: updated.status as AgentStatus,
+    created_at: updated.created_at,
+    last_seen_at: updated.last_seen_at,
+  };
+
+  return jsonResponse(c, agent);
 });
 
 export { agents };

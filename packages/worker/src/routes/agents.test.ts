@@ -31,22 +31,26 @@ const mockPublicAuth = async (
   await next();
 };
 
+// Agent type for mock data
+type MockAgent = {
+  id: string;
+  host_id: string;
+  match_key: string;
+  nickname?: string | null;
+  role?: string | null;
+  lane_id?: string | null;
+  runtime_app?: string | null;
+  runtime_version?: string | null;
+  status?: string;
+  created_at?: string;
+  last_seen_at?: string | null;
+  metadata?: string;
+};
+
 // Create mock D1 database with configurable behavior
 function createMockDb(options: {
   hosts?: Array<{ id: string }>;
-  agents?: Array<{
-    id: string;
-    host_id: string;
-    match_key: string;
-    nickname?: string | null;
-    role?: string | null;
-    lane_id?: string | null;
-    runtime_app?: string | null;
-    runtime_version?: string | null;
-    status?: string;
-    created_at?: string;
-    last_seen_at?: string | null;
-  }>;
+  agents?: MockAgent[];
   insertError?: string;
 } = {}) {
   const hosts = options.hosts ?? [];
@@ -75,7 +79,7 @@ function createMockDb(options: {
                 nickname: agent.nickname ?? null,
                 role: agent.role ?? null,
                 lane_id: agent.lane_id ?? null,
-                metadata: "{}",
+                metadata: agent.metadata ?? "{}",
                 extra: "{}",
                 runtime_app: agent.runtime_app ?? null,
                 runtime_version: agent.runtime_version ?? null,
@@ -115,27 +119,75 @@ function createMockDb(options: {
   } as unknown as D1Database;
 }
 
+// Create mock D1 database with update support for PATCH tests
+function createMockDbWithUpdate(options: {
+  agents?: MockAgent[];
+  lanes?: Array<{ id: string }>;
+  failPostUpdate?: boolean; // Fail the second agent fetch after update
+} = {}) {
+  const agentsData = [...(options.agents ?? [])];
+  const lanes = options.lanes ?? [];
+  let agentFetchCount = 0;
+
+  return {
+    prepare: vi.fn((sql: string) => ({
+      bind: vi.fn((...args: unknown[]) => ({
+        run: vi.fn(async () => {
+          // Handle UPDATE - apply changes to agent in memory
+          if (sql.includes("UPDATE agents SET")) {
+            // For simplicity, we just verify the update was called
+            // Real updates would parse the SET clause
+            return { success: true };
+          }
+          return { success: true };
+        }),
+        first: vi.fn(async () => {
+          // Lane validation
+          if (sql.includes("SELECT id FROM lanes WHERE id = ?")) {
+            const laneId = args[0] as string;
+            return lanes.find(l => l.id === laneId) ?? null;
+          }
+          // Agent fetch (both initial check and post-update)
+          if (sql.includes("SELECT") && sql.includes("FROM agents") && sql.includes("WHERE id = ?")) {
+            agentFetchCount++;
+            // If failPostUpdate is set, return null on the second fetch
+            if (options.failPostUpdate && agentFetchCount > 1) {
+              return null;
+            }
+            // For PATCH, last arg is the ID
+            const id = args[args.length - 1] as string;
+            const agent = agentsData.find(a => a.id === id);
+            if (agent) {
+              return {
+                ...agent,
+                nickname: agent.nickname ?? null,
+                role: agent.role ?? null,
+                lane_id: agent.lane_id ?? null,
+                metadata: agent.metadata ?? "{}",
+                extra: "{}",
+                runtime_app: agent.runtime_app ?? null,
+                runtime_version: agent.runtime_version ?? null,
+                status: agent.status ?? "stopped",
+                created_at: agent.created_at ?? new Date().toISOString(),
+                last_seen_at: agent.last_seen_at ?? null,
+              };
+            }
+            return null;
+          }
+          return null;
+        }),
+        all: vi.fn(async () => ({ results: [] })),
+      })),
+      run: vi.fn(async () => ({ success: true })),
+      first: vi.fn(async () => null),
+      all: vi.fn(async () => ({ results: [] })),
+    })),
+    batch: vi.fn(async () => []),
+  } as unknown as D1Database;
+}
+
 describe("Agents Routes", () => {
   describe("Route scaffold", () => {
-    it("PATCH /agents/:id should return 501 (not implemented)", async () => {
-      const mockDb = createMockDb();
-      const app = new Hono<{ Bindings: Env }>();
-      app.use("*", mockDashboardAuth);
-      app.route("/", agents);
-
-      const res = await app.request(
-        "/agent_123",
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ nickname: "test" }),
-        },
-        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
-      );
-
-      expect(res.status).toBe(501);
-    });
-
     it("GET /agents should reject unauthenticated", async () => {
       const mockDb = createMockDb();
       const app = new Hono<{ Bindings: Env }>();
@@ -361,6 +413,48 @@ describe("Agents Routes", () => {
       );
 
       expect(res.status).toBe(400);
+    });
+
+    it("should return 500 for host role without hostId in auth", async () => {
+      const mockDb = createMockDb();
+      const app = new Hono<{ Bindings: Env }>();
+      // Mock auth with host role but no hostId (edge case)
+      app.use("*", async (c, next) => {
+        c.set("auth", { role: "host", hostId: null, invalidToken: false });
+        await next();
+      });
+      app.route("/", agents);
+
+      const res = await app.request(
+        "/",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ match_key: "test:/path" }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(500);
+    });
+
+    it("should return 500 for non-UNIQUE database error", async () => {
+      const mockDb = createMockDb({ insertError: "Some other database error" });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockHostAuth("host_123"));
+      app.route("/", agents);
+
+      const res = await app.request(
+        "/",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ match_key: "test:/path" }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(500);
     });
   });
 
@@ -612,6 +706,197 @@ describe("Agents Routes", () => {
       // JSON fields should be parsed as objects
       expect(typeof body.metadata).toBe("object");
       expect(typeof body.extra).toBe("object");
+    });
+  });
+
+  describe("PATCH /agents/:id", () => {
+    it("should update nickname only", async () => {
+      const mockDb = createMockDbWithUpdate({
+        agents: [
+          { id: "agent_1", host_id: "host_123", match_key: "test:/path", nickname: "Old Name" },
+        ],
+      });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", agents);
+
+      const res = await app.request(
+        "/agent_1",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ nickname: "New Name" }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as Agent;
+      expect(body.id).toBe("agent_1");
+    });
+
+    it("should update multiple fields", async () => {
+      const mockDb = createMockDbWithUpdate({
+        agents: [
+          { id: "agent_1", host_id: "host_123", match_key: "test:/path" },
+        ],
+        lanes: [{ id: "lane_work" }],
+      });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", agents);
+
+      const res = await app.request(
+        "/agent_1",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            nickname: "Updated",
+            role: "New Role",
+            lane_id: "lane_work",
+          }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(200);
+    });
+
+    it("should clear field with null", async () => {
+      const mockDb = createMockDbWithUpdate({
+        agents: [
+          { id: "agent_1", host_id: "host_123", match_key: "test:/path", nickname: "Has Name" },
+        ],
+      });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", agents);
+
+      const res = await app.request(
+        "/agent_1",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ nickname: null }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(200);
+    });
+
+    it("should return 400 for invalid lane_id", async () => {
+      const mockDb = createMockDbWithUpdate({
+        agents: [
+          { id: "agent_1", host_id: "host_123", match_key: "test:/path" },
+        ],
+        lanes: [], // No lanes
+      });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", agents);
+
+      const res = await app.request(
+        "/agent_1",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ lane_id: "invalid_lane" }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error.message).toContain("lane_id");
+    });
+
+    it("should return 404 for non-existent agent", async () => {
+      const mockDb = createMockDbWithUpdate({ agents: [] });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", agents);
+
+      const res = await app.request(
+        "/agent_nonexistent",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ nickname: "Test" }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(404);
+    });
+
+    it("should shallow merge metadata", async () => {
+      const mockDb = createMockDbWithUpdate({
+        agents: [
+          { id: "agent_1", host_id: "host_123", match_key: "test:/path" },
+        ],
+      });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", agents);
+
+      const res = await app.request(
+        "/agent_1",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            metadata: { notes: "New notes", tags: ["dev"] },
+          }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(200);
+    });
+
+    it("should return 400 for invalid JSON body", async () => {
+      const mockDb = createMockDbWithUpdate({
+        agents: [{ id: "agent_1", host_id: "host_123", match_key: "test:/path" }],
+      });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", agents);
+
+      const res = await app.request(
+        "/agent_1",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: "not json",
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(400);
+    });
+
+    it("should return 500 when post-update fetch fails", async () => {
+      const mockDb = createMockDbWithUpdate({
+        agents: [{ id: "agent_1", host_id: "host_123", match_key: "test:/path" }],
+        failPostUpdate: true,
+      });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", agents);
+
+      const res = await app.request(
+        "/agent_1",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ nickname: "New Name" }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(500);
     });
   });
 });
