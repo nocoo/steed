@@ -424,4 +424,116 @@ agents.patch("/:id", requireRole("dashboard"), async (c) => {
   return jsonResponse(c, agent);
 });
 
+/**
+ * POST /agents/:id/metadata - Agent CLI attaches extra metadata
+ * Requires: host role (only for agents on that host)
+ * Performs shallow merge on extra JSON field
+ */
+agents.post("/:id/metadata", requireRole("host"), async (c) => {
+  const id = c.req.param("id");
+  const auth = c.get("auth");
+  const hostId = auth.hostId;
+
+  const body = await c.req.json<{ extra?: unknown }>().catch(() => null);
+
+  if (!body || typeof body !== "object") {
+    return errors.invalidRequest(c, "Invalid JSON body");
+  }
+
+  // Fetch existing agent
+  const existing = await c.env.DB.prepare(
+    `SELECT id, host_id, extra FROM agents WHERE id = ?`
+  )
+    .bind(id)
+    .first<{ id: string; host_id: string; extra: string }>();
+
+  if (!existing) {
+    return errors.notFound(c, "Agent");
+  }
+
+  // Verify agent belongs to this host
+  if (existing.host_id !== hostId) {
+    return errors.forbidden(c, "Agent does not belong to this host");
+  }
+
+  // Validate and merge extra
+  if (body.extra !== undefined) {
+    if (
+      body.extra === null ||
+      typeof body.extra !== "object" ||
+      Array.isArray(body.extra)
+    ) {
+      return errors.invalidRequest(c, "extra must be an object");
+    }
+
+    let existingExtra: Record<string, unknown> = {};
+    try {
+      existingExtra = JSON.parse(existing.extra || "{}");
+    } catch {
+      // Keep empty on parse error
+    }
+    const mergedExtra = { ...existingExtra, ...body.extra };
+
+    await c.env.DB.prepare(`UPDATE agents SET extra = ? WHERE id = ?`)
+      .bind(JSON.stringify(mergedExtra), id)
+      .run();
+  }
+
+  // Fetch updated agent
+  const updated = await c.env.DB.prepare(
+    `SELECT id, host_id, match_key, nickname, role, lane_id,
+            metadata, extra, runtime_app, runtime_version, status,
+            created_at, last_seen_at
+     FROM agents WHERE id = ?`
+  )
+    .bind(id)
+    .first<{
+      id: string;
+      host_id: string;
+      match_key: string;
+      nickname: string | null;
+      role: string | null;
+      lane_id: string | null;
+      metadata: string;
+      extra: string;
+      runtime_app: string | null;
+      runtime_version: string | null;
+      status: string;
+      created_at: string;
+      last_seen_at: string | null;
+    }>();
+
+  if (!updated) {
+    return errors.internalError(c);
+  }
+
+  // Parse JSON fields
+  let metadata: Record<string, unknown> = {};
+  let extra: Record<string, unknown> = {};
+  try {
+    metadata = JSON.parse(updated.metadata || "{}");
+    extra = JSON.parse(updated.extra || "{}");
+  } catch {
+    // Keep empty objects on parse error
+  }
+
+  const agent: Agent = {
+    id: updated.id,
+    host_id: updated.host_id,
+    match_key: updated.match_key,
+    nickname: updated.nickname,
+    role: updated.role,
+    lane_id: updated.lane_id as LaneId | null,
+    metadata,
+    extra,
+    runtime_app: updated.runtime_app,
+    runtime_version: updated.runtime_version,
+    status: updated.status as AgentStatus,
+    created_at: updated.created_at,
+    last_seen_at: updated.last_seen_at,
+  };
+
+  return jsonResponse(c, agent);
+});
+
 export { agents };
