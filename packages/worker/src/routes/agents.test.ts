@@ -1013,4 +1013,370 @@ describe("Agents Routes", () => {
       expect(res.status).toBe(500);
     });
   });
+
+  describe("POST /agents/:id/metadata", () => {
+    // Create mock D1 database with extra update support
+    function createMockDbWithExtraUpdate(options: {
+      agents?: MockAgent[];
+      failPostUpdate?: boolean;
+    } = {}) {
+      const agentsData = [...(options.agents ?? [])];
+      let fetchCount = 0;
+
+      return {
+        prepare: vi.fn((sql: string) => ({
+          bind: vi.fn((...args: unknown[]) => ({
+            run: vi.fn(async () => ({ success: true })),
+            first: vi.fn(async () => {
+              // Handle SELECT by id
+              if (sql.includes("FROM agents") && sql.includes("WHERE id = ?")) {
+                fetchCount++;
+                if (options.failPostUpdate && fetchCount > 1) {
+                  return null;
+                }
+                const id = args[args.length - 1] as string;
+                const agent = agentsData.find((a) => a.id === id);
+                if (agent) {
+                  return {
+                    id: agent.id,
+                    host_id: agent.host_id,
+                    match_key: agent.match_key,
+                    nickname: agent.nickname ?? null,
+                    role: agent.role ?? null,
+                    lane_id: agent.lane_id ?? null,
+                    metadata: agent.metadata ?? "{}",
+                    extra: agent.extra ?? "{}",
+                    runtime_app: agent.runtime_app ?? null,
+                    runtime_version: agent.runtime_version ?? null,
+                    status: agent.status ?? "stopped",
+                    created_at: agent.created_at ?? new Date().toISOString(),
+                    last_seen_at: agent.last_seen_at ?? null,
+                  };
+                }
+                return null;
+              }
+              return null;
+            }),
+            all: vi.fn(async () => ({ results: [] })),
+          })),
+          run: vi.fn(async () => ({ success: true })),
+          first: vi.fn(async () => null),
+          all: vi.fn(async () => ({ results: [] })),
+        })),
+        batch: vi.fn(async () => []),
+      } as unknown as D1Database;
+    }
+
+    it("should update extra with shallow merge", async () => {
+      const mockDb = createMockDbWithExtraUpdate({
+        agents: [
+          {
+            id: "agent_1",
+            host_id: "host_123",
+            match_key: "test:/path",
+            extra: JSON.stringify({ existing: "value" }),
+          },
+        ],
+      });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockHostAuth("host_123"));
+      app.route("/", agents);
+
+      const res = await app.request(
+        "/agent_1/metadata",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ extra: { memory_count: 42 } }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as Agent;
+      expect(body.id).toBe("agent_1");
+    });
+
+    it("should return 404 for non-existent agent", async () => {
+      const mockDb = createMockDbWithExtraUpdate({ agents: [] });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockHostAuth("host_123"));
+      app.route("/", agents);
+
+      const res = await app.request(
+        "/agent_nonexistent/metadata",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ extra: { test: "value" } }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(404);
+    });
+
+    it("should return 403 for agent on different host", async () => {
+      const mockDb = createMockDbWithExtraUpdate({
+        agents: [
+          { id: "agent_1", host_id: "host_other", match_key: "test:/path" },
+        ],
+      });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockHostAuth("host_123")); // Different host
+      app.route("/", agents);
+
+      const res = await app.request(
+        "/agent_1/metadata",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ extra: { test: "value" } }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(403);
+      const body = await res.json();
+      expect(body.error.message).toContain("does not belong");
+    });
+
+    it("should return 400 for extra as null", async () => {
+      const mockDb = createMockDbWithExtraUpdate({
+        agents: [{ id: "agent_1", host_id: "host_123", match_key: "test:/path" }],
+      });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockHostAuth("host_123"));
+      app.route("/", agents);
+
+      const res = await app.request(
+        "/agent_1/metadata",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ extra: null }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error.message).toContain("extra");
+    });
+
+    it("should return 400 for extra as array", async () => {
+      const mockDb = createMockDbWithExtraUpdate({
+        agents: [{ id: "agent_1", host_id: "host_123", match_key: "test:/path" }],
+      });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockHostAuth("host_123"));
+      app.route("/", agents);
+
+      const res = await app.request(
+        "/agent_1/metadata",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ extra: ["invalid"] }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(400);
+    });
+
+    it("should return 400 for invalid JSON body", async () => {
+      const mockDb = createMockDbWithExtraUpdate({
+        agents: [{ id: "agent_1", host_id: "host_123", match_key: "test:/path" }],
+      });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockHostAuth("host_123"));
+      app.route("/", agents);
+
+      const res = await app.request(
+        "/agent_1/metadata",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "not json",
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(400);
+    });
+
+    it("should reject dashboard role", async () => {
+      const mockDb = createMockDbWithExtraUpdate({
+        agents: [{ id: "agent_1", host_id: "host_123", match_key: "test:/path" }],
+      });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", agents);
+
+      const res = await app.request(
+        "/agent_1/metadata",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ extra: { test: "value" } }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(403);
+    });
+
+    it("should return 500 when post-update fetch fails", async () => {
+      const mockDb = createMockDbWithExtraUpdate({
+        agents: [{ id: "agent_1", host_id: "host_123", match_key: "test:/path" }],
+        failPostUpdate: true,
+      });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockHostAuth("host_123"));
+      app.route("/", agents);
+
+      const res = await app.request(
+        "/agent_1/metadata",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ extra: { test: "value" } }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(500);
+    });
+
+    it("should handle empty body without extra field", async () => {
+      const mockDb = createMockDbWithExtraUpdate({
+        agents: [
+          {
+            id: "agent_1",
+            host_id: "host_123",
+            match_key: "test:/path",
+            extra: JSON.stringify({ existing: "value" }),
+          },
+        ],
+      });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockHostAuth("host_123"));
+      app.route("/", agents);
+
+      const res = await app.request(
+        "/agent_1/metadata",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as Agent;
+      expect(body.id).toBe("agent_1");
+    });
+
+    it("should handle invalid extra JSON in database gracefully", async () => {
+      const mockDb = createMockDbWithExtraUpdate({
+        agents: [
+          {
+            id: "agent_1",
+            host_id: "host_123",
+            match_key: "test:/path",
+            extra: "invalid json",
+          },
+        ],
+      });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockHostAuth("host_123"));
+      app.route("/", agents);
+
+      const res = await app.request(
+        "/agent_1/metadata",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ extra: { new_key: "value" } }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(200);
+    });
+
+    it("should handle invalid metadata/extra JSON in response gracefully", async () => {
+      // This tests the final JSON.parse catch block
+      const agentsData = [
+        {
+          id: "agent_1",
+          host_id: "host_123",
+          match_key: "test:/path",
+          metadata: "invalid json",
+          extra: "also invalid",
+        },
+      ];
+      let fetchCount = 0;
+      const mockDb = {
+        prepare: vi.fn((sql: string) => ({
+          bind: vi.fn((...args: unknown[]) => ({
+            run: vi.fn(async () => ({ success: true })),
+            first: vi.fn(async () => {
+              if (sql.includes("FROM agents") && sql.includes("WHERE id = ?")) {
+                fetchCount++;
+                const id = args[args.length - 1] as string;
+                const agent = agentsData.find((a) => a.id === id);
+                if (agent) {
+                  return {
+                    id: agent.id,
+                    host_id: agent.host_id,
+                    match_key: agent.match_key,
+                    nickname: null,
+                    role: null,
+                    lane_id: null,
+                    metadata: agent.metadata,
+                    extra: agent.extra,
+                    runtime_app: null,
+                    runtime_version: null,
+                    status: "stopped",
+                    created_at: new Date().toISOString(),
+                    last_seen_at: null,
+                  };
+                }
+                return null;
+              }
+              return null;
+            }),
+            all: vi.fn(async () => ({ results: [] })),
+          })),
+          run: vi.fn(async () => ({ success: true })),
+          first: vi.fn(async () => null),
+          all: vi.fn(async () => ({ results: [] })),
+        })),
+        batch: vi.fn(async () => []),
+      } as unknown as D1Database;
+
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockHostAuth("host_123"));
+      app.route("/", agents);
+
+      const res = await app.request(
+        "/agent_1/metadata",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as Agent;
+      expect(body.metadata).toEqual({});
+      expect(body.extra).toEqual({});
+      void fetchCount;
+    });
+  });
 });

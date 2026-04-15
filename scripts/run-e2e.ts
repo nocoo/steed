@@ -561,7 +561,47 @@ async function runTests(): Promise<void> {
     assertEqual(res.status, 403, "status");
   })();
 
-  // 22. Overview shows Agent count
+  // 22. POST /agents/:id/metadata (host role)
+  await test("POST /api/v1/agents/:id/metadata updates extra", async () => {
+    assertExists(testAgentId, "testAgentId");
+    const res = await request(`/api/v1/agents/${testAgentId}/metadata`, {
+      method: "POST",
+      auth: "host",
+      body: JSON.stringify({
+        extra: { memory_count: 42, last_task: "E2E test" },
+      }),
+    });
+    assertEqual(res.status, 200, "status");
+    const body = await res.json() as { id: string; extra: Record<string, unknown> };
+    assertEqual(body.id, testAgentId, "body.id");
+    assertEqual(body.extra.memory_count, 42, "extra.memory_count");
+    assertEqual(body.extra.last_task, "E2E test", "extra.last_task");
+  })();
+
+  // 22b. Verify extra persisted
+  await test("GET /api/v1/agents/:id shows extra metadata", async () => {
+    assertExists(testAgentId, "testAgentId");
+    const res = await request(`/api/v1/agents/${testAgentId}`, {
+      auth: "dashboard",
+    });
+    assertEqual(res.status, 200, "status");
+    const body = await res.json() as { extra: Record<string, unknown> };
+    assertEqual(body.extra.memory_count, 42, "extra.memory_count persisted");
+    assertEqual(body.extra.last_task, "E2E test", "extra.last_task persisted");
+  })();
+
+  // 22c. Dashboard role cannot use POST /agents/:id/metadata
+  await test("Dashboard role cannot POST /agents/:id/metadata (403)", async () => {
+    assertExists(testAgentId, "testAgentId");
+    const res = await request(`/api/v1/agents/${testAgentId}/metadata`, {
+      method: "POST",
+      auth: "dashboard",
+      body: JSON.stringify({ extra: { test: "value" } }),
+    });
+    assertEqual(res.status, 403, "status");
+  })();
+
+  // 22d. Overview shows Agent count
   await test("GET /api/v1/overview shows updated agent count", async () => {
     const res = await request("/api/v1/overview", { auth: "dashboard" });
     assertEqual(res.status, 200, "status");
