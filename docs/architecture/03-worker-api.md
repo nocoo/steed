@@ -611,10 +611,13 @@ packages/worker/src/routes/data-sources.ts — 追加
 
 ```
 packages/worker/src/routes/bindings.ts
-  - GET: 列出全部绑定
+  - GET: 列出绑定（支持 agent_id / data_source_id 筛选）
   - POST: 创建绑定（含跨 Host 校验 → 403）
   - DELETE: 删除绑定
 测试（TDD 先写）：
+  - GET 全量列表
+  - GET 按 agent_id 筛选
+  - GET 按 data_source_id 筛选
   - 正常绑定创建
   - 跨 Host 绑定 → 403
   - 重复绑定 → 409
