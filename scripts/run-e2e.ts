@@ -904,11 +904,11 @@ async function runTests(): Promise<void> {
   })();
 
   // 45. Delete Binding
-  await test("DELETE /api/v1/bindings deletes binding", async () => {
+  await test("DELETE /api/v1/bindings/:agent_id/:data_source_id deletes binding", async () => {
     assertExists(testAgentId, "testAgentId");
     assertExists(testDataSourceId, "testDataSourceId");
     const res = await request(
-      `/api/v1/bindings?agent_id=${testAgentId}&data_source_id=${testDataSourceId}`,
+      `/api/v1/bindings/${testAgentId}/${testDataSourceId}`,
       { method: "DELETE", auth: "dashboard" }
     );
     assertEqual(res.status, 204, "status");
@@ -926,9 +926,9 @@ async function runTests(): Promise<void> {
   })();
 
   // 47. Delete non-existent binding returns 404
-  await test("DELETE /api/v1/bindings returns 404 for non-existent", async () => {
+  await test("DELETE /api/v1/bindings/:agent_id/:data_source_id returns 404 for non-existent", async () => {
     const res = await request(
-      "/api/v1/bindings?agent_id=agent_nonexistent&data_source_id=ds_nonexistent",
+      "/api/v1/bindings/agent_nonexistent/ds_nonexistent",
       { method: "DELETE", auth: "dashboard" }
     );
     assertEqual(res.status, 404, "status");

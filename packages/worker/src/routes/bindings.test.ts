@@ -518,9 +518,62 @@ describe("Bindings Routes", () => {
 
       expect(res.status).toBe(400);
     });
+
+    it("should return 500 when post-create fetch fails", async () => {
+      // Create a custom mock that returns null on the final fetch after insert
+      const mockDb = {
+        prepare: vi.fn((sql: string) => ({
+          bind: vi.fn((...args: unknown[]) => ({
+            run: vi.fn(async () => ({ success: true })),
+            first: vi.fn(async () => {
+              // Agent lookup
+              if (sql.includes("FROM agents") && sql.includes("WHERE id = ?")) {
+                return { id: args[0], host_id: "host_123" };
+              }
+              // Data source lookup
+              if (sql.includes("FROM data_sources") && sql.includes("WHERE id = ?")) {
+                return { id: args[0], host_id: "host_123" };
+              }
+              // Existing binding check - none exists
+              if (sql.includes("SELECT 1 FROM agent_data_source_bindings")) {
+                return null;
+              }
+              // Post-create fetch - return null to trigger error
+              if (sql.includes("SELECT agent_id, data_source_id, created_at FROM agent_data_source_bindings")) {
+                return null;
+              }
+              return null;
+            }),
+            all: vi.fn(async () => ({ results: [] })),
+          })),
+          run: vi.fn(async () => ({ success: true })),
+          first: vi.fn(async () => null),
+          all: vi.fn(async () => ({ results: [] })),
+        })),
+        batch: vi.fn(async () => []),
+      } as unknown as D1Database;
+
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", bindings);
+
+      const res = await app.request(
+        "/",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ agent_id: "agent_1", data_source_id: "ds_1" }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(500);
+      const body = await res.json();
+      expect(body).toHaveProperty("error.code", "internal_error");
+    });
   });
 
-  describe("DELETE /bindings", () => {
+  describe("DELETE /bindings/:agent_id/:data_source_id", () => {
     it("should delete a binding", async () => {
       const mockDb = createMockDb({
         bindings: [{ agent_id: "agent_1", data_source_id: "ds_1" }],
@@ -530,7 +583,7 @@ describe("Bindings Routes", () => {
       app.route("/", bindings);
 
       const res = await app.request(
-        "/?agent_id=agent_1&data_source_id=ds_1",
+        "/agent_1/ds_1",
         { method: "DELETE" },
         { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
       );
@@ -545,46 +598,12 @@ describe("Bindings Routes", () => {
       app.route("/", bindings);
 
       const res = await app.request(
-        "/?agent_id=agent_1&data_source_id=ds_1",
+        "/agent_1/ds_1",
         { method: "DELETE" },
         { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
       );
 
       expect(res.status).toBe(404);
-    });
-
-    it("should return 400 for missing agent_id", async () => {
-      const mockDb = createMockDb();
-      const app = new Hono<{ Bindings: Env }>();
-      app.use("*", mockDashboardAuth);
-      app.route("/", bindings);
-
-      const res = await app.request(
-        "/?data_source_id=ds_1",
-        { method: "DELETE" },
-        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
-      );
-
-      expect(res.status).toBe(400);
-      const body = await res.json();
-      expect(body.error.message).toContain("agent_id");
-    });
-
-    it("should return 400 for missing data_source_id", async () => {
-      const mockDb = createMockDb();
-      const app = new Hono<{ Bindings: Env }>();
-      app.use("*", mockDashboardAuth);
-      app.route("/", bindings);
-
-      const res = await app.request(
-        "/?agent_id=agent_1",
-        { method: "DELETE" },
-        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
-      );
-
-      expect(res.status).toBe(400);
-      const body = await res.json();
-      expect(body.error.message).toContain("data_source_id");
     });
   });
 });

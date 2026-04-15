@@ -164,24 +164,20 @@ bindings.post("/", requireRole("dashboard"), async (c) => {
     .bind(agent_id, data_source_id)
     .first<{ agent_id: string; data_source_id: string; created_at: string }>();
 
+  if (!created) {
+    return errors.internalError(c);
+  }
+
   return jsonResponse(c, created, 201);
 });
 
 /**
- * DELETE /bindings - Delete a binding
+ * DELETE /bindings/:agent_id/:data_source_id - Delete a binding
  * Requires: dashboard role
- * Query params: agent_id, data_source_id (both required)
  */
-bindings.delete("/", requireRole("dashboard"), async (c) => {
-  const agentId = c.req.query("agent_id");
-  const dataSourceId = c.req.query("data_source_id");
-
-  if (!agentId) {
-    return errors.invalidRequest(c, "agent_id query param is required");
-  }
-  if (!dataSourceId) {
-    return errors.invalidRequest(c, "data_source_id query param is required");
-  }
+bindings.delete("/:agent_id/:data_source_id", requireRole("dashboard"), async (c) => {
+  const agentId = c.req.param("agent_id");
+  const dataSourceId = c.req.param("data_source_id");
 
   // Check if binding exists
   const existing = await c.env.DB.prepare(
