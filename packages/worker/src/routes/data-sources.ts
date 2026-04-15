@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { Env } from "../env";
 import { requireRole } from "../middleware/auth";
 import { jsonResponse, errors } from "../lib/response";
-import type { DataSourceListItem, DataSourceStatus } from "@steed/shared";
+import type { DataSourceListItem, DataSourceStatus, DataSourceWithLanes } from "@steed/shared";
 
 const dataSources = new Hono<{ Bindings: Env }>();
 
@@ -126,7 +126,64 @@ dataSources.get("/", requireRole("dashboard"), async (c) => {
  * Requires: dashboard role
  */
 dataSources.get("/:id", requireRole("dashboard"), async (c) => {
-  return errors.notImplemented(c);
+  const id = c.req.param("id");
+
+  // Fetch data source
+  const result = await c.env.DB.prepare(
+    `SELECT id, host_id, type, name, version, auth_status, status,
+            metadata, created_at, last_seen_at
+     FROM data_sources WHERE id = ?`
+  )
+    .bind(id)
+    .first<{
+      id: string;
+      host_id: string;
+      type: string;
+      name: string;
+      version: string | null;
+      auth_status: string;
+      status: string;
+      metadata: string;
+      created_at: string;
+      last_seen_at: string | null;
+    }>();
+
+  if (!result) {
+    return errors.notFound(c, "Data Source");
+  }
+
+  // Fetch lane assignments
+  const lanesResult = await c.env.DB.prepare(
+    `SELECT lane_id FROM data_source_lanes WHERE data_source_id = ?`
+  )
+    .bind(id)
+    .all<{ lane_id: string }>();
+
+  const laneIds = (lanesResult.results ?? []).map((r) => r.lane_id);
+
+  // Parse metadata JSON
+  let metadata: Record<string, unknown> = {};
+  try {
+    metadata = JSON.parse(result.metadata || "{}");
+  } catch {
+    // Keep empty object on parse error
+  }
+
+  const dataSource: DataSourceWithLanes = {
+    id: result.id,
+    host_id: result.host_id,
+    type: result.type as DataSourceWithLanes["type"],
+    name: result.name,
+    version: result.version,
+    auth_status: result.auth_status as DataSourceWithLanes["auth_status"],
+    status: result.status as DataSourceStatus,
+    metadata,
+    created_at: result.created_at,
+    last_seen_at: result.last_seen_at,
+    lane_ids: laneIds,
+  };
+
+  return jsonResponse(c, dataSource);
 });
 
 /**
