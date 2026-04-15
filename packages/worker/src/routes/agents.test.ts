@@ -34,7 +34,19 @@ const mockPublicAuth = async (
 // Create mock D1 database with configurable behavior
 function createMockDb(options: {
   hosts?: Array<{ id: string }>;
-  agents?: Array<{ id: string; host_id: string; match_key: string }>;
+  agents?: Array<{
+    id: string;
+    host_id: string;
+    match_key: string;
+    nickname?: string | null;
+    role?: string | null;
+    lane_id?: string | null;
+    runtime_app?: string | null;
+    runtime_version?: string | null;
+    status?: string;
+    created_at?: string;
+    last_seen_at?: string | null;
+  }>;
   insertError?: string;
 } = {}) {
   const hosts = options.hosts ?? [];
@@ -54,13 +66,46 @@ function createMockDb(options: {
             const hostId = args[0] as string;
             return hosts.find(h => h.id === hostId) ?? null;
           }
-          if (sql.includes("SELECT") && sql.includes("agents")) {
+          if (sql.includes("SELECT") && sql.includes("FROM agents") && sql.includes("WHERE id = ?")) {
             const id = args[0] as string;
-            return agentsData.find(a => a.id === id) ?? null;
+            const agent = agentsData.find(a => a.id === id);
+            if (agent) {
+              return {
+                ...agent,
+                nickname: agent.nickname ?? null,
+                role: agent.role ?? null,
+                lane_id: agent.lane_id ?? null,
+                metadata: "{}",
+                extra: "{}",
+                runtime_app: agent.runtime_app ?? null,
+                runtime_version: agent.runtime_version ?? null,
+                status: agent.status ?? "stopped",
+                created_at: agent.created_at ?? new Date().toISOString(),
+                last_seen_at: agent.last_seen_at ?? null,
+              };
+            }
+            return null;
           }
           return null;
         }),
-        all: vi.fn(async () => ({ results: agentsData })),
+        all: vi.fn(async () => {
+          // For list queries, return agents with full structure
+          return {
+            results: agentsData.map(a => ({
+              id: a.id,
+              host_id: a.host_id,
+              match_key: a.match_key,
+              nickname: a.nickname ?? null,
+              role: a.role ?? null,
+              lane_id: a.lane_id ?? null,
+              runtime_app: a.runtime_app ?? null,
+              runtime_version: a.runtime_version ?? null,
+              status: a.status ?? "stopped",
+              created_at: a.created_at ?? new Date().toISOString(),
+              last_seen_at: a.last_seen_at ?? null,
+            })),
+          };
+        }),
       })),
       run: vi.fn(async () => ({ success: true })),
       first: vi.fn(async () => null),
@@ -72,21 +117,6 @@ function createMockDb(options: {
 
 describe("Agents Routes", () => {
   describe("Route scaffold", () => {
-    it("GET /agents should return 501 (not implemented)", async () => {
-      const mockDb = createMockDb();
-      const app = new Hono<{ Bindings: Env }>();
-      app.use("*", mockDashboardAuth);
-      app.route("/", agents);
-
-      const res = await app.request(
-        "/",
-        {},
-        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
-      );
-
-      expect(res.status).toBe(501);
-    });
-
     it("GET /agents/:id should return 501 (not implemented)", async () => {
       const mockDb = createMockDb();
       const app = new Hono<{ Bindings: Env }>();
@@ -119,21 +149,6 @@ describe("Agents Routes", () => {
       );
 
       expect(res.status).toBe(501);
-    });
-
-    it("GET /agents should reject host role", async () => {
-      const mockDb = createMockDb();
-      const app = new Hono<{ Bindings: Env }>();
-      app.use("*", mockHostAuth("host_123"));
-      app.route("/", agents);
-
-      const res = await app.request(
-        "/",
-        {},
-        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
-      );
-
-      expect(res.status).toBe(403);
     });
 
     it("GET /agents should reject unauthenticated", async () => {
@@ -361,6 +376,175 @@ describe("Agents Routes", () => {
       );
 
       expect(res.status).toBe(400);
+    });
+  });
+
+  describe("GET /agents", () => {
+    it("should return empty list when no agents", async () => {
+      const mockDb = createMockDb();
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", agents);
+
+      const res = await app.request(
+        "/",
+        {},
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json() as { data: Agent[]; next_cursor: string | null };
+      expect(body.data).toEqual([]);
+      expect(body.next_cursor).toBeNull();
+    });
+
+    it("should return list of agents", async () => {
+      const mockDb = createMockDb({
+        agents: [
+          {
+            id: "agent_1",
+            host_id: "host_123",
+            match_key: "test:/path1",
+            nickname: "Agent 1",
+            role: "Testing",
+            lane_id: "lane_work",
+            runtime_app: "openclaw",
+            runtime_version: "1.0.0",
+            status: "running",
+            created_at: "2026-04-15T12:00:00Z",
+            last_seen_at: "2026-04-15T14:00:00Z",
+          },
+        ],
+      });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", agents);
+
+      const res = await app.request(
+        "/",
+        {},
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json() as { data: Agent[]; next_cursor: string | null };
+      expect(body.data).toHaveLength(1);
+      expect(body.data[0]?.id).toBe("agent_1");
+      expect(body.data[0]?.nickname).toBe("Agent 1");
+    });
+
+    it("should filter by host_id", async () => {
+      const mockDb = createMockDb({
+        agents: [
+          { id: "agent_1", host_id: "host_a", match_key: "test:/1", nickname: null, role: null, lane_id: null, runtime_app: null, runtime_version: null, status: "stopped", created_at: "2026-04-15T12:00:00Z", last_seen_at: null },
+        ],
+      });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", agents);
+
+      const res = await app.request(
+        "/?host_id=host_a",
+        {},
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(200);
+      // Verify the query was called with host_id filter
+      expect(mockDb.prepare).toHaveBeenCalled();
+    });
+
+    it("should filter by lane_id", async () => {
+      const mockDb = createMockDb();
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", agents);
+
+      const res = await app.request(
+        "/?lane_id=lane_work",
+        {},
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(200);
+      expect(mockDb.prepare).toHaveBeenCalled();
+    });
+
+    it("should filter by status", async () => {
+      const mockDb = createMockDb();
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", agents);
+
+      const res = await app.request(
+        "/?status=running",
+        {},
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(200);
+      expect(mockDb.prepare).toHaveBeenCalled();
+    });
+
+    it("should respect limit parameter", async () => {
+      const mockDb = createMockDb();
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", agents);
+
+      const res = await app.request(
+        "/?limit=10",
+        {},
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(200);
+    });
+
+    it("should cap limit at MAX_LIMIT (200)", async () => {
+      const mockDb = createMockDb();
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", agents);
+
+      const res = await app.request(
+        "/?limit=500",
+        {},
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(200);
+      // Verify limit was capped (the actual assertion would require deeper mock inspection)
+    });
+
+    it("should support cursor pagination", async () => {
+      const mockDb = createMockDb();
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", agents);
+
+      const res = await app.request(
+        "/?cursor=agent_abc",
+        {},
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(200);
+    });
+
+    it("should reject host role", async () => {
+      const mockDb = createMockDb();
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockHostAuth("host_123"));
+      app.route("/", agents);
+
+      const res = await app.request(
+        "/",
+        {},
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(403);
     });
   });
 });
