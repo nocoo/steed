@@ -192,7 +192,119 @@ dataSources.get("/:id", requireRole("dashboard"), async (c) => {
  * Supports: metadata (shallow merge)
  */
 dataSources.patch("/:id", requireRole("dashboard"), async (c) => {
-  return errors.notImplemented(c);
+  const id = c.req.param("id");
+  const body = await c.req.json<{ metadata?: unknown }>().catch(() => null);
+
+  if (!body || typeof body !== "object") {
+    return errors.invalidRequest(c, "Invalid JSON body");
+  }
+
+  // Check if data source exists and get current state
+  const existing = await c.env.DB.prepare(
+    `SELECT id, host_id, type, name, version, auth_status, status,
+            metadata, created_at, last_seen_at
+     FROM data_sources WHERE id = ?`
+  )
+    .bind(id)
+    .first<{
+      id: string;
+      host_id: string;
+      type: string;
+      name: string;
+      version: string | null;
+      auth_status: string;
+      status: string;
+      metadata: string;
+      created_at: string;
+      last_seen_at: string | null;
+    }>();
+
+  if (!existing) {
+    return errors.notFound(c, "Data Source");
+  }
+
+  // Validate and handle metadata shallow merge
+  if (body.metadata !== undefined) {
+    // Validate metadata is a plain object (not null, not array)
+    if (
+      body.metadata === null ||
+      typeof body.metadata !== "object" ||
+      Array.isArray(body.metadata)
+    ) {
+      return errors.invalidRequest(c, "metadata must be an object");
+    }
+
+    let existingMetadata: Record<string, unknown> = {};
+    try {
+      existingMetadata = JSON.parse(existing.metadata || "{}");
+    } catch {
+      // Keep empty on parse error
+    }
+    const mergedMetadata = { ...existingMetadata, ...body.metadata };
+
+    await c.env.DB.prepare(
+      `UPDATE data_sources SET metadata = ? WHERE id = ?`
+    )
+      .bind(JSON.stringify(mergedMetadata), id)
+      .run();
+  }
+
+  // Fetch updated data source with lanes
+  const updated = await c.env.DB.prepare(
+    `SELECT id, host_id, type, name, version, auth_status, status,
+            metadata, created_at, last_seen_at
+     FROM data_sources WHERE id = ?`
+  )
+    .bind(id)
+    .first<{
+      id: string;
+      host_id: string;
+      type: string;
+      name: string;
+      version: string | null;
+      auth_status: string;
+      status: string;
+      metadata: string;
+      created_at: string;
+      last_seen_at: string | null;
+    }>();
+
+  if (!updated) {
+    return errors.internalError(c);
+  }
+
+  // Fetch lane assignments
+  const lanesResult = await c.env.DB.prepare(
+    `SELECT lane_id FROM data_source_lanes WHERE data_source_id = ?`
+  )
+    .bind(id)
+    .all<{ lane_id: string }>();
+
+  const laneIds = (lanesResult.results ?? []).map((r) => r.lane_id);
+
+  // Parse metadata JSON
+  let metadata: Record<string, unknown> = {};
+  try {
+    metadata = JSON.parse(updated.metadata || "{}");
+  } catch {
+    // Keep empty object on parse error
+  }
+
+  const dataSource: DataSourceWithLanes = {
+    id: updated.id,
+    host_id: updated.host_id,
+    type: updated.type as DataSourceWithLanes["type"],
+    name: updated.name,
+    version: updated.version,
+    auth_status: updated.auth_status as DataSourceWithLanes["auth_status"],
+    status: updated.status as DataSourceStatus,
+    metadata,
+    created_at: updated.created_at,
+    last_seen_at: updated.last_seen_at,
+    lane_ids: laneIds,
+  };
+
+  return jsonResponse(c, dataSource);
 });
 
 /**

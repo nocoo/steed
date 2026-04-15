@@ -138,27 +138,68 @@ function createMockDb(options: {
   } as unknown as D1Database;
 }
 
+// Create mock D1 database with update support for PATCH tests
+function createMockDbWithUpdate(options: {
+  dataSources?: MockDataSource[];
+  dataSourceLanes?: Array<{ data_source_id: string; lane_id: string }>;
+  failPostUpdate?: boolean;
+} = {}) {
+  const dataSourcesData = [...(options.dataSources ?? [])];
+  const dataSourceLanes = options.dataSourceLanes ?? [];
+  let fetchCount = 0;
+
+  return {
+    prepare: vi.fn((sql: string) => ({
+      bind: vi.fn((...args: unknown[]) => ({
+        run: vi.fn(async () => ({ success: true })),
+        first: vi.fn(async () => {
+          // Handle GET /:id query
+          if (sql.includes("FROM data_sources") && sql.includes("WHERE id = ?")) {
+            fetchCount++;
+            // If failPostUpdate is set, return null on the second fetch
+            if (options.failPostUpdate && fetchCount > 1) {
+              return null;
+            }
+            const id = args[args.length - 1] as string;
+            const ds = dataSourcesData.find(d => d.id === id);
+            if (ds) {
+              return {
+                id: ds.id,
+                host_id: ds.host_id,
+                type: ds.type,
+                name: ds.name,
+                version: ds.version ?? null,
+                auth_status: ds.auth_status ?? "unknown",
+                status: ds.status ?? "active",
+                metadata: ds.metadata ?? "{}",
+                created_at: ds.created_at ?? new Date().toISOString(),
+                last_seen_at: ds.last_seen_at ?? null,
+              };
+            }
+            return null;
+          }
+          return null;
+        }),
+        all: vi.fn(async () => {
+          // Handle lane_ids fetch
+          if (sql.includes("FROM data_source_lanes") && sql.includes("WHERE data_source_id = ?")) {
+            const dsId = args[0] as string;
+            const lanes = dataSourceLanes.filter(dsl => dsl.data_source_id === dsId);
+            return { results: lanes.map(l => ({ lane_id: l.lane_id })) };
+          }
+          return { results: [] };
+        }),
+      })),
+      run: vi.fn(async () => ({ success: true })),
+      first: vi.fn(async () => null),
+      all: vi.fn(async () => ({ results: [] })),
+    })),
+    batch: vi.fn(async () => []),
+  } as unknown as D1Database;
+}
+
 describe("Data Sources Routes", () => {
   describe("Route scaffold", () => {
-    it("PATCH /data-sources/:id should return 501 (not implemented)", async () => {
-      const mockDb = createMockDb();
-      const app = new Hono<{ Bindings: Env }>();
-      app.use("*", mockDashboardAuth);
-      app.route("/", dataSources);
-
-      const res = await app.request(
-        "/ds_123",
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ metadata: {} }),
-        },
-        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
-      );
-
-      expect(res.status).toBe(501);
-    });
-
     it("PUT /data-sources/:id/lanes should return 501 (not implemented)", async () => {
       const mockDb = createMockDb();
       const app = new Hono<{ Bindings: Env }>();
@@ -526,6 +567,172 @@ describe("Data Sources Routes", () => {
       expect(res.status).toBe(200);
       const body = await res.json() as { metadata: Record<string, unknown> };
       expect(body.metadata).toEqual({});
+    });
+  });
+
+  describe("PATCH /data-sources/:id", () => {
+    it("should update metadata with shallow merge", async () => {
+      const mockDb = createMockDbWithUpdate({
+        dataSources: [
+          {
+            id: "ds_1",
+            host_id: "host_123",
+            type: "personal_cli",
+            name: "nmem",
+            metadata: JSON.stringify({ existing: "value" }),
+          },
+        ],
+      });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", dataSources);
+
+      const res = await app.request(
+        "/ds_1",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ metadata: { notes: "New notes", tags: ["dev"] } }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json() as { id: string };
+      expect(body.id).toBe("ds_1");
+    });
+
+    it("should return 404 for non-existent data source", async () => {
+      const mockDb = createMockDbWithUpdate({ dataSources: [] });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", dataSources);
+
+      const res = await app.request(
+        "/ds_nonexistent",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ metadata: { notes: "Test" } }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(404);
+    });
+
+    it("should return 400 for metadata as null", async () => {
+      const mockDb = createMockDbWithUpdate({
+        dataSources: [{ id: "ds_1", host_id: "host_123", type: "personal_cli", name: "test" }],
+      });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", dataSources);
+
+      const res = await app.request(
+        "/ds_1",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ metadata: null }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error.message).toContain("metadata");
+    });
+
+    it("should return 400 for metadata as array", async () => {
+      const mockDb = createMockDbWithUpdate({
+        dataSources: [{ id: "ds_1", host_id: "host_123", type: "personal_cli", name: "test" }],
+      });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", dataSources);
+
+      const res = await app.request(
+        "/ds_1",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ metadata: ["invalid"] }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(400);
+    });
+
+    it("should return 400 for invalid JSON body", async () => {
+      const mockDb = createMockDbWithUpdate({
+        dataSources: [{ id: "ds_1", host_id: "host_123", type: "personal_cli", name: "test" }],
+      });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", dataSources);
+
+      const res = await app.request(
+        "/ds_1",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: "not json",
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(400);
+    });
+
+    it("should handle no metadata update (empty body)", async () => {
+      const mockDb = createMockDbWithUpdate({
+        dataSources: [
+          { id: "ds_1", host_id: "host_123", type: "personal_cli", name: "nmem" },
+        ],
+      });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", dataSources);
+
+      const res = await app.request(
+        "/ds_1",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(200);
+    });
+
+    it("should return 500 when post-update fetch fails", async () => {
+      const mockDb = createMockDbWithUpdate({
+        dataSources: [
+          { id: "ds_1", host_id: "host_123", type: "personal_cli", name: "nmem" },
+        ],
+        failPostUpdate: true,
+      });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", dataSources);
+
+      const res = await app.request(
+        "/ds_1",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ metadata: { notes: "test" } }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(500);
+      const body = await res.json();
+      expect(body).toHaveProperty("error.code", "internal_error");
     });
   });
 });
