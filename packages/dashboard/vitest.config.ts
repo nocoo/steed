@@ -10,8 +10,12 @@ export default defineConfig({
     include: ["src/**/*.test.{ts,tsx}"],
     coverage: {
       provider: "v8",
-      include: ["src/viewmodels/**/*.ts"],
-      exclude: ["src/**/*.test.ts", "src/**/*.test.tsx"],
+      include: ["src/viewmodels/**/*.ts", "src/app/api/**/route.ts"],
+      exclude: [
+        "src/**/*.test.ts",
+        "src/**/*.test.tsx",
+        "src/app/api/auth/**", // NextAuth handlers, no custom logic to test
+      ],
       reporter: ["text", "json-summary"],
       thresholds: {
         statements: 90,
