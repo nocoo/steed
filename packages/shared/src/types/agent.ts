@@ -36,3 +36,42 @@ export interface AgentSnapshot {
   runtime_version: string;
   status: "running" | "stopped";
 }
+
+/**
+ * Request to create a new Agent
+ */
+export interface CreateAgentRequest {
+  host_id?: string; // Required for dashboard role, ignored for host role
+  match_key: string;
+  nickname?: string;
+  role?: string;
+}
+
+/**
+ * Request to update Agent metadata
+ */
+export interface UpdateAgentRequest {
+  nickname?: string | null;
+  role?: string | null;
+  lane_id?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * Query parameters for listing agents
+ */
+export interface ListAgentsQuery {
+  host_id?: string;
+  lane_id?: string;
+  status?: AgentStatus;
+  limit?: number;
+  cursor?: string;
+}
+
+/**
+ * Response for listing agents with pagination
+ */
+export interface ListAgentsResponse {
+  data: Agent[];
+  next_cursor: string | null;
+}
