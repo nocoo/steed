@@ -313,7 +313,72 @@ dataSources.patch("/:id", requireRole("dashboard"), async (c) => {
  * Full replacement of lane assignments
  */
 dataSources.put("/:id/lanes", requireRole("dashboard"), async (c) => {
-  return errors.notImplemented(c);
+  const id = c.req.param("id");
+  const body = await c.req.json<{ lane_ids?: unknown }>().catch(() => null);
+
+  if (!body || typeof body !== "object") {
+    return errors.invalidRequest(c, "Invalid JSON body");
+  }
+
+  // Validate lane_ids is an array
+  if (!Array.isArray(body.lane_ids)) {
+    return errors.invalidRequest(c, "lane_ids must be an array");
+  }
+
+  // Validate all items are strings
+  for (const laneId of body.lane_ids) {
+    if (typeof laneId !== "string") {
+      return errors.invalidRequest(c, "lane_ids must contain only strings");
+    }
+  }
+
+  const laneIds = body.lane_ids as string[];
+
+  // Check if data source exists
+  const existing = await c.env.DB.prepare(
+    `SELECT id FROM data_sources WHERE id = ?`
+  )
+    .bind(id)
+    .first<{ id: string }>();
+
+  if (!existing) {
+    return errors.notFound(c, "Data Source");
+  }
+
+  // Validate all lane_ids exist
+  if (laneIds.length > 0) {
+    const placeholders = laneIds.map(() => "?").join(", ");
+    const lanesResult = await c.env.DB.prepare(
+      `SELECT id FROM lanes WHERE id IN (${placeholders})`
+    )
+      .bind(...laneIds)
+      .all<{ id: string }>();
+
+    const foundIds = new Set((lanesResult.results ?? []).map((r) => r.id));
+    const invalidIds = laneIds.filter((lid) => !foundIds.has(lid));
+    if (invalidIds.length > 0) {
+      return errors.invalidRequest(c, `Invalid lane_id: ${invalidIds[0]}`);
+    }
+  }
+
+  // Full replacement: DELETE existing + INSERT new
+  // Use batch for atomicity
+  const deleteStmt = c.env.DB.prepare(
+    `DELETE FROM data_source_lanes WHERE data_source_id = ?`
+  ).bind(id);
+
+  const insertStmts = laneIds.map((laneId) =>
+    c.env.DB.prepare(
+      `INSERT INTO data_source_lanes (data_source_id, lane_id) VALUES (?, ?)`
+    ).bind(id, laneId)
+  );
+
+  await c.env.DB.batch([deleteStmt, ...insertStmts]);
+
+  return jsonResponse(c, {
+    data_source_id: id,
+    lane_ids: laneIds,
+  });
 });
 
 export { dataSources };

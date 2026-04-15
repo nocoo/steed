@@ -200,25 +200,6 @@ function createMockDbWithUpdate(options: {
 
 describe("Data Sources Routes", () => {
   describe("Route scaffold", () => {
-    it("PUT /data-sources/:id/lanes should return 501 (not implemented)", async () => {
-      const mockDb = createMockDb();
-      const app = new Hono<{ Bindings: Env }>();
-      app.use("*", mockDashboardAuth);
-      app.route("/", dataSources);
-
-      const res = await app.request(
-        "/ds_123/lanes",
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ lane_ids: [] }),
-        },
-        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
-      );
-
-      expect(res.status).toBe(501);
-    });
-
     it("GET /data-sources should reject unauthenticated", async () => {
       const mockDb = createMockDb();
       const app = new Hono<{ Bindings: Env }>();
@@ -733,6 +714,211 @@ describe("Data Sources Routes", () => {
       expect(res.status).toBe(500);
       const body = await res.json();
       expect(body).toHaveProperty("error.code", "internal_error");
+    });
+  });
+
+  describe("PUT /data-sources/:id/lanes", () => {
+    // Create mock D1 database with lanes support for PUT lanes tests
+    function createMockDbWithLanes(options: {
+      dataSources?: MockDataSource[];
+      lanes?: Array<{ id: string }>;
+      dataSourceLanes?: Array<{ data_source_id: string; lane_id: string }>;
+    } = {}) {
+      const dataSourcesData = options.dataSources ?? [];
+      const lanesData = options.lanes ?? [];
+      // dataSourceLanes param is for future use when we need to verify existing assignments
+      const _dataSourceLanes = options.dataSourceLanes ?? [];
+      void _dataSourceLanes;
+
+      return {
+        prepare: vi.fn((sql: string) => ({
+          bind: vi.fn((...args: unknown[]) => ({
+            run: vi.fn(async () => ({ success: true })),
+            first: vi.fn(async () => {
+              // Handle data source existence check
+              if (sql.includes("FROM data_sources") && sql.includes("WHERE id = ?")) {
+                const id = args[0] as string;
+                const ds = dataSourcesData.find(d => d.id === id);
+                return ds ? { id: ds.id } : null;
+              }
+              return null;
+            }),
+            all: vi.fn(async () => {
+              // Handle lanes validation query
+              if (sql.includes("FROM lanes") && sql.includes("WHERE id IN")) {
+                const requestedIds = args as string[];
+                const found = lanesData.filter(l => requestedIds.includes(l.id));
+                return { results: found };
+              }
+              return { results: [] };
+            }),
+          })),
+          run: vi.fn(async () => ({ success: true })),
+          first: vi.fn(async () => null),
+          all: vi.fn(async () => ({ results: [] })),
+        })),
+        batch: vi.fn(async () => [{ success: true }]),
+      } as unknown as D1Database;
+    }
+
+    it("should set new lane assignments", async () => {
+      const mockDb = createMockDbWithLanes({
+        dataSources: [{ id: "ds_1", host_id: "host_123", type: "personal_cli", name: "nmem" }],
+        lanes: [{ id: "lane_work" }, { id: "lane_learning" }],
+      });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", dataSources);
+
+      const res = await app.request(
+        "/ds_1/lanes",
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ lane_ids: ["lane_work", "lane_learning"] }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json() as { data_source_id: string; lane_ids: string[] };
+      expect(body.data_source_id).toBe("ds_1");
+      expect(body.lane_ids).toEqual(["lane_work", "lane_learning"]);
+      expect(mockDb.batch).toHaveBeenCalled();
+    });
+
+    it("should clear all lane assignments with empty array", async () => {
+      const mockDb = createMockDbWithLanes({
+        dataSources: [{ id: "ds_1", host_id: "host_123", type: "personal_cli", name: "nmem" }],
+        dataSourceLanes: [{ data_source_id: "ds_1", lane_id: "lane_work" }],
+      });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", dataSources);
+
+      const res = await app.request(
+        "/ds_1/lanes",
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ lane_ids: [] }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json() as { data_source_id: string; lane_ids: string[] };
+      expect(body.lane_ids).toEqual([]);
+    });
+
+    it("should return 400 for lane_ids not array", async () => {
+      const mockDb = createMockDbWithLanes({
+        dataSources: [{ id: "ds_1", host_id: "host_123", type: "personal_cli", name: "nmem" }],
+      });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", dataSources);
+
+      const res = await app.request(
+        "/ds_1/lanes",
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ lane_ids: "not_an_array" }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error.message).toContain("array");
+    });
+
+    it("should return 400 for lane_ids containing non-string", async () => {
+      const mockDb = createMockDbWithLanes({
+        dataSources: [{ id: "ds_1", host_id: "host_123", type: "personal_cli", name: "nmem" }],
+      });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", dataSources);
+
+      const res = await app.request(
+        "/ds_1/lanes",
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ lane_ids: ["lane_work", 123] }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error.message).toContain("strings");
+    });
+
+    it("should return 404 for non-existent data source", async () => {
+      const mockDb = createMockDbWithLanes({ dataSources: [] });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", dataSources);
+
+      const res = await app.request(
+        "/ds_nonexistent/lanes",
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ lane_ids: ["lane_work"] }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(404);
+    });
+
+    it("should return 400 for invalid lane_id", async () => {
+      const mockDb = createMockDbWithLanes({
+        dataSources: [{ id: "ds_1", host_id: "host_123", type: "personal_cli", name: "nmem" }],
+        lanes: [{ id: "lane_work" }],
+      });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", dataSources);
+
+      const res = await app.request(
+        "/ds_1/lanes",
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ lane_ids: ["lane_work", "lane_invalid"] }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error.message).toContain("lane_invalid");
+    });
+
+    it("should return 400 for invalid JSON body", async () => {
+      const mockDb = createMockDbWithLanes({
+        dataSources: [{ id: "ds_1", host_id: "host_123", type: "personal_cli", name: "nmem" }],
+      });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", dataSources);
+
+      const res = await app.request(
+        "/ds_1/lanes",
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: "not json",
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(400);
     });
   });
 });
