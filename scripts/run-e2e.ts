@@ -568,6 +568,201 @@ async function runTests(): Promise<void> {
     const body = await res.json() as { agents: { total: number } };
     assertEqual(body.agents.total, 2, "agents.total"); // 2 agents created
   })();
+
+  // ==========================================
+  // Data Source CRUD Tests (Phase B2)
+  // ==========================================
+
+  let testDataSourceId: string | null = null;
+
+  // 23. List Data Sources
+  await test("GET /api/v1/data-sources returns data sources list", async () => {
+    const res = await request("/api/v1/data-sources", { auth: "dashboard" });
+    assertEqual(res.status, 200, "status");
+    const body = await res.json() as {
+      data: Array<{ id: string; name: string; status: string }>;
+      next_cursor: string | null;
+    };
+    // 2 data sources created by snapshot (nmem=active, wrangler=missing)
+    assertEqual(body.data.length, 2, "body.data.length");
+    const nmem = body.data.find((ds) => ds.name === "nmem");
+    assertExists(nmem, "nmem data source");
+    assertEqual(nmem!.status, "active", "nmem.status");
+    testDataSourceId = nmem!.id;
+  })();
+
+  // 24. List Data Sources with host_id filter
+  await test("GET /api/v1/data-sources filters by host_id", async () => {
+    assertExists(testHostId, "testHostId");
+    const res = await request(`/api/v1/data-sources?host_id=${testHostId}`, {
+      auth: "dashboard",
+    });
+    assertEqual(res.status, 200, "status");
+    const body = await res.json() as { data: Array<{ host_id: string }> };
+    assertEqual(body.data.length, 2, "body.data.length");
+    body.data.forEach((ds) => assertEqual(ds.host_id, testHostId!, "ds.host_id"));
+  })();
+
+  // 25. List Data Sources with status filter
+  await test("GET /api/v1/data-sources filters by status", async () => {
+    const res = await request("/api/v1/data-sources?status=active", {
+      auth: "dashboard",
+    });
+    assertEqual(res.status, 200, "status");
+    const body = await res.json() as { data: Array<{ status: string }> };
+    assertEqual(body.data.length, 1, "body.data.length"); // Only nmem is active
+    body.data.forEach((ds) => assertEqual(ds.status, "active", "ds.status"));
+  })();
+
+  // 26. Get single Data Source
+  await test("GET /api/v1/data-sources/:id returns data source details", async () => {
+    assertExists(testDataSourceId, "testDataSourceId");
+    const res = await request(`/api/v1/data-sources/${testDataSourceId}`, {
+      auth: "dashboard",
+    });
+    assertEqual(res.status, 200, "status");
+    const body = await res.json() as {
+      id: string;
+      name: string;
+      type: string;
+      version: string;
+      metadata: Record<string, unknown>;
+      lane_ids: string[];
+    };
+    assertEqual(body.id, testDataSourceId, "body.id");
+    assertEqual(body.name, "nmem", "body.name");
+    assertEqual(body.type, "personal_cli", "body.type");
+    assertEqual(body.version, "1.2.1", "body.version"); // Updated by second snapshot
+    assertEqual(typeof body.metadata, "object", "metadata is object");
+    assertEqual(Array.isArray(body.lane_ids), true, "lane_ids is array");
+    assertEqual(body.lane_ids.length, 0, "lane_ids initially empty");
+  })();
+
+  // 27. Get non-existent Data Source
+  await test("GET /api/v1/data-sources/:id returns 404 for non-existent", async () => {
+    const res = await request("/api/v1/data-sources/ds_nonexistent", {
+      auth: "dashboard",
+    });
+    assertEqual(res.status, 404, "status");
+  })();
+
+  // 28. Update Data Source metadata
+  await test("PATCH /api/v1/data-sources/:id updates metadata", async () => {
+    assertExists(testDataSourceId, "testDataSourceId");
+    const res = await request(`/api/v1/data-sources/${testDataSourceId}`, {
+      method: "PATCH",
+      auth: "dashboard",
+      body: JSON.stringify({
+        metadata: { notes: "Primary memory CLI", priority: "high" },
+      }),
+    });
+    assertEqual(res.status, 200, "status");
+    const body = await res.json() as {
+      id: string;
+      metadata: Record<string, unknown>;
+    };
+    assertEqual(body.id, testDataSourceId, "body.id");
+    assertEqual(body.metadata.notes, "Primary memory CLI", "metadata.notes");
+    assertEqual(body.metadata.priority, "high", "metadata.priority");
+  })();
+
+  // 29. Metadata shallow merge
+  await test("PATCH /api/v1/data-sources/:id shallow merges metadata", async () => {
+    assertExists(testDataSourceId, "testDataSourceId");
+    const res = await request(`/api/v1/data-sources/${testDataSourceId}`, {
+      method: "PATCH",
+      auth: "dashboard",
+      body: JSON.stringify({
+        metadata: { category: "tools" },
+      }),
+    });
+    assertEqual(res.status, 200, "status");
+    const body = await res.json() as { metadata: Record<string, unknown> };
+    assertEqual(body.metadata.notes, "Primary memory CLI", "existing notes preserved");
+    assertEqual(body.metadata.priority, "high", "existing priority preserved");
+    assertEqual(body.metadata.category, "tools", "new category added");
+  })();
+
+  // 30. Invalid metadata type
+  await test("PATCH /api/v1/data-sources/:id rejects invalid metadata", async () => {
+    assertExists(testDataSourceId, "testDataSourceId");
+    const res = await request(`/api/v1/data-sources/${testDataSourceId}`, {
+      method: "PATCH",
+      auth: "dashboard",
+      body: JSON.stringify({ metadata: ["invalid"] }),
+    });
+    assertEqual(res.status, 400, "status");
+  })();
+
+  // 31. Set lane assignments
+  await test("PUT /api/v1/data-sources/:id/lanes sets lane assignments", async () => {
+    assertExists(testDataSourceId, "testDataSourceId");
+    // First, we need to create lanes in the database
+    // Since we can't directly create lanes via API, we'll skip the lane validation
+    // and test that the endpoint structure works correctly
+    // For now, test empty array (which is always valid)
+    const res = await request(`/api/v1/data-sources/${testDataSourceId}/lanes`, {
+      method: "PUT",
+      auth: "dashboard",
+      body: JSON.stringify({ lane_ids: [] }),
+    });
+    assertEqual(res.status, 200, "status");
+    const body = await res.json() as { data_source_id: string; lane_ids: string[] };
+    assertEqual(body.data_source_id, testDataSourceId, "body.data_source_id");
+    assertEqual(Array.isArray(body.lane_ids), true, "lane_ids is array");
+    assertEqual(body.lane_ids.length, 0, "lane_ids empty");
+  })();
+
+  // 32. Set lanes - invalid lane_ids type
+  await test("PUT /api/v1/data-sources/:id/lanes rejects non-array", async () => {
+    assertExists(testDataSourceId, "testDataSourceId");
+    const res = await request(`/api/v1/data-sources/${testDataSourceId}/lanes`, {
+      method: "PUT",
+      auth: "dashboard",
+      body: JSON.stringify({ lane_ids: "not-an-array" }),
+    });
+    assertEqual(res.status, 400, "status");
+  })();
+
+  // 33. Set lanes - non-existent data source
+  await test("PUT /api/v1/data-sources/:id/lanes returns 404 for non-existent", async () => {
+    const res = await request("/api/v1/data-sources/ds_nonexistent/lanes", {
+      method: "PUT",
+      auth: "dashboard",
+      body: JSON.stringify({ lane_ids: [] }),
+    });
+    assertEqual(res.status, 404, "status");
+  })();
+
+  // 34. Host role cannot access data sources
+  await test("Host role cannot list data sources (403)", async () => {
+    const res = await request("/api/v1/data-sources", { auth: "host" });
+    assertEqual(res.status, 403, "status");
+  })();
+
+  // 35. Host role cannot update data sources
+  await test("Host role cannot update data sources (403)", async () => {
+    assertExists(testDataSourceId, "testDataSourceId");
+    const res = await request(`/api/v1/data-sources/${testDataSourceId}`, {
+      method: "PATCH",
+      auth: "host",
+      body: JSON.stringify({ metadata: { test: "should fail" } }),
+    });
+    assertEqual(res.status, 403, "status");
+  })();
+
+  // 36. Verify Data Source persisted state
+  await test("GET /api/v1/data-sources/:id shows updated state", async () => {
+    assertExists(testDataSourceId, "testDataSourceId");
+    const res = await request(`/api/v1/data-sources/${testDataSourceId}`, {
+      auth: "dashboard",
+    });
+    assertEqual(res.status, 200, "status");
+    const body = await res.json() as { metadata: Record<string, unknown> };
+    assertEqual(body.metadata.notes, "Primary memory CLI", "notes persisted");
+    assertEqual(body.metadata.priority, "high", "priority persisted");
+    assertEqual(body.metadata.category, "tools", "category persisted");
+  })();
 }
 
 /**
