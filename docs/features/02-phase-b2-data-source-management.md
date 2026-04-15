@@ -277,9 +277,9 @@ scripts/run-e2e.ts
 
 | Commit | Status |
 |--------|--------|
-| B2-1: Types and scaffold | ⏳ Pending |
-| B2-2: GET /data-sources | ⏳ Pending |
-| B2-3: GET /data-sources/:id | ⏳ Pending |
-| B2-4: PATCH /data-sources/:id | ⏳ Pending |
-| B2-5: PUT /data-sources/:id/lanes | ⏳ Pending |
-| B2-6: E2E tests | ⏳ Pending |
+| B2-1: Types and scaffold | ✅ Done |
+| B2-2: GET /data-sources | ✅ Done |
+| B2-3: GET /data-sources/:id | ✅ Done |
+| B2-4: PATCH /data-sources/:id | ✅ Done |
+| B2-5: PUT /data-sources/:id/lanes | ✅ Done |
+| B2-6: E2E tests | ✅ Done |
