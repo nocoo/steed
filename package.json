@@ -5,6 +5,11 @@
     "packages/*"
   ],
   "scripts": {
+    "dev": "bun run --cwd packages/dashboard dev",
+    "dev:worker": "bun run --cwd packages/worker dev",
+    "build": "bun run --cwd packages/dashboard build",
+    "deploy:worker": "bun run --cwd packages/worker deploy",
+    "start": "bun run --cwd packages/dashboard start",
     "typecheck": "tsc --noEmit",
     "lint": "eslint --max-warnings=0 .",
     "test": "vitest run --coverage && bun run --cwd packages/dashboard test",
