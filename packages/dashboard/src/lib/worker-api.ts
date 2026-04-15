@@ -47,12 +47,14 @@ export const workerApi = {
     // GET /agents returns { data, next_cursor } pagination wrapper
     list: (params?: {
       host_id?: string;
+      lane_id?: string;
       status?: string;
       limit?: number;
       cursor?: string;
     }) => {
       const searchParams = new URLSearchParams();
       if (params?.host_id) searchParams.set("host_id", params.host_id);
+      if (params?.lane_id) searchParams.set("lane_id", params.lane_id);
       if (params?.status) searchParams.set("status", params.status);
       if (params?.limit) searchParams.set("limit", String(params.limit));
       if (params?.cursor) searchParams.set("cursor", params.cursor);
@@ -64,9 +66,17 @@ export const workerApi = {
   },
   dataSources: {
     // GET /data-sources returns { data, next_cursor } pagination wrapper
-    list: (params?: { host_id?: string; limit?: number; cursor?: string }) => {
+    list: (params?: {
+      host_id?: string;
+      lane_id?: string;
+      status?: string;
+      limit?: number;
+      cursor?: string;
+    }) => {
       const searchParams = new URLSearchParams();
       if (params?.host_id) searchParams.set("host_id", params.host_id);
+      if (params?.lane_id) searchParams.set("lane_id", params.lane_id);
+      if (params?.status) searchParams.set("status", params.status);
       if (params?.limit) searchParams.set("limit", String(params.limit));
       if (params?.cursor) searchParams.set("cursor", params.cursor);
       const query = searchParams.toString();

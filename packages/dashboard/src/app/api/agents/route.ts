@@ -11,6 +11,7 @@ export async function GET(request: NextRequest) {
 
   const searchParams = request.nextUrl.searchParams;
   const host_id = searchParams.get("host_id");
+  const lane_id = searchParams.get("lane_id");
   const status = searchParams.get("status");
   const limitStr = searchParams.get("limit");
   const cursor = searchParams.get("cursor");
@@ -18,6 +19,7 @@ export async function GET(request: NextRequest) {
   try {
     const result = await workerApi.agents.list({
       ...(host_id && { host_id }),
+      ...(lane_id && { lane_id }),
       ...(status && { status }),
       ...(limitStr && { limit: Number(limitStr) }),
       ...(cursor && { cursor }),

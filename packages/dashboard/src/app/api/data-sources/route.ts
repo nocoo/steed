@@ -11,12 +11,16 @@ export async function GET(request: NextRequest) {
 
   const searchParams = request.nextUrl.searchParams;
   const host_id = searchParams.get("host_id");
+  const lane_id = searchParams.get("lane_id");
+  const status = searchParams.get("status");
   const limitStr = searchParams.get("limit");
   const cursor = searchParams.get("cursor");
 
   try {
     const result = await workerApi.dataSources.list({
       ...(host_id && { host_id }),
+      ...(lane_id && { lane_id }),
+      ...(status && { status }),
       ...(limitStr && { limit: Number(limitStr) }),
       ...(cursor && { cursor }),
     });
