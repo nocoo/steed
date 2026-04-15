@@ -763,6 +763,233 @@ async function runTests(): Promise<void> {
     assertEqual(body.metadata.priority, "high", "priority persisted");
     assertEqual(body.metadata.category, "tools", "category persisted");
   })();
+
+  // ==========================================
+  // Lanes Tests (Phase B2)
+  // ==========================================
+
+  // 37. List Lanes
+  await test("GET /api/v1/lanes returns preset lanes", async () => {
+    const res = await request("/api/v1/lanes", { auth: "dashboard" });
+    assertEqual(res.status, 200, "status");
+    const body = await res.json() as { data: Array<{ id: string; name: string }> };
+    assertEqual(body.data.length, 3, "body.data.length"); // work, life, learning
+    const laneNames = body.data.map(l => l.name);
+    assertExists(laneNames.includes("work"), "has work lane");
+    assertExists(laneNames.includes("life"), "has life lane");
+    assertExists(laneNames.includes("learning"), "has learning lane");
+  })();
+
+  // 38. Host role cannot list lanes
+  await test("Host role cannot list lanes (403)", async () => {
+    const res = await request("/api/v1/lanes", { auth: "host" });
+    assertEqual(res.status, 403, "status");
+  })();
+
+  // ==========================================
+  // Bindings Tests (Phase B2)
+  // ==========================================
+
+  // 39. List Bindings (empty initially)
+  await test("GET /api/v1/bindings returns empty list initially", async () => {
+    const res = await request("/api/v1/bindings", { auth: "dashboard" });
+    assertEqual(res.status, 200, "status");
+    const body = await res.json() as { data: unknown[]; next_cursor: string | null };
+    assertEqual(body.data.length, 0, "body.data.length");
+    assertEqual(body.next_cursor, null, "next_cursor");
+  })();
+
+  // 40. Create Binding
+  await test("POST /api/v1/bindings creates binding", async () => {
+    assertExists(testAgentId, "testAgentId");
+    assertExists(testDataSourceId, "testDataSourceId");
+    const res = await request("/api/v1/bindings", {
+      method: "POST",
+      auth: "dashboard",
+      body: JSON.stringify({
+        agent_id: testAgentId,
+        data_source_id: testDataSourceId,
+      }),
+    });
+    assertEqual(res.status, 201, "status");
+    const body = await res.json() as {
+      agent_id: string;
+      data_source_id: string;
+      created_at: string;
+    };
+    assertEqual(body.agent_id, testAgentId, "body.agent_id");
+    assertEqual(body.data_source_id, testDataSourceId, "body.data_source_id");
+    assertExists(body.created_at, "body.created_at");
+  })();
+
+  // 41. Duplicate binding rejected
+  await test("POST /api/v1/bindings rejects duplicate binding", async () => {
+    assertExists(testAgentId, "testAgentId");
+    assertExists(testDataSourceId, "testDataSourceId");
+    const res = await request("/api/v1/bindings", {
+      method: "POST",
+      auth: "dashboard",
+      body: JSON.stringify({
+        agent_id: testAgentId,
+        data_source_id: testDataSourceId,
+      }),
+    });
+    assertEqual(res.status, 409, "status");
+  })();
+
+  // 42. List Bindings shows created binding
+  await test("GET /api/v1/bindings shows created binding", async () => {
+    assertExists(testAgentId, "testAgentId");
+    const res = await request(`/api/v1/bindings?agent_id=${testAgentId}`, {
+      auth: "dashboard",
+    });
+    assertEqual(res.status, 200, "status");
+    const body = await res.json() as { data: Array<{ agent_id: string; data_source_id: string }> };
+    assertEqual(body.data.length, 1, "body.data.length");
+    assertEqual(body.data[0]?.agent_id, testAgentId, "binding.agent_id");
+  })();
+
+  // 43. Filter bindings by data_source_id
+  await test("GET /api/v1/bindings filters by data_source_id", async () => {
+    assertExists(testDataSourceId, "testDataSourceId");
+    const res = await request(`/api/v1/bindings?data_source_id=${testDataSourceId}`, {
+      auth: "dashboard",
+    });
+    assertEqual(res.status, 200, "status");
+    const body = await res.json() as { data: Array<{ data_source_id: string }> };
+    assertEqual(body.data.length, 1, "body.data.length");
+    assertEqual(body.data[0]?.data_source_id, testDataSourceId, "binding.data_source_id");
+  })();
+
+  // 44. Cross-host binding rejected
+  await test("POST /api/v1/bindings rejects cross-host binding", async () => {
+    // Create a second host and agent to test cross-host binding
+    const registerRes = await request("/api/v1/hosts/register", {
+      method: "POST",
+      auth: "dashboard",
+      body: JSON.stringify({ name: "e2e-test-host-2" }),
+    });
+    assertEqual(registerRes.status, 201, "register status");
+    const { id: secondHostId, api_key: secondHostApiKey } = await registerRes.json() as {
+      id: string;
+      api_key: string;
+    };
+
+    // Create agent on second host
+    const agentRes = await fetch(`${BASE_URL}/api/v1/agents`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${secondHostApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ match_key: "test:/cross-host-agent" }),
+    });
+    assertEqual(agentRes.status, 201, "agent creation status");
+    const { id: secondAgentId } = await agentRes.json() as { id: string };
+
+    // Try to bind agent from host2 to data source from host1
+    assertExists(testDataSourceId, "testDataSourceId");
+    const bindingRes = await request("/api/v1/bindings", {
+      method: "POST",
+      auth: "dashboard",
+      body: JSON.stringify({
+        agent_id: secondAgentId,
+        data_source_id: testDataSourceId,
+      }),
+    });
+    assertEqual(bindingRes.status, 403, "cross-host binding rejected");
+
+    // Clean up - we can't delete these but that's okay for E2E
+    void secondHostId;
+  })();
+
+  // 45. Delete Binding
+  await test("DELETE /api/v1/bindings deletes binding", async () => {
+    assertExists(testAgentId, "testAgentId");
+    assertExists(testDataSourceId, "testDataSourceId");
+    const res = await request(
+      `/api/v1/bindings?agent_id=${testAgentId}&data_source_id=${testDataSourceId}`,
+      { method: "DELETE", auth: "dashboard" }
+    );
+    assertEqual(res.status, 204, "status");
+  })();
+
+  // 46. Verify binding deleted
+  await test("GET /api/v1/bindings shows binding deleted", async () => {
+    assertExists(testAgentId, "testAgentId");
+    const res = await request(`/api/v1/bindings?agent_id=${testAgentId}`, {
+      auth: "dashboard",
+    });
+    assertEqual(res.status, 200, "status");
+    const body = await res.json() as { data: unknown[] };
+    assertEqual(body.data.length, 0, "body.data.length after delete");
+  })();
+
+  // 47. Delete non-existent binding returns 404
+  await test("DELETE /api/v1/bindings returns 404 for non-existent", async () => {
+    const res = await request(
+      "/api/v1/bindings?agent_id=agent_nonexistent&data_source_id=ds_nonexistent",
+      { method: "DELETE", auth: "dashboard" }
+    );
+    assertEqual(res.status, 404, "status");
+  })();
+
+  // 48. Host role cannot access bindings
+  await test("Host role cannot list bindings (403)", async () => {
+    const res = await request("/api/v1/bindings", { auth: "host" });
+    assertEqual(res.status, 403, "status");
+  })();
+
+  // 49. Missing agent_id in POST returns 400
+  await test("POST /api/v1/bindings requires agent_id", async () => {
+    assertExists(testDataSourceId, "testDataSourceId");
+    const res = await request("/api/v1/bindings", {
+      method: "POST",
+      auth: "dashboard",
+      body: JSON.stringify({ data_source_id: testDataSourceId }),
+    });
+    assertEqual(res.status, 400, "status");
+  })();
+
+  // 50. Set lane_ids with valid lanes
+  await test("PUT /api/v1/data-sources/:id/lanes sets valid lane assignments", async () => {
+    assertExists(testDataSourceId, "testDataSourceId");
+    const res = await request(`/api/v1/data-sources/${testDataSourceId}/lanes`, {
+      method: "PUT",
+      auth: "dashboard",
+      body: JSON.stringify({ lane_ids: ["lane_work", "lane_learning"] }),
+    });
+    assertEqual(res.status, 200, "status");
+    const body = await res.json() as { data_source_id: string; lane_ids: string[] };
+    assertEqual(body.data_source_id, testDataSourceId, "body.data_source_id");
+    assertEqual(body.lane_ids.length, 2, "lane_ids.length");
+    assertExists(body.lane_ids.includes("lane_work"), "has lane_work");
+    assertExists(body.lane_ids.includes("lane_learning"), "has lane_learning");
+  })();
+
+  // 51. Verify lane assignments in data source detail
+  await test("GET /api/v1/data-sources/:id shows lane assignments", async () => {
+    assertExists(testDataSourceId, "testDataSourceId");
+    const res = await request(`/api/v1/data-sources/${testDataSourceId}`, {
+      auth: "dashboard",
+    });
+    assertEqual(res.status, 200, "status");
+    const body = await res.json() as { lane_ids: string[] };
+    assertEqual(body.lane_ids.length, 2, "lane_ids.length");
+    assertExists(body.lane_ids.includes("lane_work"), "has lane_work");
+    assertExists(body.lane_ids.includes("lane_learning"), "has lane_learning");
+  })();
+
+  // 52. Invalid lane_id returns 400
+  await test("PUT /api/v1/data-sources/:id/lanes rejects invalid lane_id", async () => {
+    assertExists(testDataSourceId, "testDataSourceId");
+    const res = await request(`/api/v1/data-sources/${testDataSourceId}/lanes`, {
+      method: "PUT",
+      auth: "dashboard",
+      body: JSON.stringify({ lane_ids: ["lane_work", "lane_invalid"] }),
+    });
+    assertEqual(res.status, 400, "status");
+  })();
 }
 
 /**

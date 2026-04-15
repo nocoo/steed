@@ -283,6 +283,6 @@ scripts/run-e2e.ts
 | B2-4: PATCH /data-sources/:id | ✅ Done |
 | B2-5: PUT /data-sources/:id/lanes | ✅ Done |
 | B2-6: E2E tests (data sources) | ✅ Done |
-| B2-7: Bindings CRUD | ⏳ Pending |
-| B2-8: GET /lanes | ⏳ Pending |
-| B2-9: L2 E2E extension | ⏳ Pending |
+| B2-7: Bindings CRUD | ✅ Done |
+| B2-8: GET /lanes | ✅ Done |
+| B2-9: L2 E2E extension | ✅ Done |
