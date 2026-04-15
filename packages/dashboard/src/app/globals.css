@@ -1,0 +1,194 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Map CSS-variable design tokens to Tailwind v4 theme namespace
+ * Color space: HSL (Basalt design system)
+ * Luminance: 3-tier (L0 body > L1 card > L2 secondary)
+ */
+@theme inline {
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+
+  --color-sidebar: hsl(var(--sidebar-background));
+  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
+  --color-sidebar-primary: hsl(var(--sidebar-primary));
+  --color-sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
+  --color-sidebar-accent: hsl(var(--sidebar-accent));
+  --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
+  --color-sidebar-border: hsl(var(--sidebar-border));
+  --color-sidebar-ring: hsl(var(--sidebar-ring));
+
+  --color-success: hsl(var(--success));
+  --color-success-foreground: hsl(var(--success-foreground));
+
+  /* Radius tokens */
+  --radius-card: 14px;
+  --radius-widget: 10px;
+  --radius-island: 20px;
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+
+  /* Animations */
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+  --animate-collapsible-down: collapsible-down 0.2s ease-out;
+  --animate-collapsible-up: collapsible-up 0.2s ease-out;
+}
+
+@keyframes accordion-down {
+  from { height: 0; }
+  to { height: var(--radix-accordion-content-height); }
+}
+
+@keyframes accordion-up {
+  from { height: var(--radix-accordion-content-height); }
+  to { height: 0; }
+}
+
+@keyframes collapsible-down {
+  from { height: 0; }
+  to { height: var(--radix-collapsible-content-height); }
+}
+
+@keyframes collapsible-up {
+  from { height: var(--radix-collapsible-content-height); }
+  to { height: 0; }
+}
+
+/*
+ * Design tokens — light (default) & dark mode
+ * 3-tier luminance: L0 (background) > L1 (card) > L2 (secondary)
+ * Primary: Teal (steed brand color)
+ */
+:root {
+  /* L0 body — cool-tinted off-white */
+  --background: 180 10% 94%;
+  --foreground: 180 10% 10%;
+
+  /* L1 content panel */
+  --card: 180 10% 97%;
+  --card-foreground: 180 10% 10%;
+
+  /* L2 inner cards */
+  --secondary: 0 0% 100%;
+  --secondary-foreground: 180 10% 10%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 180 10% 10%;
+
+  /* Teal primary */
+  --primary: 175 70% 38%;
+  --primary-foreground: 0 0% 100%;
+
+  --muted: 180 8% 92%;
+  --muted-foreground: 180 8% 40%;
+
+  --accent: 180 8% 92%;
+  --accent-foreground: 180 10% 10%;
+
+  --destructive: 0 72% 48%;
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 180 8% 85%;
+  --input: 180 8% 85%;
+  --ring: 175 70% 38%;
+
+  --radius: 0.75rem;
+
+  --sidebar-background: 180 10% 94%;
+  --sidebar-foreground: 180 10% 10%;
+  --sidebar-primary: 175 70% 38%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 180 8% 88%;
+  --sidebar-accent-foreground: 180 10% 10%;
+  --sidebar-border: 180 8% 85%;
+  --sidebar-ring: 175 70% 38%;
+
+  --success: 142 71% 32%;
+  --success-foreground: 0 0% 100%;
+}
+
+.dark {
+  /* L0 body */
+  --background: 0 0% 9%;
+  --foreground: 0 0% 95%;
+
+  /* L1 content panel */
+  --card: 0 0% 10.6%;
+  --card-foreground: 0 0% 95%;
+
+  /* L2 inner cards */
+  --secondary: 0 0% 12.2%;
+  --secondary-foreground: 0 0% 95%;
+
+  --popover: 0 0% 12.2%;
+  --popover-foreground: 0 0% 95%;
+
+  /* Teal primary (adjusted for dark) */
+  --primary: 175 65% 45%;
+  --primary-foreground: 0 0% 100%;
+
+  --muted: 0 0% 15%;
+  --muted-foreground: 0 0% 60%;
+
+  --accent: 0 0% 15%;
+  --accent-foreground: 0 0% 95%;
+
+  --destructive: 0 62% 52%;
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 0 0% 18%;
+  --input: 0 0% 18%;
+  --ring: 175 65% 45%;
+
+  --sidebar-background: 0 0% 9%;
+  --sidebar-foreground: 0 0% 95%;
+  --sidebar-primary: 175 65% 45%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 0 0% 15%;
+  --sidebar-accent-foreground: 0 0% 95%;
+  --sidebar-border: 0 0% 18%;
+  --sidebar-ring: 175 65% 45%;
+
+  --success: 142 60% 40%;
+  --success-foreground: 0 0% 100%;
+}
+
+/* Base styles */
+* {
+  border-color: hsl(var(--border));
+}
+
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-feature-settings: "rlig" 1, "calt" 1;
+}

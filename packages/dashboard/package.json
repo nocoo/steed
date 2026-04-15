@@ -3,7 +3,40 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
+  "scripts": {
+    "dev": "next dev --port 7050",
+    "build": "next build",
+    "start": "next start --port 7050",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint --max-warnings=0 .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check-coverage": "echo 'Coverage check placeholder'"
+  },
   "dependencies": {
-    "@steed/shared": "workspace:*"
+    "@steed/shared": "workspace:*",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.577.0",
+    "next": "^16.2.3",
+    "next-auth": "^5.0.0-beta.30",
+    "radix-ui": "^1.4.3",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "recharts": "^3.8.0",
+    "tailwind-merge": "^3.5.0",
+    "tw-animate-css": "^1.4.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.2.0",
+    "@testing-library/react": "^16.3.2",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitest/coverage-v8": "^4.1.4",
+    "jsdom": "^28.1.0",
+    "tailwindcss": "^4.2.0",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.4"
   }
 }
