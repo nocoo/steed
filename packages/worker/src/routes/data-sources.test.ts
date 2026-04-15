@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { Hono } from "hono";
 import { dataSources } from "./data-sources";
 import type { Env } from "../env";
+import type { DataSourceListItem } from "@steed/shared";
 
 // Mock auth middleware for dashboard role
 const mockDashboardAuth = async (
@@ -30,14 +31,76 @@ const mockHostAuth = (hostId: string) => async (
   await next();
 };
 
-// Create mock D1 database
-function createMockDb() {
+// Data source type for mock data
+type MockDataSource = {
+  id: string;
+  host_id: string;
+  type: string;
+  name: string;
+  version?: string | null;
+  auth_status?: string;
+  status?: string;
+  metadata?: string;
+  created_at?: string;
+  last_seen_at?: string | null;
+};
+
+// Create mock D1 database with configurable behavior
+function createMockDb(options: {
+  dataSources?: MockDataSource[];
+  dataSourceLanes?: Array<{ data_source_id: string; lane_id: string }>;
+} = {}) {
+  const dataSourcesData = options.dataSources ?? [];
+  const dataSourceLanes = options.dataSourceLanes ?? [];
+
   return {
-    prepare: vi.fn(() => ({
-      bind: vi.fn(() => ({
+    prepare: vi.fn((sql: string) => ({
+      bind: vi.fn((...args: unknown[]) => ({
         run: vi.fn(async () => ({ success: true })),
         first: vi.fn(async () => null),
-        all: vi.fn(async () => ({ results: [] })),
+        all: vi.fn(async () => {
+          // Handle list queries
+          if (sql.includes("FROM data_sources")) {
+            // Check if it's a lane filter query (has JOIN)
+            if (sql.includes("INNER JOIN data_source_lanes")) {
+              // Filter by lane_id from args
+              const laneIdIndex = sql.includes("ds.host_id = ?") ? 1 : 0;
+              const laneId = args[laneIdIndex] as string;
+              const dsIds = dataSourceLanes
+                .filter(dsl => dsl.lane_id === laneId)
+                .map(dsl => dsl.data_source_id);
+              const filtered = dataSourcesData.filter(ds => dsIds.includes(ds.id));
+              return {
+                results: filtered.map(ds => ({
+                  id: ds.id,
+                  host_id: ds.host_id,
+                  type: ds.type,
+                  name: ds.name,
+                  version: ds.version ?? null,
+                  auth_status: ds.auth_status ?? "unknown",
+                  status: ds.status ?? "active",
+                  created_at: ds.created_at ?? new Date().toISOString(),
+                  last_seen_at: ds.last_seen_at ?? null,
+                })),
+              };
+            }
+            // Regular list query
+            return {
+              results: dataSourcesData.map(ds => ({
+                id: ds.id,
+                host_id: ds.host_id,
+                type: ds.type,
+                name: ds.name,
+                version: ds.version ?? null,
+                auth_status: ds.auth_status ?? "unknown",
+                status: ds.status ?? "active",
+                created_at: ds.created_at ?? new Date().toISOString(),
+                last_seen_at: ds.last_seen_at ?? null,
+              })),
+            };
+          }
+          return { results: [] };
+        }),
       })),
       run: vi.fn(async () => ({ success: true })),
       first: vi.fn(async () => null),
@@ -49,21 +112,6 @@ function createMockDb() {
 
 describe("Data Sources Routes", () => {
   describe("Route scaffold", () => {
-    it("GET /data-sources should return 501 (not implemented)", async () => {
-      const mockDb = createMockDb();
-      const app = new Hono<{ Bindings: Env }>();
-      app.use("*", mockDashboardAuth);
-      app.route("/", dataSources);
-
-      const res = await app.request(
-        "/",
-        {},
-        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
-      );
-
-      expect(res.status).toBe(501);
-    });
-
     it("GET /data-sources/:id should return 501 (not implemented)", async () => {
       const mockDb = createMockDb();
       const app = new Hono<{ Bindings: Env }>();
@@ -145,6 +193,218 @@ describe("Data Sources Routes", () => {
       );
 
       expect(res.status).toBe(403);
+    });
+  });
+
+  describe("GET /data-sources", () => {
+    it("should return empty list when no data sources", async () => {
+      const mockDb = createMockDb();
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", dataSources);
+
+      const res = await app.request(
+        "/",
+        {},
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json() as { data: DataSourceListItem[]; next_cursor: string | null };
+      expect(body.data).toEqual([]);
+      expect(body.next_cursor).toBeNull();
+    });
+
+    it("should return list of data sources", async () => {
+      const mockDb = createMockDb({
+        dataSources: [
+          {
+            id: "ds_1",
+            host_id: "host_123",
+            type: "personal_cli",
+            name: "nmem",
+            version: "1.2.0",
+            auth_status: "authenticated",
+            status: "active",
+            created_at: "2026-04-15T12:00:00Z",
+            last_seen_at: "2026-04-15T14:00:00Z",
+          },
+        ],
+      });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", dataSources);
+
+      const res = await app.request(
+        "/",
+        {},
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json() as { data: DataSourceListItem[]; next_cursor: string | null };
+      expect(body.data).toHaveLength(1);
+      expect(body.data[0]?.id).toBe("ds_1");
+      expect(body.data[0]?.name).toBe("nmem");
+      // Should NOT have metadata field
+      expect(body.data[0]).not.toHaveProperty("metadata");
+    });
+
+    it("should filter by host_id", async () => {
+      const mockDb = createMockDb({
+        dataSources: [
+          { id: "ds_1", host_id: "host_a", type: "personal_cli", name: "nmem" },
+        ],
+      });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", dataSources);
+
+      const res = await app.request(
+        "/?host_id=host_a",
+        {},
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(200);
+      expect(mockDb.prepare).toHaveBeenCalled();
+    });
+
+    it("should filter by lane_id with JOIN", async () => {
+      const mockDb = createMockDb({
+        dataSources: [
+          { id: "ds_1", host_id: "host_123", type: "personal_cli", name: "nmem" },
+          { id: "ds_2", host_id: "host_123", type: "third_party_cli", name: "wrangler" },
+        ],
+        dataSourceLanes: [
+          { data_source_id: "ds_1", lane_id: "lane_work" },
+        ],
+      });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", dataSources);
+
+      const res = await app.request(
+        "/?lane_id=lane_work",
+        {},
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json() as { data: DataSourceListItem[] };
+      expect(body.data).toHaveLength(1);
+      expect(body.data[0]?.id).toBe("ds_1");
+    });
+
+    it("should filter by status", async () => {
+      const mockDb = createMockDb({
+        dataSources: [
+          { id: "ds_1", host_id: "host_123", type: "personal_cli", name: "nmem", status: "active" },
+        ],
+      });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", dataSources);
+
+      const res = await app.request(
+        "/?status=active",
+        {},
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(200);
+      expect(mockDb.prepare).toHaveBeenCalled();
+    });
+
+    it("should respect limit parameter", async () => {
+      const mockDb = createMockDb();
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", dataSources);
+
+      const res = await app.request(
+        "/?limit=10",
+        {},
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(200);
+    });
+
+    it("should support cursor pagination", async () => {
+      const mockDb = createMockDb();
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", dataSources);
+
+      const res = await app.request(
+        "/?cursor=ds_abc",
+        {},
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(200);
+    });
+
+    it("should ignore invalid limit parameter", async () => {
+      const mockDb = createMockDb();
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", dataSources);
+
+      const res = await app.request(
+        "/?limit=invalid",
+        {},
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(200);
+    });
+
+    it("should cap limit at MAX_LIMIT (200)", async () => {
+      const mockDb = createMockDb();
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", dataSources);
+
+      const res = await app.request(
+        "/?limit=500",
+        {},
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(200);
+    });
+
+    it("should return next_cursor when more results exist", async () => {
+      // Create a mock that returns limit+1 items to simulate hasMore
+      const mockDb = {
+        prepare: vi.fn(() => ({
+          bind: vi.fn(() => ({
+            all: vi.fn(async () => ({
+              results: [
+                { id: "ds_1", host_id: "h", type: "personal_cli", name: "a", version: null, auth_status: "unknown", status: "active", created_at: "2026-01-01", last_seen_at: null },
+                { id: "ds_2", host_id: "h", type: "personal_cli", name: "b", version: null, auth_status: "unknown", status: "active", created_at: "2026-01-01", last_seen_at: null },
+              ],
+            })),
+          })),
+        })),
+      } as unknown as D1Database;
+
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", dataSources);
+
+      const res = await app.request(
+        "/?limit=1",
+        {},
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json() as { data: DataSourceListItem[]; next_cursor: string | null };
+      expect(body.data).toHaveLength(1);
+      expect(body.next_cursor).toBe("ds_1");
     });
   });
 });
