@@ -23,20 +23,19 @@ const mockHosts: HostWithStatus[] = [
 ];
 
 describe("useHostsViewModel", () => {
+  const originalFetch = globalThis.fetch;
+
   beforeEach(() => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(() =>
-        Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve(mockHosts),
-        })
-      )
-    );
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(mockHosts),
+      })
+    ) as typeof fetch;
   });
 
   afterEach(() => {
-    vi.unstubAllGlobals();
+    globalThis.fetch = originalFetch;
   });
 
   it("should fetch hosts data on mount", async () => {
@@ -57,15 +56,12 @@ describe("useHostsViewModel", () => {
   });
 
   it("should handle fetch error", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(() =>
-        Promise.resolve({
-          ok: false,
-          status: 500,
-        })
-      )
-    );
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: false,
+        status: 500,
+      })
+    ) as typeof fetch;
 
     const { result } = renderHook(() => useHostsViewModel());
 
@@ -78,10 +74,7 @@ describe("useHostsViewModel", () => {
   });
 
   it("should handle non-Error thrown", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(() => Promise.reject("string error"))
-    );
+    globalThis.fetch = vi.fn(() => Promise.reject("string error")) as typeof fetch;
 
     const { result } = renderHook(() => useHostsViewModel());
 

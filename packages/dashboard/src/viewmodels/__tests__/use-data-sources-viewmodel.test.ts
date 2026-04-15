@@ -29,21 +29,20 @@ const mockDataSources: DataSourceListItem[] = [
 ];
 
 describe("useDataSourcesViewModel", () => {
+  const originalFetch = globalThis.fetch;
+
   beforeEach(() => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(() =>
-        Promise.resolve({
-          ok: true,
-          json: () =>
-            Promise.resolve({ data: mockDataSources, next_cursor: null }),
-        })
-      )
-    );
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({ data: mockDataSources, next_cursor: null }),
+      })
+    ) as typeof fetch;
   });
 
   afterEach(() => {
-    vi.unstubAllGlobals();
+    globalThis.fetch = originalFetch;
   });
 
   it("should fetch data sources on mount", async () => {
@@ -65,15 +64,12 @@ describe("useDataSourcesViewModel", () => {
   });
 
   it("should handle fetch error", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(() =>
-        Promise.resolve({
-          ok: false,
-          status: 500,
-        })
-      )
-    );
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: false,
+        status: 500,
+      })
+    ) as typeof fetch;
 
     const { result } = renderHook(() => useDataSourcesViewModel());
 
@@ -86,10 +82,7 @@ describe("useDataSourcesViewModel", () => {
   });
 
   it("should handle non-Error thrown", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(() => Promise.reject("string error"))
-    );
+    globalThis.fetch = vi.fn(() => Promise.reject("string error")) as typeof fetch;
 
     const { result } = renderHook(() => useDataSourcesViewModel());
 
@@ -116,21 +109,19 @@ describe("useDataSourcesViewModel", () => {
       },
     ];
 
-    vi.stubGlobal(
-      "fetch",
-      vi
-        .fn()
-        .mockResolvedValueOnce({
-          ok: true,
-          json: () =>
-            Promise.resolve({ data: mockDataSources, next_cursor: "cursor456" }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: () =>
-            Promise.resolve({ data: moreDataSources, next_cursor: null }),
-        })
-    );
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({ data: mockDataSources, next_cursor: "cursor456" }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({ data: moreDataSources, next_cursor: null }),
+      });
+    globalThis.fetch = mockFetch as typeof fetch;
 
     const { result } = renderHook(() => useDataSourcesViewModel());
 

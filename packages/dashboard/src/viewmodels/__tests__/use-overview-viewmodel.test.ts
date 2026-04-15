@@ -16,20 +16,19 @@ const mockOverview: Overview = {
 };
 
 describe("useOverviewViewModel", () => {
+  const originalFetch = globalThis.fetch;
+
   beforeEach(() => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(() =>
-        Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve(mockOverview),
-        })
-      )
-    );
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(mockOverview),
+      })
+    ) as typeof fetch;
   });
 
   afterEach(() => {
-    vi.unstubAllGlobals();
+    globalThis.fetch = originalFetch;
   });
 
   it("should fetch overview data on mount", async () => {
@@ -50,15 +49,12 @@ describe("useOverviewViewModel", () => {
   });
 
   it("should handle fetch error", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(() =>
-        Promise.resolve({
-          ok: false,
-          status: 500,
-        })
-      )
-    );
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: false,
+        status: 500,
+      })
+    ) as typeof fetch;
 
     const { result } = renderHook(() => useOverviewViewModel());
 
@@ -71,10 +67,7 @@ describe("useOverviewViewModel", () => {
   });
 
   it("should handle non-Error thrown", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(() => Promise.reject("string error"))
-    );
+    globalThis.fetch = vi.fn(() => Promise.reject("string error")) as typeof fetch;
 
     const { result } = renderHook(() => useOverviewViewModel());
 

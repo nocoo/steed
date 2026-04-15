@@ -33,21 +33,20 @@ const mockAgents: AgentListItem[] = [
 ];
 
 describe("useAgentsViewModel", () => {
+  const originalFetch = globalThis.fetch;
+
   beforeEach(() => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(() =>
-        Promise.resolve({
-          ok: true,
-          json: () =>
-            Promise.resolve({ data: mockAgents, next_cursor: null }),
-        })
-      )
-    );
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({ data: mockAgents, next_cursor: null }),
+      })
+    ) as typeof fetch;
   });
 
   afterEach(() => {
-    vi.unstubAllGlobals();
+    globalThis.fetch = originalFetch;
   });
 
   it("should fetch agents data on mount", async () => {
@@ -69,15 +68,12 @@ describe("useAgentsViewModel", () => {
   });
 
   it("should handle fetch error", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(() =>
-        Promise.resolve({
-          ok: false,
-          status: 500,
-        })
-      )
-    );
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: false,
+        status: 500,
+      })
+    ) as typeof fetch;
 
     const { result } = renderHook(() => useAgentsViewModel());
 
@@ -90,10 +86,7 @@ describe("useAgentsViewModel", () => {
   });
 
   it("should handle non-Error thrown", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(() => Promise.reject("string error"))
-    );
+    globalThis.fetch = vi.fn(() => Promise.reject("string error")) as typeof fetch;
 
     const { result } = renderHook(() => useAgentsViewModel());
 
@@ -122,21 +115,19 @@ describe("useAgentsViewModel", () => {
       },
     ];
 
-    vi.stubGlobal(
-      "fetch",
-      vi
-        .fn()
-        .mockResolvedValueOnce({
-          ok: true,
-          json: () =>
-            Promise.resolve({ data: mockAgents, next_cursor: "cursor123" }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: () =>
-            Promise.resolve({ data: moreAgents, next_cursor: null }),
-        })
-    );
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({ data: mockAgents, next_cursor: "cursor123" }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({ data: moreAgents, next_cursor: null }),
+      });
+    globalThis.fetch = mockFetch as typeof fetch;
 
     const { result } = renderHook(() => useAgentsViewModel());
 
