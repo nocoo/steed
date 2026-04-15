@@ -38,7 +38,7 @@ describe("useDataSourcesViewModel", () => {
         json: () =>
           Promise.resolve({ data: mockDataSources, next_cursor: null }),
       })
-    ) as typeof fetch;
+    ) as unknown as typeof fetch;
   });
 
   afterEach(() => {
@@ -69,7 +69,7 @@ describe("useDataSourcesViewModel", () => {
         ok: false,
         status: 500,
       })
-    ) as typeof fetch;
+    ) as unknown as typeof fetch;
 
     const { result } = renderHook(() => useDataSourcesViewModel());
 
@@ -82,7 +82,7 @@ describe("useDataSourcesViewModel", () => {
   });
 
   it("should handle non-Error thrown", async () => {
-    globalThis.fetch = vi.fn(() => Promise.reject("string error")) as typeof fetch;
+    globalThis.fetch = vi.fn(() => Promise.reject("string error")) as unknown as typeof fetch;
 
     const { result } = renderHook(() => useDataSourcesViewModel());
 

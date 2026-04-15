@@ -31,7 +31,7 @@ describe("useHostsViewModel", () => {
         ok: true,
         json: () => Promise.resolve(mockHosts),
       })
-    ) as typeof fetch;
+    ) as unknown as typeof fetch;
   });
 
   afterEach(() => {
@@ -61,7 +61,7 @@ describe("useHostsViewModel", () => {
         ok: false,
         status: 500,
       })
-    ) as typeof fetch;
+    ) as unknown as typeof fetch;
 
     const { result } = renderHook(() => useHostsViewModel());
 
@@ -74,7 +74,7 @@ describe("useHostsViewModel", () => {
   });
 
   it("should handle non-Error thrown", async () => {
-    globalThis.fetch = vi.fn(() => Promise.reject("string error")) as typeof fetch;
+    globalThis.fetch = vi.fn(() => Promise.reject("string error")) as unknown as typeof fetch;
 
     const { result } = renderHook(() => useHostsViewModel());
 
