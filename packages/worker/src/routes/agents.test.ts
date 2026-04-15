@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { Hono } from "hono";
 import { agents } from "./agents";
 import type { Env } from "../env";
-import type { Agent } from "@steed/shared";
+import type { Agent, AgentListItem } from "@steed/shared";
 
 // Mock auth middleware for dashboard role
 const mockDashboardAuth = async (
@@ -415,6 +415,48 @@ describe("Agents Routes", () => {
       expect(res.status).toBe(400);
     });
 
+    it("should return 400 for non-string nickname", async () => {
+      const mockDb = createMockDb();
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockHostAuth("host_123"));
+      app.route("/", agents);
+
+      const res = await app.request(
+        "/",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ match_key: "test:/path", nickname: 123 }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error.message).toContain("nickname");
+    });
+
+    it("should return 400 for non-string role", async () => {
+      const mockDb = createMockDb();
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockHostAuth("host_123"));
+      app.route("/", agents);
+
+      const res = await app.request(
+        "/",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ match_key: "test:/path", role: { invalid: true } }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error.message).toContain("role");
+    });
+
     it("should return 500 for host role without hostId in auth", async () => {
       const mockDb = createMockDb();
       const app = new Hono<{ Bindings: Env }>();
@@ -506,10 +548,13 @@ describe("Agents Routes", () => {
       );
 
       expect(res.status).toBe(200);
-      const body = await res.json() as { data: Agent[]; next_cursor: string | null };
+      const body = await res.json() as { data: AgentListItem[]; next_cursor: string | null };
       expect(body.data).toHaveLength(1);
       expect(body.data[0]?.id).toBe("agent_1");
       expect(body.data[0]?.nickname).toBe("Agent 1");
+      // AgentListItem should NOT have metadata/extra fields
+      expect(body.data[0]).not.toHaveProperty("metadata");
+      expect(body.data[0]).not.toHaveProperty("extra");
     });
 
     it("should filter by host_id", async () => {
@@ -854,6 +899,75 @@ describe("Agents Routes", () => {
       );
 
       expect(res.status).toBe(200);
+    });
+
+    it("should return 400 for metadata as array", async () => {
+      const mockDb = createMockDbWithUpdate({
+        agents: [{ id: "agent_1", host_id: "host_123", match_key: "test:/path" }],
+      });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", agents);
+
+      const res = await app.request(
+        "/agent_1",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ metadata: ["invalid", "array"] }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error.message).toContain("metadata");
+    });
+
+    it("should return 400 for metadata as null", async () => {
+      const mockDb = createMockDbWithUpdate({
+        agents: [{ id: "agent_1", host_id: "host_123", match_key: "test:/path" }],
+      });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", agents);
+
+      const res = await app.request(
+        "/agent_1",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ metadata: null }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error.message).toContain("metadata");
+    });
+
+    it("should return 400 for metadata as string", async () => {
+      const mockDb = createMockDbWithUpdate({
+        agents: [{ id: "agent_1", host_id: "host_123", match_key: "test:/path" }],
+      });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", agents);
+
+      const res = await app.request(
+        "/agent_1",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ metadata: "not an object" }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error.message).toContain("metadata");
     });
 
     it("should return 400 for invalid JSON body", async () => {

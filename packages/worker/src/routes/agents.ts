@@ -3,7 +3,7 @@ import { generateId } from "@steed/shared";
 import type { Env } from "../env";
 import { requireRole } from "../middleware/auth";
 import { jsonResponse, errors } from "../lib/response";
-import type { Agent, AgentStatus, CreateAgentRequest, UpdateAgentRequest } from "@steed/shared";
+import type { Agent, AgentListItem, AgentStatus, CreateAgentRequest, UpdateAgentRequest } from "@steed/shared";
 import type { LaneId } from "@steed/shared";
 
 const agents = new Hono<{ Bindings: Env }>();
@@ -25,6 +25,16 @@ agents.post("/", requireRole("dashboard", "host"), async (c) => {
   // Validate match_key
   if (typeof body.match_key !== "string" || body.match_key.length === 0) {
     return errors.invalidRequest(c, "match_key is required");
+  }
+
+  // Validate nickname type (optional, must be string or null/undefined)
+  if (body.nickname !== undefined && body.nickname !== null && typeof body.nickname !== "string") {
+    return errors.invalidRequest(c, "nickname must be a string");
+  }
+
+  // Validate role type (optional, must be string or null/undefined)
+  if (body.role !== undefined && body.role !== null && typeof body.role !== "string") {
+    return errors.invalidRequest(c, "role must be a string");
   }
 
   // Determine host_id based on role
@@ -174,16 +184,14 @@ agents.get("/", requireRole("dashboard"), async (c) => {
   const data = hasMore ? rows.slice(0, limit) : rows;
   const nextCursor = hasMore ? data[data.length - 1]?.id ?? null : null;
 
-  // Map to Agent type (without metadata/extra for list view)
-  const agentsData: Agent[] = data.map((row) => ({
+  // Map to AgentListItem (metadata/extra omitted, not faked as empty)
+  const agentsData: AgentListItem[] = data.map((row) => ({
     id: row.id,
     host_id: row.host_id,
     match_key: row.match_key,
     nickname: row.nickname,
     role: row.role,
     lane_id: row.lane_id as LaneId | null,
-    metadata: {}, // Not included in list view
-    extra: {}, // Not included in list view
     runtime_app: row.runtime_app,
     runtime_version: row.runtime_version,
     status: row.status as AgentStatus,
@@ -330,6 +338,14 @@ agents.patch("/:id", requireRole("dashboard"), async (c) => {
 
   // Handle metadata shallow merge
   if (body.metadata !== undefined) {
+    // Validate metadata is a plain object (not null, not array)
+    if (
+      body.metadata === null ||
+      typeof body.metadata !== "object" ||
+      Array.isArray(body.metadata)
+    ) {
+      return errors.invalidRequest(c, "metadata must be an object");
+    }
     let existingMetadata: Record<string, unknown> = {};
     try {
       existingMetadata = JSON.parse(existing.metadata || "{}");

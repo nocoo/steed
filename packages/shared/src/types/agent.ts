@@ -28,6 +28,24 @@ export interface Agent {
 }
 
 /**
+ * Agent list item — omits metadata/extra for list responses
+ * Use GET /agents/:id for full details including metadata/extra
+ */
+export interface AgentListItem {
+  id: string;
+  host_id: string;
+  match_key: string;
+  nickname: string | null;
+  role: string | null;
+  lane_id: LaneId | null;
+  runtime_app: string | null;
+  runtime_version: string | null;
+  status: AgentStatus;
+  created_at: string;
+  last_seen_at: string | null;
+}
+
+/**
  * Agent snapshot data from Host Service scan
  */
 export interface AgentSnapshot {
@@ -72,6 +90,6 @@ export interface ListAgentsQuery {
  * Response for listing agents with pagination
  */
 export interface ListAgentsResponse {
-  data: Agent[];
+  data: AgentListItem[];
   next_cursor: string | null;
 }
