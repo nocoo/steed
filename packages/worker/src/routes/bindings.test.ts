@@ -336,6 +336,33 @@ describe("Bindings Routes", () => {
 
       expect(res.status).toBe(200);
     });
+
+    it("should handle undefined results gracefully", async () => {
+      // Mock DB that returns { results: undefined } instead of { results: [] }
+      const mockDb = {
+        prepare: vi.fn(() => ({
+          bind: vi.fn(() => ({
+            all: vi.fn(async () => ({ results: undefined })),
+          })),
+        })),
+        batch: vi.fn(async () => []),
+      } as unknown as D1Database;
+
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", bindings);
+
+      const res = await app.request(
+        "/",
+        {},
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json() as { data: Binding[]; next_cursor: string | null };
+      expect(body.data).toEqual([]);
+      expect(body.next_cursor).toBeNull();
+    });
   });
 
   describe("POST /bindings", () => {

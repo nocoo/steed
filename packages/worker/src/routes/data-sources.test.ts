@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { Hono } from "hono";
-import { dataSources } from "./data-sources";
+import { dataSources, dataSources as dataSourcesRoute } from "./data-sources";
 import type { Env } from "../env";
 import type { DataSourceListItem } from "@steed/shared";
 
@@ -714,6 +714,105 @@ describe("Data Sources Routes", () => {
       expect(res.status).toBe(500);
       const body = await res.json();
       expect(body).toHaveProperty("error.code", "internal_error");
+    });
+
+    it("should handle invalid existing metadata JSON gracefully", async () => {
+      const mockDb = createMockDbWithUpdate({
+        dataSources: [
+          {
+            id: "ds_1",
+            host_id: "host_123",
+            type: "personal_cli",
+            name: "nmem",
+            metadata: "invalid json",
+          },
+        ],
+      });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", dataSources);
+
+      const res = await app.request(
+        "/ds_1",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ metadata: { new_key: "value" } }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(200);
+    });
+
+    it("should handle invalid response metadata JSON gracefully", async () => {
+      // Need a mock that returns invalid JSON on the final fetch
+      const dataSources = [
+        {
+          id: "ds_1",
+          host_id: "host_123",
+          type: "personal_cli",
+          name: "nmem",
+          metadata: "{}", // Valid during update check
+        },
+      ];
+      let fetchCount = 0;
+
+      const mockDb = {
+        prepare: vi.fn((sql: string) => ({
+          bind: vi.fn((...args: unknown[]) => ({
+            run: vi.fn(async () => ({ success: true })),
+            first: vi.fn(async () => {
+              if (sql.includes("FROM data_sources") && sql.includes("WHERE id = ?")) {
+                fetchCount++;
+                const id = args[args.length - 1] as string;
+                const ds = dataSources.find(d => d.id === id);
+                if (ds) {
+                  return {
+                    id: ds.id,
+                    host_id: ds.host_id,
+                    type: ds.type,
+                    name: ds.name,
+                    version: null,
+                    auth_status: "unknown",
+                    status: "active",
+                    // Return invalid JSON on post-update fetch
+                    metadata: fetchCount > 1 ? "invalid json" : ds.metadata,
+                    created_at: new Date().toISOString(),
+                    last_seen_at: null,
+                  };
+                }
+                return null;
+              }
+              return null;
+            }),
+            all: vi.fn(async () => ({ results: [] })),
+          })),
+          run: vi.fn(async () => ({ success: true })),
+          first: vi.fn(async () => null),
+          all: vi.fn(async () => ({ results: [] })),
+        })),
+        batch: vi.fn(async () => []),
+      } as unknown as D1Database;
+
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", dataSourcesRoute);
+
+      const res = await app.request(
+        "/ds_1",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ metadata: { key: "value" } }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json() as { metadata: Record<string, unknown> };
+      expect(body.metadata).toEqual({});
+      void fetchCount;
     });
   });
 
