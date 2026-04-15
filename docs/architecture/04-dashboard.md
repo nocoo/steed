@@ -56,7 +56,11 @@ packages/dashboard/
 │   │   │   ├── data-sources/# Data Source 列表
 │   │   │   └── settings/    # 设置页
 │   │   ├── api/
-│   │   │   └── auth/[...nextauth]/route.ts
+│   │   │   ├── auth/[...nextauth]/route.ts
+│   │   │   ├── overview/route.ts      # BFF: GET overview stats
+│   │   │   ├── hosts/route.ts         # BFF: GET /hosts
+│   │   │   ├── agents/route.ts        # BFF: GET /agents
+│   │   │   └── data-sources/route.ts  # BFF: GET /data-sources
 │   │   ├── login/
 │   │   │   └── page.tsx     # B-1 Badge Login
 │   │   ├── globals.css      # Basalt design tokens
@@ -84,11 +88,11 @@ packages/dashboard/
 │   ├── hooks/
 │   │   └── use-mobile.ts
 │   ├── lib/
-│   │   ├── api.ts           # Worker API client
+│   │   ├── worker-api.ts    # Server-only Worker API client
 │   │   ├── navigation.ts    # Pure data, no React
 │   │   ├── utils.ts         # cn() helper
 │   │   └── version.ts       # APP_VERSION from env
-│   ├── viewmodels/          # MVVM pattern
+│   ├── viewmodels/          # Client-side state (calls BFF, not Worker)
 │   │   └── (future)
 │   └── auth.ts              # NextAuth configuration
 ├── scripts/
@@ -240,31 +244,130 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 - Google Sign-in 按钮
 - 底部安全指示器
 
-## 5. MVVM 架构
+## 5. 数据流架构 (BFF 模式)
 
-### 5.1 层级划分
+### 5.1 安全边界
+
+**核心原则：浏览器永远不直接访问 Worker，`DASHBOARD_SERVICE_TOKEN` 永远不暴露到客户端。**
 
 ```
-┌─────────────────────────────────────┐
-│               View                  │
-│  React Components (pages, widgets)  │
-├─────────────────────────────────────┤
-│            ViewModel                │
-│  useXxxViewModel() hooks            │
-│  State management + business logic  │
-├─────────────────────────────────────┤
-│              Model                  │
-│  lib/api.ts (Worker API client)     │
-│  Type definitions (@steed/shared)   │
-└─────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                        Browser (Client)                         │
+│  React Components → useXxxViewModel() → fetch("/api/xxx")       │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │ HTTPS (same-origin)
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                   Dashboard Server (Next.js)                    │
+│  /app/api/* Route Handlers (BFF layer)                          │
+│  ├─ Verify session (NextAuth)                                   │
+│  ├─ Call Worker API via lib/worker-api.ts                       │
+│  └─ Return sanitized response                                   │
+│                                                                 │
+│  lib/worker-api.ts (server-only)                                │
+│  ├─ DASHBOARD_SERVICE_TOKEN from process.env                    │
+│  └─ fetch(WORKER_API_URL + path, { headers: { Authorization } })│
+└───────────────────────────┬─────────────────────────────────────┘
+                            │ HTTPS (server-to-server)
+                            │ Authorization: Bearer <DASHBOARD_SERVICE_TOKEN>
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                      CF Worker (API layer)                      │
+│                      D1 database access                         │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### 5.2 ViewModel 示例
+### 5.2 Server-Only Worker API Client
+
+```typescript
+// src/lib/worker-api.ts
+import "server-only"; // Next.js will error if imported from client
+
+const WORKER_API_URL = process.env.WORKER_API_URL!;
+const DASHBOARD_SERVICE_TOKEN = process.env.DASHBOARD_SERVICE_TOKEN!;
+
+async function workerFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${WORKER_API_URL}${path}`, {
+    ...init,
+    headers: {
+      ...init?.headers,
+      Authorization: `Bearer ${DASHBOARD_SERVICE_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ error: { message: res.statusText } }));
+    throw new Error(error.error?.message ?? `Worker API error: ${res.status}`);
+  }
+
+  return res.json();
+}
+
+export const workerApi = {
+  overview: {
+    get: () => workerFetch<OverviewData>("/api/v1/overview"),
+  },
+  hosts: {
+    list: (params?: { limit?: number; cursor?: string }) =>
+      workerFetch<{ data: Host[]; next_cursor: string | null }>(
+        `/api/v1/hosts?${new URLSearchParams(params as Record<string, string>)}`
+      ),
+  },
+  agents: {
+    list: (params?: { host_id?: string; status?: string; limit?: number; cursor?: string }) =>
+      workerFetch<{ data: AgentListItem[]; next_cursor: string | null }>(
+        `/api/v1/agents?${new URLSearchParams(params as Record<string, string>)}`
+      ),
+  },
+  dataSources: {
+    list: (params?: { host_id?: string; limit?: number; cursor?: string }) =>
+      workerFetch<{ data: DataSourceListItem[]; next_cursor: string | null }>(
+        `/api/v1/data-sources?${new URLSearchParams(params as Record<string, string>)}`
+      ),
+  },
+  lanes: {
+    list: () => workerFetch<{ data: Lane[] }>("/api/v1/lanes"),
+  },
+};
+```
+
+### 5.3 BFF Route Handlers
+
+```typescript
+// src/app/api/hosts/route.ts
+import { NextResponse } from "next/server";
+import { auth } from "@/auth";
+import { workerApi } from "@/lib/worker-api";
+
+export async function GET(request: Request) {
+  const session = await auth();
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const limit = searchParams.get("limit") ?? undefined;
+  const cursor = searchParams.get("cursor") ?? undefined;
+
+  try {
+    const data = await workerApi.hosts.list({ limit: limit ? Number(limit) : undefined, cursor });
+    return NextResponse.json(data);
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Unknown error" },
+      { status: 500 }
+    );
+  }
+}
+```
+
+### 5.4 Client ViewModel (调用 BFF，不直接调用 Worker)
 
 ```typescript
 // src/viewmodels/useHostsViewModel.ts
+"use client";
 import { useState, useEffect } from "react";
-import { api } from "@/lib/api";
 import type { Host } from "@steed/shared";
 
 interface HostsViewModelState {
@@ -281,8 +384,13 @@ export function useHostsViewModel() {
   });
 
   useEffect(() => {
-    api.hosts.list()
-      .then((hosts) => setState({ hosts, loading: false, error: null }))
+    // 调用 Dashboard 自己的 BFF API，不是 Worker
+    fetch("/api/hosts")
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to fetch hosts");
+        return res.json();
+      })
+      .then((data) => setState({ hosts: data.data, loading: false, error: null }))
       .catch((err) => setState({ hosts: [], loading: false, error: err.message }));
   }, []);
 
@@ -290,13 +398,14 @@ export function useHostsViewModel() {
 }
 ```
 
-### 5.3 测试策略
+### 5.5 层级总结
 
-| 层级 | 测试类型 | 覆盖目标 |
-|------|---------|---------|
-| ViewModel | Unit (Vitest) | 业务逻辑、状态转换 |
-| Components | Unit (Testing Library) | 渲染、交互 |
-| Integration | E2E (Playwright) | 关键用户流程 |
+| 层级 | 位置 | 运行环境 | 可访问 Token |
+|------|------|---------|-------------|
+| View | `src/app/(dashboard)/*/page.tsx` | Client (browser) | ❌ |
+| ViewModel | `src/viewmodels/*.ts` | Client (browser) | ❌ |
+| BFF | `src/app/api/*/route.ts` | Server (Next.js) | ✅ |
+| Worker Client | `src/lib/worker-api.ts` | Server (Next.js) | ✅ |
 
 ## 6. 6DQ 质量框架
 
@@ -397,41 +506,84 @@ src/lib/navigation.ts     # NAV_GROUPS 定义
 src/components/layout/sidebar.tsx  # 完整导航
 ```
 
-### Phase C-4: Worker API 集成 (Commit 38-40)
+### Phase C-4: Worker API 集成 (Commit 38-44)
 
-**Commit 38: API Client**
+**Commit 38: Server-Only Worker API Client**
 ```
-src/lib/api.ts            # fetch wrapper + DASHBOARD_SERVICE_TOKEN
+src/lib/worker-api.ts     # server-only, DASHBOARD_SERVICE_TOKEN
 ```
 
-**Commit 39: Hosts ViewModel + Page**
+**Commit 39: BFF Route Handlers**
+```
+src/app/api/overview/route.ts      # GET overview stats
+src/app/api/hosts/route.ts         # GET /hosts
+src/app/api/agents/route.ts        # GET /agents
+src/app/api/data-sources/route.ts  # GET /data-sources
+src/app/api/lanes/route.ts         # GET /lanes
+```
+
+**Commit 40: Overview Page + ViewModel**
+```
+src/viewmodels/useOverviewViewModel.ts
+src/app/(dashboard)/overview/page.tsx  # 统计卡片展示
+```
+
+**Commit 41: Hosts Page + ViewModel**
 ```
 src/viewmodels/useHostsViewModel.ts
 src/app/(dashboard)/hosts/page.tsx
 ```
 
-**Commit 40: ViewModel 单元测试**
+**Commit 42: Agents Page + ViewModel**
 ```
+src/viewmodels/useAgentsViewModel.ts
+src/app/(dashboard)/agents/page.tsx
+```
+
+**Commit 43: Data Sources Page + ViewModel**
+```
+src/viewmodels/useDataSourcesViewModel.ts
+src/app/(dashboard)/data-sources/page.tsx
+```
+
+**Commit 44: ViewModel 单元测试**
+```
+src/viewmodels/__tests__/useOverviewViewModel.test.ts
 src/viewmodels/__tests__/useHostsViewModel.test.ts
+src/viewmodels/__tests__/useAgentsViewModel.test.ts
+src/viewmodels/__tests__/useDataSourcesViewModel.test.ts
 ```
+
+### Phase C 完成标准
+
+Phase C 完成后，Dashboard 应具备：
+- ✅ 完整的 Gen 2 Layout (AppShell + Sidebar)
+- ✅ Google OAuth 登录 + 邮箱白名单
+- ✅ 四个核心页面接入真实 Worker 数据：
+  - Overview (统计概览)
+  - Hosts (Host 列表)
+  - Agents (Agent 列表)
+  - Data Sources (数据源列表)
+- ✅ BFF 安全边界 (Token 不泄漏到客户端)
+- ✅ ViewModel 单测 ≥90% 覆盖率
 
 ## 8. 后续 Features
 
-完成 Phase C 基础架构后，按以下顺序实现功能：
+完成 Phase C 后，Dashboard 已具备完整的读取链路。后续按以下顺序实现写操作和详情页：
 
 | Phase | Feature | 说明 |
 |-------|---------|------|
-| D | Hosts 管理 | 列表、详情、API Key 管理 |
-| E | Agents 管理 | 列表、详情、元数据编辑、Lane 分配 |
-| F | Data Sources 管理 | 列表、详情、Lane 分配 |
+| D | Hosts 详情 | 单个 Host 详情页、API Key 管理 |
+| E | Agents 详情 | 单个 Agent 详情、元数据编辑、Lane 分配 |
+| F | Data Sources 详情 | 单个 Data Source 详情、Lane 分配 |
 | G | Bindings 管理 | 创建/删除绑定关系 |
-| H | Overview Dashboard | 统计卡片、状态概览 |
 
 每个 Feature 遵循相同模式：
-1. ViewModel (业务逻辑)
-2. Page (UI 渲染)
-3. Unit Tests (≥90% 覆盖)
-4. Atomic Commits
+1. BFF Route Handler (server-only Worker 调用)
+2. ViewModel (客户端状态管理)
+3. Page (UI 渲染)
+4. Unit Tests (≥90% 覆盖)
+5. Atomic Commits
 
 ## 9. Logo 资产管理
 
@@ -469,6 +621,17 @@ python scripts/resize-logos.py
 - [ ] 非白名单邮箱被拒绝
 - [ ] 登录后跳转到 `/overview`
 - [ ] `/overview` 未登录时重定向到 `/login`
+
+### Worker 集成完成标准
+
+- [ ] `lib/worker-api.ts` 使用 `server-only` 标记
+- [ ] BFF route handlers 验证 session
+- [ ] `/api/overview` 返回 Worker 真实数据
+- [ ] `/api/hosts` 返回 Worker 真实数据
+- [ ] `/api/agents` 返回 Worker 真实数据
+- [ ] `/api/data-sources` 返回 Worker 真实数据
+- [ ] 浏览器 Network 面板看不到对 Worker 的直接请求
+- [ ] 浏览器看不到 `DASHBOARD_SERVICE_TOKEN`
 
 ### 6DQ 完成标准
 
