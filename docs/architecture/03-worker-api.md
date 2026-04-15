@@ -637,7 +637,7 @@ packages/worker/src/routes/lanes.ts
 **Commit 23b: L2 E2E 扩展 — Phase B 端点全覆盖**
 
 ```
-packages/worker/test/e2e/ — 追加 Phase B 端点 E2E 用例：
+scripts/run-e2e.ts — 追加 Phase B 端点 E2E 用例：
   - POST /agents（dashboard + host 角色）
   - PATCH /agents/:id
   - POST /agents/:id/metadata
