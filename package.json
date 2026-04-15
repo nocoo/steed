@@ -7,7 +7,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "lint": "eslint --max-warnings=0 .",
-    "test": "vitest run --coverage",
+    "test": "vitest run --coverage && bun run --cwd packages/dashboard test",
     "test:watch": "vitest",
     "test:e2e": "bun scripts/run-e2e.ts",
     "check-coverage": "bun scripts/check-coverage.ts",
