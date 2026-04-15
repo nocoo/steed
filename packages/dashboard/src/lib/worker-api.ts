@@ -8,8 +8,17 @@ import type {
   Overview,
 } from "@steed/shared";
 
-const WORKER_API_URL = process.env.WORKER_API_URL ?? "";
-const DASHBOARD_SERVICE_TOKEN = process.env.DASHBOARD_SERVICE_TOKEN ?? "";
+function getRequiredEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+  return value;
+}
+
+// Fail fast: throw immediately if env vars are missing (at module load time)
+const WORKER_API_URL = getRequiredEnv("WORKER_API_URL");
+const DASHBOARD_SERVICE_TOKEN = getRequiredEnv("DASHBOARD_SERVICE_TOKEN");
 
 async function workerFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${WORKER_API_URL}${path}`, {
