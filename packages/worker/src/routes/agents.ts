@@ -202,7 +202,62 @@ agents.get("/", requireRole("dashboard"), async (c) => {
  * Requires: dashboard role
  */
 agents.get("/:id", requireRole("dashboard"), async (c) => {
-  return jsonResponse(c, { error: "Not implemented" }, 501);
+  const id = c.req.param("id");
+
+  const result = await c.env.DB.prepare(
+    `SELECT id, host_id, match_key, nickname, role, lane_id,
+            metadata, extra, runtime_app, runtime_version, status,
+            created_at, last_seen_at
+     FROM agents WHERE id = ?`
+  )
+    .bind(id)
+    .first<{
+      id: string;
+      host_id: string;
+      match_key: string;
+      nickname: string | null;
+      role: string | null;
+      lane_id: string | null;
+      metadata: string;
+      extra: string;
+      runtime_app: string | null;
+      runtime_version: string | null;
+      status: string;
+      created_at: string;
+      last_seen_at: string | null;
+    }>();
+
+  if (!result) {
+    return errors.notFound(c, "Agent");
+  }
+
+  // Parse JSON fields
+  let metadata: Record<string, unknown> = {};
+  let extra: Record<string, unknown> = {};
+  try {
+    metadata = JSON.parse(result.metadata || "{}");
+    extra = JSON.parse(result.extra || "{}");
+  } catch {
+    // Keep empty objects on parse error
+  }
+
+  const agent: Agent = {
+    id: result.id,
+    host_id: result.host_id,
+    match_key: result.match_key,
+    nickname: result.nickname,
+    role: result.role,
+    lane_id: result.lane_id as LaneId | null,
+    metadata,
+    extra,
+    runtime_app: result.runtime_app,
+    runtime_version: result.runtime_version,
+    status: result.status as AgentStatus,
+    created_at: result.created_at,
+    last_seen_at: result.last_seen_at,
+  };
+
+  return jsonResponse(c, agent);
 });
 
 /**

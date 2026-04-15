@@ -117,21 +117,6 @@ function createMockDb(options: {
 
 describe("Agents Routes", () => {
   describe("Route scaffold", () => {
-    it("GET /agents/:id should return 501 (not implemented)", async () => {
-      const mockDb = createMockDb();
-      const app = new Hono<{ Bindings: Env }>();
-      app.use("*", mockDashboardAuth);
-      app.route("/", agents);
-
-      const res = await app.request(
-        "/agent_123",
-        {},
-        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
-      );
-
-      expect(res.status).toBe(501);
-    });
-
     it("PATCH /agents/:id should return 501 (not implemented)", async () => {
       const mockDb = createMockDb();
       const app = new Hono<{ Bindings: Env }>();
@@ -545,6 +530,88 @@ describe("Agents Routes", () => {
       );
 
       expect(res.status).toBe(403);
+    });
+  });
+
+  describe("GET /agents/:id", () => {
+    it("should return agent details", async () => {
+      const mockDb = createMockDb({
+        agents: [
+          {
+            id: "agent_test",
+            host_id: "host_123",
+            match_key: "openclaw:/workspace",
+            nickname: "Test Agent",
+            role: "Code review",
+            lane_id: "lane_work",
+            runtime_app: "openclaw",
+            runtime_version: "1.0.0",
+            status: "running",
+            created_at: "2026-04-15T12:00:00Z",
+            last_seen_at: "2026-04-15T14:00:00Z",
+          },
+        ],
+      });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", agents);
+
+      const res = await app.request(
+        "/agent_test",
+        {},
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as Agent;
+      expect(body.id).toBe("agent_test");
+      expect(body.nickname).toBe("Test Agent");
+      expect(body.metadata).toEqual({});
+      expect(body.extra).toEqual({});
+    });
+
+    it("should return 404 for non-existent agent", async () => {
+      const mockDb = createMockDb({ agents: [] });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", agents);
+
+      const res = await app.request(
+        "/agent_nonexistent",
+        {},
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(404);
+      const body = await res.json();
+      expect(body).toHaveProperty("error.code", "not_found");
+    });
+
+    it("should parse JSON fields correctly", async () => {
+      const mockDb = createMockDb({
+        agents: [
+          {
+            id: "agent_json",
+            host_id: "host_123",
+            match_key: "test:/path",
+          },
+        ],
+      });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", agents);
+
+      const res = await app.request(
+        "/agent_json",
+        {},
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as Agent;
+      // JSON fields should be parsed as objects
+      expect(typeof body.metadata).toBe("object");
+      expect(typeof body.extra).toBe("object");
     });
   });
 });
