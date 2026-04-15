@@ -2,12 +2,13 @@
 
 import { useEffect, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
-import { Menu } from "lucide-react";
+import { Menu, Github } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SidebarProvider, useSidebar } from "./sidebar-context";
 import { useMobile } from "@/hooks/use-mobile";
 import { Sidebar } from "./sidebar";
 import { Breadcrumbs } from "./breadcrumbs";
+import { ThemeToggle } from "./theme-toggle";
 
 // Sidebar dimensions (must match sidebar.tsx)
 const SIDEBAR_WIDTH_EXPANDED = 260;
@@ -71,6 +72,18 @@ function AppShellInner({ children }: AppShellProps) {
               </button>
             )}
             <Breadcrumbs />
+          </div>
+          <div className="flex items-center gap-1">
+            <a
+              href="https://github.com/niccokunzmann/steed"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="GitHub repository"
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            >
+              <Github className="h-[18px] w-[18px]" aria-hidden="true" strokeWidth={1.5} />
+            </a>
+            <ThemeToggle />
           </div>
         </header>
 

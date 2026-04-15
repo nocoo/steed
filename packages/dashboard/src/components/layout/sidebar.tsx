@@ -13,7 +13,6 @@ import { cn } from "@/lib/utils";
 import { useSidebar } from "./sidebar-context";
 import { useMobile } from "@/hooks/use-mobile";
 import { NAV_GROUPS } from "@/lib/navigation";
-import { ThemeToggle } from "./theme-toggle";
 import { APP_VERSION } from "@/lib/version";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -136,13 +135,6 @@ export function Sidebar() {
               ))}
             </nav>
 
-            {/* Footer: theme toggle */}
-            <div className="border-t border-border px-4 py-2">
-              <div className="flex items-center justify-between">
-                <ThemeToggle />
-              </div>
-            </div>
-
             {/* User info + sign out */}
             <div className="px-4 py-3">
               <div className="flex items-center gap-3">
@@ -237,11 +229,6 @@ export function Sidebar() {
                 );
               })}
             </nav>
-
-            {/* Theme toggle */}
-            <div className="py-2">
-              <ThemeToggle />
-            </div>
 
             {/* User avatar + sign out */}
             <div className="py-3 flex justify-center w-full">
