@@ -302,9 +302,9 @@ scripts/run-e2e.ts
 
 | Commit | Status |
 |--------|--------|
-| B1-1: Types and scaffold | ⏳ Pending |
-| B1-2: POST /agents | ⏳ Pending |
-| B1-3: GET /agents | ⏳ Pending |
-| B1-4: GET /agents/:id | ⏳ Pending |
-| B1-5: PATCH /agents/:id | ⏳ Pending |
-| B1-6: E2E tests | ⏳ Pending |
+| B1-1: Types and scaffold | ✅ Done |
+| B1-2: POST /agents | ✅ Done |
+| B1-3: GET /agents | ✅ Done |
+| B1-4: GET /agents/:id | ✅ Done |
+| B1-5: PATCH /agents/:id | ✅ Done |
+| B1-6: E2E tests | ✅ Done |
