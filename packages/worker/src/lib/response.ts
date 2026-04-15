@@ -53,4 +53,7 @@ export const errors = {
 
   internalError: (c: Context, message = "Internal server error") =>
     errorResponse(c, "internal_error", message, 500),
+
+  notImplemented: (c: Context, message = "Not implemented") =>
+    errorResponse(c, "not_implemented", message, 501),
 };

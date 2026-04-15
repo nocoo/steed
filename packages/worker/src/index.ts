@@ -5,6 +5,7 @@ import { hosts } from "./routes/hosts";
 import { snapshot } from "./routes/snapshot";
 import { overview } from "./routes/overview";
 import { agents } from "./routes/agents";
+import { dataSources } from "./routes/data-sources";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -24,5 +25,6 @@ app.route("/api/v1/hosts", hosts);
 app.route("/api/v1/snapshot", snapshot);
 app.route("/api/v1/overview", overview);
 app.route("/api/v1/agents", agents);
+app.route("/api/v1/data-sources", dataSources);
 
 export default app;
