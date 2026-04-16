@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { join } from "node:path";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { AgentScanner } from "./agent.js";
-import { spawnMarkedProcess, type MarkedProcess } from "../../lib/test-helpers.js";
+import * as processModule from "../../lib/process.js";
 import type { RegisteredAgent } from "../../config/schema.js";
 
 // Generate pattern at runtime with timestamp to ensure it never matches any process
@@ -12,26 +12,27 @@ function getNonexistentPattern(): string {
   return `__nonexistent_proc_${Date.now()}_${Math.random().toString(36).slice(2)}__`;
 }
 
+// Marker used to identify the "running" pattern in stubs.
+// We stub isProcessRunning so these tests never depend on real pgrep
+// behavior (which is unreliable across CI / sandbox / container envs).
+const RUNNING_MARKER = "__steed_agent_test_running__";
+
 describe("AgentScanner", () => {
   let scanner: AgentScanner;
   let tempDir: string;
-  let marked: MarkedProcess;
-
-  beforeAll(async () => {
-    marked = await spawnMarkedProcess();
-  });
-
-  afterAll(async () => {
-    await marked.kill();
-  });
 
   beforeEach(async () => {
     scanner = new AgentScanner();
     tempDir = await mkdtemp(join(tmpdir(), "steed-agent-test-"));
+    // Stub pgrep-backed detection: RUNNING_MARKER => running, else stopped
+    vi.spyOn(processModule, "isProcessRunning").mockImplementation(
+      async (pattern: string) => pattern === RUNNING_MARKER
+    );
   });
 
   afterEach(async () => {
     await rm(tempDir, { recursive: true, force: true });
+    vi.restoreAllMocks();
   });
 
   describe("process detection", () => {
@@ -40,7 +41,7 @@ describe("AgentScanner", () => {
         match_key: "markedproc:test",
         detection: {
           method: "process",
-          pattern: marked.marker,
+          pattern: RUNNING_MARKER,
         },
       };
 
@@ -153,7 +154,7 @@ describe("AgentScanner", () => {
         match_key: "echo:test",
         detection: {
           method: "process",
-          pattern: marked.marker,
+          pattern: RUNNING_MARKER,
           version_command: "echo 'v1.2.3'",
         },
       };
@@ -169,7 +170,7 @@ describe("AgentScanner", () => {
         match_key: "test:test",
         detection: {
           method: "process",
-          pattern: marked.marker,
+          pattern: RUNNING_MARKER,
           version_command: "false", // exits non-zero
         },
       };
@@ -187,7 +188,7 @@ describe("AgentScanner", () => {
         match_key: "openclaw:/home/user/agent",
         detection: {
           method: "process",
-          pattern: marked.marker,
+          pattern: RUNNING_MARKER,
         },
       };
 
@@ -201,7 +202,7 @@ describe("AgentScanner", () => {
         match_key: "invalid-no-colon",
         detection: {
           method: "process",
-          pattern: marked.marker,
+          pattern: RUNNING_MARKER,
         },
       };
 
@@ -219,7 +220,7 @@ describe("AgentScanner", () => {
       const agents: RegisteredAgent[] = [
         {
           match_key: "app1:test",
-          detection: { method: "process", pattern: marked.marker },
+          detection: { method: "process", pattern: RUNNING_MARKER },
         },
         {
           match_key: "app2:test",
@@ -236,7 +237,7 @@ describe("AgentScanner", () => {
       const agents: RegisteredAgent[] = [
         {
           match_key: "app1:test",
-          detection: { method: "process", pattern: marked.marker },
+          detection: { method: "process", pattern: RUNNING_MARKER },
         },
         {
           match_key: "app2:test",

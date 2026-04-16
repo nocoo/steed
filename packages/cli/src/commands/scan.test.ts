@@ -1,27 +1,22 @@
-import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { join } from "node:path";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { runScan } from "./scan.js";
 import * as configModule from "../config/index.js";
+import * as processModule from "../lib/process.js";
 import { StateManager } from "../service/state.js";
-import { spawnMarkedProcess, type MarkedProcess } from "../lib/test-helpers.js";
 import type { HostConfig } from "../config/schema.js";
+
+// Stub pgrep-backed detection so tests don't depend on real process
+// visibility (unreliable under CI / sandbox / container envs).
+const RUNNING_MARKER = "__steed_scan_cmd_test_running__";
 
 describe("scan command", () => {
   let tempDir: string;
   let originalLog: typeof console.log;
   let originalWarn: typeof console.warn;
   let logs: string[];
-  let marked: MarkedProcess;
-
-  beforeAll(async () => {
-    marked = await spawnMarkedProcess();
-  });
-
-  afterAll(async () => {
-    await marked.kill();
-  });
 
   beforeEach(async () => {
     tempDir = await mkdtemp(join(tmpdir(), "steed-scan-test-"));
@@ -30,6 +25,10 @@ describe("scan command", () => {
     originalWarn = console.warn;
     // Spy on StateManager so scan doesn't try to write state files
     vi.spyOn(StateManager.prototype, "updateScanResults").mockResolvedValue(undefined);
+    // Stub process detection deterministically
+    vi.spyOn(processModule, "isProcessRunning").mockImplementation(
+      async (pattern: string) => pattern === RUNNING_MARKER
+    );
     console.log = vi.fn((...args: unknown[]) => {
       logs.push(args.map(String).join(" "));
     });
@@ -45,7 +44,7 @@ describe("scan command", () => {
     vi.restoreAllMocks();
   });
 
-  // Factory so each test gets a fresh config that references the live marker
+  // Factory so each test gets a fresh config
   const makeMockConfig = (): HostConfig => ({
     worker_url: "https://example.com",
     api_key: "sk_host_test",
@@ -54,7 +53,7 @@ describe("scan command", () => {
         match_key: "markedproc:test",
         detection: {
           method: "process",
-          pattern: marked.marker,
+          pattern: RUNNING_MARKER,
         },
       },
     ],

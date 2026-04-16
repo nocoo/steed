@@ -1,29 +1,27 @@
-import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { join } from "node:path";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { Scanner } from "./index.js";
 import { AgentScanner } from "./agent.js";
 import { DataSourceScanner } from "./data-source.js";
-import { spawnMarkedProcess, type MarkedProcess } from "../../lib/test-helpers.js";
+import * as processModule from "../../lib/process.js";
 import type { HostConfig } from "../../config/schema.js";
+
+// Stub pgrep-backed detection so these tests don't depend on real
+// process-table visibility (unreliable under CI / sandboxed envs).
+const RUNNING_MARKER = "__steed_scanner_test_running__";
 
 describe("Scanner", () => {
   let scanner: Scanner;
   let tempDir: string;
-  let marked: MarkedProcess;
-
-  beforeAll(async () => {
-    marked = await spawnMarkedProcess();
-  });
-
-  afterAll(async () => {
-    await marked.kill();
-  });
 
   beforeEach(async () => {
     scanner = new Scanner();
     tempDir = await mkdtemp(join(tmpdir(), "steed-scanner-test-"));
+    vi.spyOn(processModule, "isProcessRunning").mockImplementation(
+      async (pattern: string) => pattern === RUNNING_MARKER
+    );
   });
 
   afterEach(async () => {
@@ -44,7 +42,7 @@ describe("Scanner", () => {
             match_key: "markedproc:test",
             detection: {
               method: "process",
-              pattern: marked.marker,
+              pattern: RUNNING_MARKER,
             },
           },
           {
@@ -111,7 +109,7 @@ describe("Scanner", () => {
             match_key: "bun:test",
             detection: {
               method: "process",
-              pattern: marked.marker,
+              pattern: RUNNING_MARKER,
             },
           },
           {
@@ -119,7 +117,7 @@ describe("Scanner", () => {
             match_key: "invalid-no-colon",
             detection: {
               method: "process",
-              pattern: marked.marker,
+              pattern: RUNNING_MARKER,
             },
           },
         ],
@@ -195,7 +193,7 @@ describe("Scanner", () => {
         worker_url: "https://example.com",
         api_key: "sk_host_test",
         agents: [
-          { match_key: "bun:test", detection: { method: "process", pattern: marked.marker } },
+          { match_key: "bun:test", detection: { method: "process", pattern: RUNNING_MARKER } },
         ],
         data_sources: { cli_scanners: [], mcp_scanners: [] },
       };
