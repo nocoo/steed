@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import {
   isProcessRunning,
   getProcessPid,
@@ -6,6 +6,7 @@ import {
   binaryExistsInPath,
   killProcess,
 } from "./process.js";
+import { spawnMarkedProcess, type MarkedProcess } from "./test-helpers.js";
 
 // Generate pattern at runtime with timestamp to ensure it never matches any process
 // This avoids pgrep matching the test file content or process args
@@ -14,10 +15,21 @@ function getNonexistentPattern(): string {
 }
 
 describe("process utilities", () => {
+  let marked: MarkedProcess;
+
+  beforeAll(async () => {
+    // Spawn a controlled subprocess with a unique marker so we don't
+    // rely on the test runner itself being discoverable via pgrep.
+    marked = await spawnMarkedProcess();
+  });
+
+  afterAll(async () => {
+    await marked.kill();
+  });
+
   describe("isProcessRunning", () => {
-    it("returns true for current process (node/bun)", async () => {
-      // Our test runner is running, so this should match
-      const result = await isProcessRunning("bun");
+    it("returns true when a matching process is running", async () => {
+      const result = await isProcessRunning(marked.marker);
       expect(result).toBe(true);
     });
 
@@ -29,7 +41,7 @@ describe("process utilities", () => {
 
   describe("getProcessPid", () => {
     it("returns number for running process", async () => {
-      const pid = await getProcessPid("bun");
+      const pid = await getProcessPid(marked.marker);
       expect(pid).not.toBeNull();
       expect(typeof pid).toBe("number");
       expect(pid).toBeGreaterThan(0);

@@ -1,15 +1,25 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll, vi } from "vitest";
 import { join } from "node:path";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { Scanner } from "./index.js";
 import { AgentScanner } from "./agent.js";
 import { DataSourceScanner } from "./data-source.js";
+import { spawnMarkedProcess, type MarkedProcess } from "../../lib/test-helpers.js";
 import type { HostConfig } from "../../config/schema.js";
 
 describe("Scanner", () => {
   let scanner: Scanner;
   let tempDir: string;
+  let marked: MarkedProcess;
+
+  beforeAll(async () => {
+    marked = await spawnMarkedProcess();
+  });
+
+  afterAll(async () => {
+    await marked.kill();
+  });
 
   beforeEach(async () => {
     scanner = new Scanner();
@@ -31,10 +41,10 @@ describe("Scanner", () => {
         api_key: "sk_host_test",
         agents: [
           {
-            match_key: "bun:test",
+            match_key: "markedproc:test",
             detection: {
               method: "process",
-              pattern: "bun",
+              pattern: marked.marker,
             },
           },
           {
@@ -65,9 +75,9 @@ describe("Scanner", () => {
 
       // Should have agent results
       expect(result.agents.length).toBeGreaterThanOrEqual(1);
-      const bunAgent = result.agents.find((a) => a.match_key === "bun:test");
-      expect(bunAgent).toBeDefined();
-      expect(bunAgent?.status).toBe("running");
+      const found = result.agents.find((a) => a.match_key === "markedproc:test");
+      expect(found).toBeDefined();
+      expect(found?.status).toBe("running");
 
       // Should have data source results
       expect(result.dataSources.length).toBe(1);
@@ -101,7 +111,7 @@ describe("Scanner", () => {
             match_key: "bun:test",
             detection: {
               method: "process",
-              pattern: "bun",
+              pattern: marked.marker,
             },
           },
           {
@@ -109,7 +119,7 @@ describe("Scanner", () => {
             match_key: "invalid-no-colon",
             detection: {
               method: "process",
-              pattern: "bun",
+              pattern: marked.marker,
             },
           },
         ],
@@ -185,7 +195,7 @@ describe("Scanner", () => {
         worker_url: "https://example.com",
         api_key: "sk_host_test",
         agents: [
-          { match_key: "bun:test", detection: { method: "process", pattern: "bun" } },
+          { match_key: "bun:test", detection: { method: "process", pattern: marked.marker } },
         ],
         data_sources: { cli_scanners: [], mcp_scanners: [] },
       };

@@ -1,8 +1,9 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll } from "vitest";
 import { join } from "node:path";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { AgentScanner } from "./agent.js";
+import { spawnMarkedProcess, type MarkedProcess } from "../../lib/test-helpers.js";
 import type { RegisteredAgent } from "../../config/schema.js";
 
 // Generate pattern at runtime with timestamp to ensure it never matches any process
@@ -14,6 +15,15 @@ function getNonexistentPattern(): string {
 describe("AgentScanner", () => {
   let scanner: AgentScanner;
   let tempDir: string;
+  let marked: MarkedProcess;
+
+  beforeAll(async () => {
+    marked = await spawnMarkedProcess();
+  });
+
+  afterAll(async () => {
+    await marked.kill();
+  });
 
   beforeEach(async () => {
     scanner = new AgentScanner();
@@ -26,12 +36,11 @@ describe("AgentScanner", () => {
 
   describe("process detection", () => {
     it("returns running when process found", async () => {
-      // bun is running during tests
       const agent: RegisteredAgent = {
-        match_key: "bun:test",
+        match_key: "markedproc:test",
         detection: {
           method: "process",
-          pattern: "bun",
+          pattern: marked.marker,
         },
       };
 
@@ -39,7 +48,7 @@ describe("AgentScanner", () => {
 
       expect(result).not.toBeNull();
       expect(result?.status).toBe("running");
-      expect(result?.runtime_app).toBe("bun");
+      expect(result?.runtime_app).toBe("markedproc");
     });
 
     it("returns stopped when process not found", async () => {
@@ -144,7 +153,7 @@ describe("AgentScanner", () => {
         match_key: "echo:test",
         detection: {
           method: "process",
-          pattern: "bun",
+          pattern: marked.marker,
           version_command: "echo 'v1.2.3'",
         },
       };
@@ -160,7 +169,7 @@ describe("AgentScanner", () => {
         match_key: "test:test",
         detection: {
           method: "process",
-          pattern: "bun",
+          pattern: marked.marker,
           version_command: "false", // exits non-zero
         },
       };
@@ -178,7 +187,7 @@ describe("AgentScanner", () => {
         match_key: "openclaw:/home/user/agent",
         detection: {
           method: "process",
-          pattern: "bun",
+          pattern: marked.marker,
         },
       };
 
@@ -192,7 +201,7 @@ describe("AgentScanner", () => {
         match_key: "invalid-no-colon",
         detection: {
           method: "process",
-          pattern: "bun",
+          pattern: marked.marker,
         },
       };
 
@@ -210,7 +219,7 @@ describe("AgentScanner", () => {
       const agents: RegisteredAgent[] = [
         {
           match_key: "app1:test",
-          detection: { method: "process", pattern: "bun" },
+          detection: { method: "process", pattern: marked.marker },
         },
         {
           match_key: "app2:test",
@@ -227,7 +236,7 @@ describe("AgentScanner", () => {
       const agents: RegisteredAgent[] = [
         {
           match_key: "app1:test",
-          detection: { method: "process", pattern: "bun" },
+          detection: { method: "process", pattern: marked.marker },
         },
         {
           match_key: "app2:test",

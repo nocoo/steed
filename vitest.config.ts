@@ -15,7 +15,7 @@ export default defineConfig({
         "packages/worker/src/**/*.ts",
         "packages/cli/src/**/*.ts",
       ],
-      exclude: ["**/*.test.ts", "**/index.ts"],
+      exclude: ["**/*.test.ts", "**/index.ts", "**/test-helpers.ts"],
       thresholds: {
         statements: 90,
         branches: 85,

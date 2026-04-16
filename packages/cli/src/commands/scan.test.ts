@@ -1,10 +1,11 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll, vi } from "vitest";
 import { join } from "node:path";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { runScan } from "./scan.js";
 import * as configModule from "../config/index.js";
 import { StateManager } from "../service/state.js";
+import { spawnMarkedProcess, type MarkedProcess } from "../lib/test-helpers.js";
 import type { HostConfig } from "../config/schema.js";
 
 describe("scan command", () => {
@@ -12,6 +13,15 @@ describe("scan command", () => {
   let originalLog: typeof console.log;
   let originalWarn: typeof console.warn;
   let logs: string[];
+  let marked: MarkedProcess;
+
+  beforeAll(async () => {
+    marked = await spawnMarkedProcess();
+  });
+
+  afterAll(async () => {
+    await marked.kill();
+  });
 
   beforeEach(async () => {
     tempDir = await mkdtemp(join(tmpdir(), "steed-scan-test-"));
@@ -35,15 +45,16 @@ describe("scan command", () => {
     vi.restoreAllMocks();
   });
 
-  const mockConfig: HostConfig = {
+  // Factory so each test gets a fresh config that references the live marker
+  const makeMockConfig = (): HostConfig => ({
     worker_url: "https://example.com",
     api_key: "sk_host_test",
     agents: [
       {
-        match_key: "bun:test",
+        match_key: "markedproc:test",
         detection: {
           method: "process",
-          pattern: "bun",
+          pattern: marked.marker,
         },
       },
     ],
@@ -58,7 +69,7 @@ describe("scan command", () => {
       ],
       mcp_scanners: [],
     },
-  };
+  });
 
   describe("runScan", () => {
     it("returns 1 when no config exists", async () => {
@@ -71,19 +82,19 @@ describe("scan command", () => {
     });
 
     it("scans and displays results", async () => {
-      vi.spyOn(configModule, "loadConfig").mockResolvedValue(mockConfig);
+      vi.spyOn(configModule, "loadConfig").mockResolvedValue(makeMockConfig());
 
       const exitCode = await runScan({});
 
       expect(exitCode).toBe(0);
       expect(logs.some((l) => l.includes("Agents:"))).toBe(true);
       expect(logs.some((l) => l.includes("Data Sources:"))).toBe(true);
-      expect(logs.some((l) => l.includes("bun:test"))).toBe(true);
+      expect(logs.some((l) => l.includes("markedproc:test"))).toBe(true);
       expect(logs.some((l) => l.includes("echo"))).toBe(true);
     });
 
     it("outputs JSON when --json option is set", async () => {
-      vi.spyOn(configModule, "loadConfig").mockResolvedValue(mockConfig);
+      vi.spyOn(configModule, "loadConfig").mockResolvedValue(makeMockConfig());
 
       const exitCode = await runScan({ json: true });
 
@@ -99,7 +110,7 @@ describe("scan command", () => {
     });
 
     it("filters to agents only when --agents option is set", async () => {
-      vi.spyOn(configModule, "loadConfig").mockResolvedValue(mockConfig);
+      vi.spyOn(configModule, "loadConfig").mockResolvedValue(makeMockConfig());
 
       const exitCode = await runScan({ agents: true, json: true });
 
@@ -112,7 +123,7 @@ describe("scan command", () => {
     });
 
     it("filters to data sources only when --data-sources option is set", async () => {
-      vi.spyOn(configModule, "loadConfig").mockResolvedValue(mockConfig);
+      vi.spyOn(configModule, "loadConfig").mockResolvedValue(makeMockConfig());
 
       const exitCode = await runScan({ dataSources: true, json: true });
 
@@ -126,7 +137,7 @@ describe("scan command", () => {
 
     it("handles empty results gracefully", async () => {
       vi.spyOn(configModule, "loadConfig").mockResolvedValue({
-        ...mockConfig,
+        ...makeMockConfig(),
         agents: [],
         data_sources: { cli_scanners: [], mcp_scanners: [] },
       });
@@ -139,7 +150,7 @@ describe("scan command", () => {
     });
 
     it("displays status indicators correctly", async () => {
-      vi.spyOn(configModule, "loadConfig").mockResolvedValue(mockConfig);
+      vi.spyOn(configModule, "loadConfig").mockResolvedValue(makeMockConfig());
 
       const exitCode = await runScan({});
 
@@ -150,7 +161,7 @@ describe("scan command", () => {
 
     it("displays stopped status for non-running agents", async () => {
       vi.spyOn(configModule, "loadConfig").mockResolvedValue({
-        ...mockConfig,
+        ...makeMockConfig(),
         agents: [
           {
             match_key: "testapp:config",
@@ -171,7 +182,7 @@ describe("scan command", () => {
 
     it("displays unauthenticated status for data sources", async () => {
       vi.spyOn(configModule, "loadConfig").mockResolvedValue({
-        ...mockConfig,
+        ...makeMockConfig(),
         data_sources: {
           cli_scanners: [
             {
@@ -196,7 +207,7 @@ describe("scan command", () => {
 
     it("displays unknown auth status for data sources", async () => {
       vi.spyOn(configModule, "loadConfig").mockResolvedValue({
-        ...mockConfig,
+        ...makeMockConfig(),
         data_sources: {
           cli_scanners: [
             {
@@ -217,7 +228,7 @@ describe("scan command", () => {
     });
 
     it("only shows agents section when --agents flag used (non-JSON)", async () => {
-      vi.spyOn(configModule, "loadConfig").mockResolvedValue(mockConfig);
+      vi.spyOn(configModule, "loadConfig").mockResolvedValue(makeMockConfig());
 
       const exitCode = await runScan({ agents: true });
 
@@ -227,7 +238,7 @@ describe("scan command", () => {
     });
 
     it("only shows data sources section when --data-sources flag used (non-JSON)", async () => {
-      vi.spyOn(configModule, "loadConfig").mockResolvedValue(mockConfig);
+      vi.spyOn(configModule, "loadConfig").mockResolvedValue(makeMockConfig());
 
       const exitCode = await runScan({ dataSources: true });
 
