@@ -5,6 +5,12 @@ import {
   runCommand,
 } from "./process.js";
 
+// Generate pattern at runtime with timestamp to ensure it never matches any process
+// This avoids pgrep matching the test file content or process args
+function getNonexistentPattern(): string {
+  return `__nonexistent_proc_${Date.now()}_${Math.random().toString(36).slice(2)}__`;
+}
+
 describe("process utilities", () => {
   describe("isProcessRunning", () => {
     it("returns true for current process (node/bun)", async () => {
@@ -14,9 +20,7 @@ describe("process utilities", () => {
     });
 
     it("returns false for non-existent pattern", async () => {
-      const result = await isProcessRunning(
-        "nonexistent_process_xyz_12345_unlikely"
-      );
+      const result = await isProcessRunning(getNonexistentPattern());
       expect(result).toBe(false);
     });
   });
@@ -30,9 +34,7 @@ describe("process utilities", () => {
     });
 
     it("returns null for non-existent pattern", async () => {
-      const pid = await getProcessPid(
-        "nonexistent_process_xyz_12345_unlikely"
-      );
+      const pid = await getProcessPid(getNonexistentPattern());
       expect(pid).toBeNull();
     });
   });
