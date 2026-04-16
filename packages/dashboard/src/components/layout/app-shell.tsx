@@ -4,7 +4,7 @@ import { useEffect, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { Menu, Github } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { SidebarProvider, useSidebar } from "./sidebar-context";
+import { useSidebar } from "./sidebar-context";
 import { useMobile } from "@/hooks/use-mobile";
 import { Sidebar } from "./sidebar";
 import { Breadcrumbs } from "./breadcrumbs";
@@ -18,7 +18,7 @@ interface AppShellProps {
   children: ReactNode;
 }
 
-function AppShellInner({ children }: AppShellProps) {
+export function AppShell({ children }: AppShellProps) {
   const { isExpanded, isMobileOpen, toggleMobile, closeMobile } = useSidebar();
   const isMobile = useMobile();
   const pathname = usePathname();
@@ -95,13 +95,5 @@ function AppShellInner({ children }: AppShellProps) {
         </div>
       </main>
     </div>
-  );
-}
-
-export function AppShell({ children }: AppShellProps) {
-  return (
-    <SidebarProvider>
-      <AppShellInner>{children}</AppShellInner>
-    </SidebarProvider>
   );
 }
