@@ -131,6 +131,24 @@ export class ConfigManager {
   }
 }
 
+// Default config manager instance
+const defaultManager = new ConfigManager();
+
+/**
+ * Load config using default manager
+ * Returns null if config doesn't exist
+ */
+export async function loadConfig(): Promise<HostConfig | null> {
+  try {
+    return await defaultManager.load();
+  } catch (err) {
+    if (err instanceof ConfigNotFoundError) {
+      return null;
+    }
+    throw err;
+  }
+}
+
 export {
   STEED_DIR,
   CONFIG_FILE,
