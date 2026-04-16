@@ -61,15 +61,15 @@ steed init --url <worker-url> --key <api-key>
 
 1. Validate URL format and API key format (`sk_host_*`)
 2. Test Worker connectivity (GET `/api/v1/health`)
-3. **Validate API key** by calling POST `/api/v1/snapshot` with empty payload
-   - Worker returns 200 with `agents_updated: 0` → key is valid
+3. **Validate API key** by calling POST `/api/v1/auth/verify`
+   - Worker returns 200 with `{ "valid": true, "host_id": "host_xxx" }` → key is valid
    - Worker returns 401 → key is invalid, abort with error
 4. Create `~/.steed/` directory with `0700` permissions
 5. Create `~/.steed/config.json` with `0600` permissions
 6. Add default CLI scanners from built-in list
 7. Print success message with next steps
 
-> **Why POST /snapshot for validation?** The `/health` endpoint is public and doesn't verify auth. We use `/snapshot` with an empty payload because it's the only host-role endpoint that exists in Phase A, and an empty snapshot is safe (updates nothing).
+> **Why a dedicated endpoint?** Using POST `/snapshot` with empty payload would trigger `missing` status on all existing agents/data sources — a real side effect. The `/auth/verify` endpoint is read-only and safe for init validation.
 
 **Example:**
 

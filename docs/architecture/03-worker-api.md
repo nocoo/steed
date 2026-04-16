@@ -25,6 +25,7 @@
 | 方法 | 路径 | 角色 | 说明 |
 |------|------|------|------|
 | GET | `/api/v1/health` | public | 健康检查 |
+| POST | `/api/v1/auth/verify` | host | 校验 Host API Key 有效性（无副作用） |
 | POST | `/api/v1/hosts/register` | dashboard | 注册新 Host，返回 API Key |
 | GET | `/api/v1/hosts` | dashboard | 列出所有 Host |
 | GET | `/api/v1/hosts/:id` | dashboard | 获取单个 Host 详情 |
@@ -56,6 +57,33 @@
 {
   "status": "ok",
   "timestamp": "2026-04-14T12:00:00Z"
+}
+```
+
+---
+
+### POST /api/v1/auth/verify
+
+校验 Host API Key 有效性。host 角色。无副作用，专用于 CLI init 验证。
+
+**响应 200**：
+
+```json
+{
+  "valid": true,
+  "host_id": "host_xxxxx",
+  "host_name": "us-vps-01"
+}
+```
+
+**响应 401**：
+
+```json
+{
+  "error": {
+    "code": "unauthorized",
+    "message": "Invalid or missing API key"
+  }
 }
 ```
 
