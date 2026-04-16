@@ -11,7 +11,6 @@ import { StateManager } from "./state.js";
 import { Scanner } from "./scanner/index.js";
 import { Reporter } from "./reporter.js";
 import { Scheduler } from "./scheduler.js";
-import { HttpClient } from "../lib/http.js";
 
 /**
  * Host Service options
@@ -122,10 +121,7 @@ export class HostService {
    */
   async runHeartbeat(): Promise<void> {
     if (!this.config) {
-      await this.stateManager.updateError({
-        message: "No configuration loaded",
-        type: "config",
-      });
+      await this.stateManager.recordError("No configuration loaded", "config");
       return;
     }
 
@@ -135,26 +131,27 @@ export class HostService {
       const scanResult = await scanner.scan(this.config);
 
       // Update state with scan results
-      await this.stateManager.updateScan({
-        agents: scanResult.agents,
-        data_sources: scanResult.dataSources,
-      });
+      await this.stateManager.updateScanResults(
+        scanResult.agents,
+        scanResult.dataSources
+      );
 
       // Report to Worker
-      const httpClient = new HttpClient(this.config.worker_url, this.config.api_key);
-      const reporter = new Reporter(httpClient);
-      const response = await reporter.report({
-        agents: scanResult.agents,
-        data_sources: scanResult.dataSources,
-      });
+      const reporter = new Reporter(this.config.worker_url, this.config.api_key);
+      const result = await reporter.report(scanResult.agents, scanResult.dataSources);
 
       // Update state with report response
-      await this.stateManager.updateReport(response);
+      if (result.success && result.response) {
+        await this.stateManager.updateReportResults(result.response);
+        await this.stateManager.clearError();
+      } else if (result.error) {
+        await this.stateManager.recordError(result.error.message, "report");
+      }
     } catch (error) {
       // Update state with error
       const message = error instanceof Error ? error.message : String(error);
       const type = this.classifyError(error);
-      await this.stateManager.updateError({ message, type });
+      await this.stateManager.recordError(message, type);
     }
   }
 
