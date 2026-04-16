@@ -359,11 +359,27 @@ $ steed service status
 
 ## Implementation
 
+### Dependencies
+
+CLI commands depend on Host Service modules from Phase C1:
+
+| CLI Command | Required C1 Modules |
+|-------------|---------------------|
+| `steed init` | ConfigManager (C1-2), Reporter.verify (C1-9) |
+| `steed scan` | ConfigManager, Scanner (C1-5, C1-6, C1-7) |
+| `steed report` | ConfigManager, Scanner, Reporter (C1-9), StateManager (C1-8) |
+| `steed register` | ConfigManager |
+| `steed status` | StateManager (C1-8), process utils (C1-3) |
+| `steed config` | ConfigManager |
+| `steed service` | HostService (C1-11), platform utils |
+
 ### Module Structure
 
 ```
 packages/cli/src/
-├── index.ts              # CLI entry point
+├── index.ts              # CLI entry point (Commander setup)
+├── bin/
+│   └── steed.ts          # Executable entry (shebang)
 ├── commands/
 │   ├── init.ts           # steed init
 │   ├── scan.ts           # steed scan
@@ -372,14 +388,13 @@ packages/cli/src/
 │   ├── status.ts         # steed status
 │   ├── config.ts         # steed config *
 │   └── service.ts        # steed service *
-├── service/              # (from Phase C1)
-├── config/               # (from Phase C1)
 ├── lib/
-│   ├── output.ts         # Table/JSON formatting
-│   ├── prompts.ts        # Interactive prompts
-│   └── platform.ts       # Platform detection (systemd/launchd)
-└── bin/
-    └── steed.ts          # Executable entry
+│   ├── output.ts         # Table/JSON formatting, spinners
+│   ├── match-key.ts      # Match key parsing and inference
+│   ├── platform.ts       # Platform detection (systemd/launchd)
+│   └── http.ts           # HTTP client wrapper
+├── service/              # (from Phase C1)
+└── config/               # (from Phase C1)
 ```
 
 ### CLI Framework
@@ -410,209 +425,432 @@ program.parse();
 
 ### Commit Plan
 
-#### Commit C2-1: CLI scaffold and init command
+#### Commit C2-1: CLI package scaffold
+
+**Files:**
 
 ```
 packages/cli/package.json
-  - Add dependencies: commander, chalk, ora
+  - Add dependencies: commander, chalk, ora, cli-table3
+  - Add bin field: { "steed": "./dist/bin/steed.js" }
+  - Scripts: build, dev, test
 
 packages/cli/src/bin/steed.ts
-  - Shebang entry point
-  - Import and run main program
+  - #!/usr/bin/env node
+  - Import and run main CLI
 
 packages/cli/src/index.ts
   - Commander program setup
-  - Wire up commands
+  - Version from package.json
+  - Help text customization
+  - Stub commands (all throw "not implemented")
 
-packages/cli/src/commands/init.ts
-  - Parse --url and --key
-  - Validate inputs
-  - Test Worker connection
-  - Create config file
-
-packages/cli/src/commands/init.test.ts
-  - Test validation
-  - Test config creation
+packages/cli/src/index.test.ts
+  - CLI --version works
+  - CLI --help works
+  - Unknown command shows error
 ```
 
-**Tests:** Init command validation and config creation
+**Verification:**
+- `bun run build` produces executable
+- `./dist/bin/steed.js --version` works
 
 ---
 
 #### Commit C2-2: Output utilities
 
+**Files:**
+
 ```
 packages/cli/src/lib/output.ts
-  - table(headers, rows): Print ASCII table
+  - success(message): Print green ✓ + message
+  - error(message): Print red ✗ + message
+  - warn(message): Print yellow ⚠ + message
+  - info(message): Print blue ℹ + message
+  - table(headers, rows, options?): Print ASCII table
   - json(data): Print formatted JSON
-  - success(message): Green checkmark
-  - error(message): Red X
-  - spinner(message): Loading spinner (ora)
+  - spinner(message): Return ora spinner instance
+  - formatDuration(ms): "3 minutes ago", "just now"
 
 packages/cli/src/lib/output.test.ts
+  - Each output function produces expected format
+  - Table handles empty rows
+  - Table handles long content (truncation)
+  - formatDuration handles various ranges
 ```
 
-**Tests:** Output formatting
+**Verification:**
+- Output formatting works correctly
 
 ---
 
-#### Commit C2-3: Scan command
+#### Commit C2-3: HTTP client and init command
+
+**Files:**
+
+```
+packages/cli/src/lib/http.ts
+  - HttpClient class:
+    - constructor(baseUrl: string, apiKey?: string)
+    - get<T>(path): Promise<T>
+    - post<T>(path, body): Promise<T>
+  - Sets Authorization header if apiKey provided
+  - Handles errors: NetworkError, ApiError
+
+packages/cli/src/commands/init.ts
+  - Parse --url and --key options
+  - Validate URL format (https required)
+  - Validate key format (sk_host_*)
+  - Test connectivity: GET /health
+  - Validate key: POST /auth/verify
+  - Create config with ConfigManager
+  - Add default scanners
+  - Print success with next steps
+
+packages/cli/src/commands/init.test.ts
+  - Invalid URL format rejected
+  - Invalid key format rejected
+  - Network error handled gracefully
+  - 401 from /auth/verify shows clear error
+  - Success creates config file
+  - Default scanners added to config
+```
+
+**Verification:**
+- `steed init` works end-to-end
+
+---
+
+#### Commit C2-4: Scan command
+
+**Files:**
 
 ```
 packages/cli/src/commands/scan.ts
-  - Load config
-  - Run Scanner (from C1)
-  - Format and display results
-  - Support --agents, --data-sources, --json flags
+  - Load config (error if not exists)
+  - Create Scanner, run scanAll()
+  - Format output:
+    - Default: ASCII tables for agents and data sources
+    - --json: JSON output
+    - --agents: Only agents table
+    - --data-sources: Only data sources table
+  - Update state file with scan results
 
 packages/cli/src/commands/scan.test.ts
-  - Test output formatting
-  - Test filtering flags
+  - No config file → error message
+  - Empty scan results → "No agents/data sources found"
+  - Agents displayed in table
+  - Data sources displayed in table
+  - --json outputs valid JSON
+  - --agents filters to agents only
+  - --data-sources filters to data sources only
+  - State file updated after scan
 ```
 
-**Tests:** Scan command with filters
+**Verification:**
+- `steed scan` displays results correctly
 
 ---
 
-#### Commit C2-4: Report command
+#### Commit C2-5: Report command
+
+**Files:**
 
 ```
 packages/cli/src/commands/report.ts
+  - Load config
   - Run scan
-  - Build snapshot
-  - Call Reporter (from C1)
-  - Display results
-  - Support --dry-run flag
+  - --dry-run: Display payload, don't send
+  - Normal: POST to Worker via Reporter
+  - Display response summary
+  - Update state file
 
 packages/cli/src/commands/report.test.ts
-  - Test dry-run
-  - Test error handling
+  - No config file → error message
+  - --dry-run shows payload without sending
+  - Successful report shows summary
+  - Network error shows retry info
+  - Auth error shows clear message
+  - State file updated after report
 ```
 
-**Tests:** Report command
+**Verification:**
+- `steed report` sends snapshot to Worker
 
 ---
 
-#### Commit C2-5: Register command
+#### Commit C2-6: Match key utilities and register command
+
+**Files:**
 
 ```
-packages/cli/src/commands/register.ts
-  - Parse --match-key and options
-  - Infer detection settings
-  - Update local config
-  - POST to Worker /api/v1/agents
-  - Display confirmation
-
 packages/cli/src/lib/match-key.ts
-  - parseMatchKey(key): Extract runtime_app and identifier
-  - inferDetection(matchKey): Auto-generate detection config
+  - parseMatchKey(key): { runtime_app, identifier }
+    - Format: "{runtime_app}:{identifier}"
+    - Throws on invalid format
+  - inferDetection(matchKey): AgentDetection
+    - Default method: "process"
+    - Default pattern: "{runtime_app}.*{identifier}"
+    - Default version_command: "{runtime_app} --version"
+  - validateMatchKey(key): boolean
+
+packages/cli/src/commands/register.ts
+  - Parse --match-key (required)
+  - Optional: --method, --pattern, --version-cmd
+  - Optional: --nickname, --role
+  - Optional: --local-only
+  - Infer detection if not provided
+  - Add to local config
+  - Unless --local-only: POST to Worker /api/v1/agents
+  - Display confirmation with detection details
+
+packages/cli/src/lib/match-key.test.ts
+  - parseMatchKey valid format
+  - parseMatchKey invalid format throws
+  - inferDetection produces expected defaults
 
 packages/cli/src/commands/register.test.ts
-  - Test match-key parsing
-  - Test detection inference
-  - Test Worker registration
+  - Missing --match-key → error
+  - Invalid match-key format → error
+  - Local config updated
+  - Worker registration called (unless --local-only)
+  - --local-only skips Worker registration
+  - Detection inference works
+  - Explicit --method overrides inference
 ```
 
-**Tests:** Register with inference
+**Verification:**
+- `steed register` adds agent locally and remotely
 
 ---
 
-#### Commit C2-6: Status command
+#### Commit C2-7: Status command
+
+**Files:**
 
 ```
 packages/cli/src/commands/status.ts
-  - Check service PID
-  - Load last scan cache
-  - Display summary
+  - Load state file (handle missing)
+  - Check service_pid: is process running?
+  - Format output:
+    - Service status (running/stopped)
+    - Last heartbeat time (relative)
+    - Agent summary (count by status)
+    - Data source summary (count by auth)
+    - Config/Worker info
+  - --json: JSON output
 
 packages/cli/src/commands/status.test.ts
+  - No state file → "No state file found" message
+  - Service running shows PID
+  - Service stopped (stale PID) shows stopped
+  - Last heartbeat shows relative time
+  - Agent/data source counts correct
+  - --json outputs valid JSON
 ```
 
-**Tests:** Status display
+**Verification:**
+- `steed status` shows correct information
 
 ---
 
-#### Commit C2-7: Config command
+#### Commit C2-8: Config command
+
+**Files:**
 
 ```
 packages/cli/src/commands/config.ts
-  - Subcommands: show, edit, path, add-scanner, remove-scanner
-  - Config manipulation
+  - Subcommand: show
+    - Display config (mask api_key)
+  - Subcommand: edit
+    - Open $EDITOR with config path
+  - Subcommand: path
+    - Print config file path
+  - Subcommand: add-scanner
+    - --name, --type, --binary required
+    - --auth-check optional (format: "method:pattern")
+    - Add to config, save
+  - Subcommand: remove-scanner
+    - --name required
+    - Remove from config, save
 
 packages/cli/src/commands/config.test.ts
+  - show displays config with masked key
+  - path prints correct path
+  - add-scanner adds to config
+  - add-scanner validates required fields
+  - remove-scanner removes from config
+  - remove-scanner handles non-existent scanner
 ```
 
-**Tests:** Config management
+**Verification:**
+- `steed config` subcommands work
 
 ---
 
-#### Commit C2-8: Service command
+#### Commit C2-9: Platform utilities
+
+**Files:**
+
+```
+packages/cli/src/lib/platform.ts
+  - detectPlatform(): "systemd" | "launchd" | "unknown"
+    - Check for systemctl (Linux)
+    - Check for launchctl (macOS)
+  - generateSystemdUnit(): string
+    - [Unit], [Service], [Install] sections
+    - ExecStart points to steed binary
+  - generateLaunchdPlist(): string
+    - plist XML for com.steed.host-service
+  - getServicePath(platform): string
+    - systemd: /etc/systemd/system/steed.service
+    - launchd: ~/Library/LaunchAgents/com.steed.host-service.plist
+
+packages/cli/src/lib/platform.test.ts
+  - detectPlatform returns valid value
+  - generateSystemdUnit produces valid ini
+  - generateLaunchdPlist produces valid XML
+  - getServicePath returns correct paths
+```
+
+**Verification:**
+- Platform detection and file generation work
+
+---
+
+#### Commit C2-10: Service command
+
+**Files:**
 
 ```
 packages/cli/src/commands/service.ts
-  - Subcommands: start, status, stop, install, uninstall, logs
-  - Platform detection (systemd vs launchd)
-  - Service file generation
-
-packages/cli/src/lib/platform.ts
-  - detectPlatform(): "systemd" | "launchd" | "unknown"
-  - generateServiceFile(platform): string
-  - installService(platform): void
-  - uninstallService(platform): void
+  - Subcommand: start
+    - Check not already running
+    - Run HostService.start() in foreground
+  - Subcommand: status
+    - Check if service is running
+    - Show PID and uptime
+  - Subcommand: stop
+    - Find PID from state file
+    - Send SIGTERM
+  - Subcommand: install
+    - Detect platform
+    - Generate service file
+    - Write to system path (may need sudo)
+    - Enable and start service
+  - Subcommand: uninstall
+    - Stop service
+    - Disable service
+    - Remove service file
+  - Subcommand: logs
+    - systemd: journalctl -u steed
+    - launchd: tail ~/Library/Logs/steed.log
 
 packages/cli/src/commands/service.test.ts
+  - start prevents double start
+  - stop sends SIGTERM to correct PID
+  - status shows running/stopped correctly
+  - install generates correct file for platform
+  - uninstall removes file
 ```
 
-**Tests:** Service management
+**Verification:**
+- `steed service` subcommands work
 
 ---
 
-#### Commit C2-9: E2E tests for CLI
+#### Commit C2-11: E2E tests
+
+**Files:**
 
 ```
-packages/cli/test/e2e/
-  - Test full workflow: init → register → scan → report
-  - Test against real Worker (test environment)
+packages/cli/test/e2e/cli.test.ts
+  - Full workflow test:
+    1. steed init → config created
+    2. steed register → agent added
+    3. steed scan → shows agent
+    4. steed report → reports to Worker
+    5. steed status → shows status
+  - Test against test Worker environment
+  - Cleanup: remove test config after
+
+packages/cli/test/e2e/setup.ts
+  - Test Worker URL from env
+  - Test Host API key from env
+  - Temp config directory
 ```
 
-**Tests:** CLI E2E
+**Verification:**
+- Full CLI workflow works end-to-end
 
 ---
 
-## Dependencies on Phase C1
+## Recommended Implementation Order (C1 + C2 Combined)
 
-CLI commands depend on Host Service modules:
+Since C2 depends on C1 modules, implement in interleaved order:
 
-| CLI Command | C1 Dependency |
-|-------------|---------------|
-| `steed scan` | Scanner (C1-4, C1-5, C1-6) |
-| `steed report` | Scanner + Reporter (C1-7) |
-| `steed register` | ConfigManager (C1-1) |
-| `steed service start` | HostService (C1-8) |
-| `steed status` | HostService status |
+```
+Phase 1: Foundation
+├── C1-1: CLI package + config schema
+├── C1-2: Config manager + permissions
+├── C2-1: CLI scaffold
+└── C2-2: Output utilities
 
-**Recommended implementation order:**
+Phase 2: Core Utilities
+├── C1-3: Process detection
+├── C1-4: PATH probe + version
+├── C2-3: HTTP client + init command
+└── C2-6: Match key utilities (partial, for register)
 
-1. Phase C1 commits 1-3 (config, utilities)
-2. Phase C2 commit 1-2 (CLI scaffold, output)
-3. Phase C1 commits 4-6 (scanners)
-4. Phase C2 commits 3-5 (scan, report, register)
-5. Phase C1 commits 7-8 (reporter, service)
-6. Phase C2 commits 6-8 (status, config, service commands)
-7. Phase C2 commit 9 (E2E)
+Phase 3: Scanning
+├── C1-5: Agent scanner
+├── C1-6: Data source scanner
+├── C1-7: Scanner orchestrator
+├── C2-4: Scan command
+└── C2-6: Register command (complete)
+
+Phase 4: Reporting
+├── C1-8: State file manager
+├── C1-9: Reporter + retry
+├── C2-5: Report command
+└── C2-7: Status command
+
+Phase 5: Service
+├── C1-10: Scheduler
+├── C1-11: Host Service entry
+├── C2-8: Config command
+├── C2-9: Platform utilities
+└── C2-10: Service command
+
+Phase 6: Integration
+└── C2-11: E2E tests
+```
+
+**Milestone checkpoints:**
+
+| After Phase | Capability |
+|-------------|------------|
+| Phase 1 | `steed --help` works, config can be saved/loaded |
+| Phase 2 | `steed init` works, connects to Worker |
+| Phase 3 | `steed scan` and `steed register` work |
+| Phase 4 | `steed report` and `steed status` work |
+| Phase 5 | `steed service start` runs Host Service |
+| Phase 6 | Full E2E validation |
 
 ---
 
 ## Progress
 
-| Commit | Status |
-|--------|--------|
-| C2-1: CLI scaffold and init | Pending |
-| C2-2: Output utilities | Pending |
-| C2-3: Scan command | Pending |
-| C2-4: Report command | Pending |
-| C2-5: Register command | Pending |
-| C2-6: Status command | Pending |
-| C2-7: Config command | Pending |
-| C2-8: Service command | Pending |
-| C2-9: E2E tests | Pending |
+| Commit | Description | Status |
+|--------|-------------|--------|
+| C2-1 | CLI scaffold | Pending |
+| C2-2 | Output utilities | Pending |
+| C2-3 | HTTP client + init | Pending |
+| C2-4 | Scan command | Pending |
+| C2-5 | Report command | Pending |
+| C2-6 | Match key + register | Pending |
+| C2-7 | Status command | Pending |
+| C2-8 | Config command | Pending |
+| C2-9 | Platform utilities | Pending |
+| C2-10 | Service command | Pending |
+| C2-11 | E2E tests | Pending |

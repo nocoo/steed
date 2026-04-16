@@ -398,12 +398,22 @@ Host Service runs as a long-lived process. Recommended deployment:
 
 ## Implementation
 
+### Dependencies
+
+Before starting Phase C1, ensure these are complete:
+
+- Worker `/api/v1/snapshot` endpoint (Phase A) ✅
+- Worker `/api/v1/auth/verify` endpoint (for CLI init)
+- Worker `/api/v1/agents` POST endpoint (Phase B1) ✅
+- `@steed/shared` types: `SnapshotRequest`, `SnapshotResponse`, `AgentSnapshot`, `DataSourceSnapshot` ✅
+
 ### Module Structure
 
 ```
 packages/cli/src/
 ├── service/
 │   ├── index.ts           # Service entry point
+│   ├── state.ts           # State file manager
 │   ├── scheduler.ts       # Heartbeat scheduler (10min interval)
 │   ├── reporter.ts        # POST /snapshot to Worker
 │   └── scanner/
@@ -412,7 +422,8 @@ packages/cli/src/
 │       └── data-source.ts # Data source scanner
 ├── config/
 │   ├── index.ts           # Config manager
-│   ├── schema.ts          # Config type definitions
+│   ├── schema.ts          # Config type definitions + zod validation
+│   ├── permissions.ts     # File permission utilities
 │   └── defaults.ts        # Default CLI scanners
 └── lib/
     ├── process.ts         # Process detection utilities
@@ -422,180 +433,444 @@ packages/cli/src/
 
 ### Commit Plan
 
-#### Commit C1-1: Config schema and manager
+#### Commit C1-1: CLI package setup and config schema
+
+**Files:**
 
 ```
+packages/cli/package.json
+  - Add dependencies: zod, undici (HTTP client)
+  - Add devDependencies: vitest, @types/node
+  - Scripts: test, build
+
+packages/cli/tsconfig.json
+  - Extend shared tsconfig
+  - Target: ESNext, module: ESNext
+
+packages/cli/vitest.config.ts
+  - Setup vitest for CLI package
+
 packages/cli/src/config/schema.ts
-  - Define HostConfig, RegisteredAgent, DataSourceConfig types
-  - Define validation schema (zod)
+  - HostConfig interface
+  - RegisteredAgent interface  
+  - AgentDetection interface
+  - DataSourceConfig interface
+  - CliScannerConfig interface
+  - AuthCheck interface
+  - HostState interface (state file)
+  - Zod schemas for all types
+  - Export: hostConfigSchema, hostStateSchema
 
-packages/cli/src/config/index.ts
-  - ConfigManager class
-  - load(): Read and validate ~/.steed/config.json
-  - save(): Write config to file
-  - getConfigPath(): Return config file path
-
-packages/cli/src/config/defaults.ts
-  - Default CLI scanners for common tools (wrangler, railway, gh, etc.)
-
-packages/cli/src/config/index.test.ts
-  - Test config load/save
-  - Test validation errors
-  - Test default values
+packages/cli/src/config/schema.test.ts
+  - Valid config passes validation
+  - Missing required fields rejected
+  - Invalid api_key format rejected
+  - Invalid detection method rejected
+  - Invalid auth_check method rejected
 ```
 
-**Tests:** Config load/save, validation, defaults
+**Verification:**
+- `bun test` passes
+- Types compile without errors
 
 ---
 
-#### Commit C1-2: Process detection utilities
+#### Commit C1-2: Config manager with file permissions
+
+**Files:**
+
+```
+packages/cli/src/config/permissions.ts
+  - ensureDir(path, mode): Create directory with permissions
+  - ensureFilePermissions(path, mode): Set file permissions
+  - checkPermissions(path): Verify not world/group readable
+  - STEED_DIR = ~/.steed
+  - CONFIG_FILE = ~/.steed/config.json
+  - STATE_FILE = ~/.steed/state.json
+
+packages/cli/src/config/index.ts
+  - ConfigManager class:
+    - constructor(configPath?: string)
+    - load(): Promise<HostConfig> — read, parse, validate
+    - save(config: HostConfig): Promise<void> — validate, write with 0600
+    - exists(): Promise<boolean>
+    - getPath(): string
+  - On load: warn if permissions too permissive
+  - On save: ensure ~/.steed/ exists with 0700
+
+packages/cli/src/config/defaults.ts
+  - DEFAULT_CLI_SCANNERS: CliScannerConfig[]
+    - wrangler (third_party_cli, config_exists: ~/.wrangler)
+    - railway (third_party_cli, config_exists: ~/.railway)  
+    - gh (third_party_cli, command: gh auth status)
+    - vercel (third_party_cli, config_exists: ~/.vercel)
+
+packages/cli/src/config/index.test.ts
+  - Load valid config file
+  - Load returns error for missing file
+  - Load returns error for invalid JSON
+  - Load returns error for schema validation failure
+  - Save creates file with correct permissions
+  - Save creates directory if not exists
+  - Round-trip: save then load returns same data
+```
+
+**Verification:**
+- Config load/save works
+- File permissions are enforced
+
+---
+
+#### Commit C1-3: Process detection utilities
+
+**Files:**
 
 ```
 packages/cli/src/lib/process.ts
   - isProcessRunning(pattern: string): Promise<boolean>
-  - getProcessInfo(pattern: string): Promise<ProcessInfo | null>
-  - Uses: pgrep -f (Linux/macOS)
+    - Uses: pgrep -f "{pattern}"
+    - Returns true if exit code 0
+  - getProcessPid(pattern: string): Promise<number | null>
+    - Uses: pgrep -f "{pattern}"
+    - Returns first PID or null
+  - killProcess(pid: number, signal?: string): Promise<boolean>
+    - Uses: kill -{signal} {pid}
+    - Default signal: SIGTERM
 
 packages/cli/src/lib/process.test.ts
-  - Test process detection
-  - Test pattern matching
+  - isProcessRunning returns true for current process
+  - isProcessRunning returns false for non-existent pattern
+  - getProcessPid returns number for running process
+  - getProcessPid returns null for non-existent pattern
+  - Pattern with special chars is properly escaped
 ```
 
-**Tests:** Process detection on current platform
+**Verification:**
+- Process detection works on macOS/Linux
 
 ---
 
-#### Commit C1-3: PATH probe and version utilities
+#### Commit C1-4: PATH probe and version utilities
+
+**Files:**
 
 ```
 packages/cli/src/lib/path.ts
   - isInPath(binary: string): Promise<boolean>
+    - Uses: which {binary}
+    - Returns true if exit code 0
   - getBinaryPath(binary: string): Promise<string | null>
-  - Uses: which command
+    - Uses: which {binary}
+    - Returns path or null
+  - expandPath(path: string): string
+    - Expands ~ to home directory
 
 packages/cli/src/lib/version.ts
   - getVersion(command: string): Promise<string | null>
+    - Run command, capture stdout
+    - Timeout: 5 seconds
+    - Returns null on error
   - parseVersionString(output: string): string
-  - Handles common version formats
+    - Extract version from common formats:
+      - "v1.2.3" → "1.2.3"
+      - "version 1.2.3" → "1.2.3"  
+      - "tool 1.2.3-beta" → "1.2.3-beta"
+    - Returns first match or raw first line
 
 packages/cli/src/lib/path.test.ts
+  - isInPath returns true for "ls"
+  - isInPath returns false for "nonexistent-binary-xyz"
+  - getBinaryPath returns path for "ls"
+  - expandPath expands ~ correctly
+
 packages/cli/src/lib/version.test.ts
+  - parseVersionString handles "v1.2.3"
+  - parseVersionString handles "version 1.2.3"
+  - parseVersionString handles "tool 1.2.3-beta"
+  - parseVersionString returns first line as fallback
+  - getVersion returns null on timeout
 ```
 
-**Tests:** PATH detection, version parsing
+**Verification:**
+- PATH detection works
+- Version parsing handles common formats
 
 ---
 
-#### Commit C1-4: Agent scanner
+#### Commit C1-5: Agent scanner
+
+**Files:**
 
 ```
 packages/cli/src/service/scanner/agent.ts
-  - AgentScanner class
-  - scan(agents: RegisteredAgent[]): Promise<AgentSnapshot[]>
-  - detectAgent(agent: RegisteredAgent): Promise<AgentSnapshot | null>
-  - Handles process, config_file, custom detection methods
+  - AgentScanner class:
+    - scan(agents: RegisteredAgent[]): Promise<AgentSnapshot[]>
+    - scanOne(agent: RegisteredAgent): Promise<AgentSnapshot | null>
+  - Detection methods:
+    - detectByProcess(pattern): running/stopped
+    - detectByConfigFile(path): stopped/null
+    - detectByCustom(command): running/stopped/null
+  - Extract runtime_app from match_key prefix
+  - Run version_command if configured
 
 packages/cli/src/service/scanner/agent.test.ts
-  - Test each detection method
-  - Test version extraction
-  - Test failure handling (agent not found)
+  - Process method: running process → status=running
+  - Process method: no process → status=stopped
+  - Config file method: file exists → status=stopped
+  - Config file method: file not exists → returns null
+  - Custom method: exit 0 → status=running
+  - Custom method: exit 1 → status=stopped
+  - Custom method: exit 2 → returns null
+  - Version command extracts version
+  - Version command failure → version=null
+  - runtime_app extracted from match_key
+  - Invalid match_key format handled gracefully
 ```
 
-**Tests:** Agent detection for each method
+**Verification:**
+- All three detection methods work correctly
 
 ---
 
-#### Commit C1-5: Data source scanner
+#### Commit C1-6: Data source scanner
+
+**Files:**
 
 ```
 packages/cli/src/service/scanner/data-source.ts
-  - DataSourceScanner class
-  - scan(config: DataSourceConfig): Promise<DataSourceSnapshot[]>
-  - scanCli(scanner: CliScannerConfig): Promise<DataSourceSnapshot | null>
-  - checkAuthStatus(scanner: CliScannerConfig): Promise<DataSourceAuthStatus>
+  - DataSourceScanner class:
+    - scan(config: DataSourceConfig): Promise<DataSourceSnapshot[]>
+    - scanCli(scanner: CliScannerConfig): Promise<DataSourceSnapshot | null>
+  - Auth status detection:
+    - checkAuthByConfigExists(path): authenticated/unauthenticated
+    - checkAuthByConfigField(path, jsonPath): authenticated/unauthenticated
+    - checkAuthByCommand(command): authenticated/unauthenticated
+  - PATH probe → skip if not found
+  - Version collection
 
 packages/cli/src/service/scanner/data-source.test.ts
-  - Test PATH probe
-  - Test version extraction
-  - Test auth status detection (each method)
-  - Test failure handling (CLI not found)
+  - Binary not in PATH → returns null
+  - Binary in PATH → returns snapshot
+  - Version extracted correctly
+  - Auth config_exists: file exists → authenticated
+  - Auth config_exists: file not exists → unauthenticated
+  - Auth command: exit 0 → authenticated
+  - Auth command: exit non-0 → unauthenticated
+  - No auth_check → auth_status=unknown
+  - Scanner failure doesn't affect other scanners
 ```
 
-**Tests:** Data source detection, auth status
+**Verification:**
+- Data source scanning works with all auth methods
 
 ---
 
-#### Commit C1-6: Scanner orchestrator
+#### Commit C1-7: Scanner orchestrator
+
+**Files:**
 
 ```
 packages/cli/src/service/scanner/index.ts
-  - Scanner class
-  - scanAll(config: HostConfig): Promise<SnapshotRequest>
-  - Orchestrates AgentScanner and DataSourceScanner
+  - Scanner class:
+    - constructor(config: HostConfig)
+    - scanAll(): Promise<SnapshotRequest>
+    - scanAgents(): Promise<AgentSnapshot[]>
+    - scanDataSources(): Promise<DataSourceSnapshot[]>
   - Handles partial failures gracefully
+  - Logs individual scanner errors
 
 packages/cli/src/service/scanner/index.test.ts
-  - Test full scan with mixed success/failure
-  - Test empty results
+  - Empty config → empty results
+  - Mixed success/failure → returns successful ones
+  - Agent scanner error doesn't block data source scanner
+  - Data source scanner error doesn't block agent scanner
+  - Full scan returns SnapshotRequest structure
 ```
 
-**Tests:** Orchestration, error isolation
+**Verification:**
+- Orchestrator handles failures gracefully
 
 ---
 
-#### Commit C1-7: Reporter
+#### Commit C1-8: State file manager
+
+**Files:**
+
+```
+packages/cli/src/service/state.ts
+  - StateManager class:
+    - constructor(statePath?: string)
+    - load(): Promise<HostState | null>
+    - save(state: Partial<HostState>): Promise<void> — merge with existing
+    - clear(): Promise<void>
+    - updateScan(scan: SnapshotRequest): Promise<void>
+    - updateReport(response: SnapshotResponse): Promise<void>
+    - updateServicePid(pid: number | null): Promise<void>
+    - updateError(error: { message, type }): Promise<void>
+  - Atomic writes (write to temp, rename)
+  - Permissions: 0600
+
+packages/cli/src/service/state.test.ts
+  - Load returns null for missing file
+  - Save creates file with correct structure
+  - Save merges with existing state
+  - updateScan updates last_scan_at and last_scan
+  - updateReport updates last_report_at and last_report_response
+  - updateServicePid updates service_pid
+  - updateError updates last_error with timestamp
+  - clear removes file
+```
+
+**Verification:**
+- State file operations are atomic and correct
+
+---
+
+#### Commit C1-9: Reporter with retry logic
+
+**Files:**
 
 ```
 packages/cli/src/service/reporter.ts
-  - Reporter class
-  - report(config: HostConfig, snapshot: SnapshotRequest): Promise<SnapshotResponse>
-  - HTTP POST to Worker with auth header
-  - Retry logic with exponential backoff
+  - Reporter class:
+    - constructor(config: HostConfig)
+    - report(snapshot: SnapshotRequest): Promise<SnapshotResponse>
+    - verify(): Promise<{ valid: boolean; host_id: string }>
+  - HTTP POST to {worker_url}/api/v1/snapshot
+  - Header: Authorization: Bearer {api_key}
+  - Retry with exponential backoff: 1s, 2s, 4s (max 3 retries)
+  - Timeout: 30 seconds per request
 
 packages/cli/src/service/reporter.test.ts
-  - Test successful report
-  - Test retry on failure
-  - Test auth header
+  - Successful report returns SnapshotResponse
+  - Auth header sent correctly
+  - 401 response throws AuthError
+  - 500 response triggers retry
+  - Max retries exceeded throws NetworkError
+  - Timeout throws TimeoutError
+  - verify() calls /auth/verify endpoint
 ```
 
-**Tests:** HTTP reporting, retry logic
+**Verification:**
+- HTTP reporting works with retry logic
 
 ---
 
-#### Commit C1-8: Scheduler and service entry
+#### Commit C1-10: Scheduler
+
+**Files:**
 
 ```
 packages/cli/src/service/scheduler.ts
-  - Scheduler class
-  - start(): Begin 10-minute heartbeat cycle
-  - stop(): Graceful shutdown
-  - runOnce(): Manual trigger (for CLI)
+  - Scheduler class:
+    - constructor(intervalMs: number = 600000)  // 10 minutes
+    - start(callback: () => Promise<void>): void
+    - stop(): void
+    - runOnce(): Promise<void>
+    - isRunning(): boolean
+  - Uses setInterval for periodic execution
+  - Prevents overlapping runs
+  - Logs next scheduled time
 
-packages/cli/src/service/index.ts
-  - HostService class
-  - start(): Load config, start scheduler
-  - stop(): Stop scheduler, cleanup
-  - Signal handling (SIGTERM, SIGINT)
-
-packages/cli/src/service/index.test.ts
 packages/cli/src/service/scheduler.test.ts
-  - Test scheduler timing
-  - Test graceful shutdown
+  - start() begins interval
+  - stop() clears interval
+  - runOnce() executes immediately
+  - Overlapping runs prevented
+  - isRunning() returns correct state
 ```
 
-**Tests:** Scheduler, service lifecycle
+**Verification:**
+- Scheduler timing works correctly
+
+---
+
+#### Commit C1-11: Host Service entry point
+
+**Files:**
+
+```
+packages/cli/src/service/index.ts
+  - HostService class:
+    - constructor(configPath?: string)
+    - start(): Promise<void>
+      - Load config
+      - Write PID to state
+      - Start scheduler
+      - Run first heartbeat immediately
+    - stop(): Promise<void>
+      - Stop scheduler
+      - Clear PID from state
+    - runHeartbeat(): Promise<void>
+      - Scan → Report → Update state
+  - Signal handling: SIGTERM, SIGINT → graceful stop
+  - Logs all operations
+
+packages/cli/src/service/index.test.ts
+  - start() loads config and begins scheduler
+  - stop() clears PID and stops scheduler
+  - Heartbeat cycle: scan → report → state update
+  - Config error prevents start
+  - Network error logged but doesn't crash
+  - SIGTERM triggers graceful stop
+```
+
+**Verification:**
+- Full service lifecycle works
+
+---
+
+## Recommended Implementation Order
+
+Phase C1 commits should be implemented in order (1 → 11) as each depends on previous:
+
+```
+C1-1: CLI package + config schema
+  ↓
+C1-2: Config manager + permissions
+  ↓
+C1-3: Process detection ─────────────┐
+  ↓                                  │
+C1-4: PATH probe + version ──────────┤
+  ↓                                  │
+C1-5: Agent scanner ←────────────────┤
+  ↓                                  │
+C1-6: Data source scanner ←──────────┘
+  ↓
+C1-7: Scanner orchestrator
+  ↓
+C1-8: State file manager
+  ↓
+C1-9: Reporter + retry
+  ↓
+C1-10: Scheduler
+  ↓
+C1-11: Host Service entry
+```
+
+**Milestone checkpoints:**
+
+| After Commit | Capability |
+|--------------|------------|
+| C1-2 | Config files can be read/written securely |
+| C1-7 | `Scanner.scanAll()` produces valid `SnapshotRequest` |
+| C1-9 | Can report snapshot to Worker |
+| C1-11 | Full Host Service runs with 10-min heartbeat |
 
 ---
 
 ## Progress
 
-| Commit | Status |
-|--------|--------|
-| C1-1: Config schema and manager | Pending |
-| C1-2: Process detection utilities | Pending |
-| C1-3: PATH probe and version utilities | Pending |
-| C1-4: Agent scanner | Pending |
-| C1-5: Data source scanner | Pending |
-| C1-6: Scanner orchestrator | Pending |
-| C1-7: Reporter | Pending |
-| C1-8: Scheduler and service entry | Pending |
+| Commit | Description | Status |
+|--------|-------------|--------|
+| C1-1 | CLI package + config schema | Pending |
+| C1-2 | Config manager + permissions | Pending |
+| C1-3 | Process detection | Pending |
+| C1-4 | PATH probe + version | Pending |
+| C1-5 | Agent scanner | Pending |
+| C1-6 | Data source scanner | Pending |
+| C1-7 | Scanner orchestrator | Pending |
+| C1-8 | State file manager | Pending |
+| C1-9 | Reporter + retry | Pending |
+| C1-10 | Scheduler | Pending |
+| C1-11 | Host Service entry | Pending |
