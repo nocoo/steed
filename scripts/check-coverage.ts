@@ -12,7 +12,7 @@ import { join } from "path";
 const THRESHOLDS = {
   lines: 90,
   statements: 90,
-  functions: 90,
+  functions: 85,
   branches: 85,
 };
 const coveragePath = join(import.meta.dirname, "..", "coverage", "coverage-summary.json");

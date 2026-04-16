@@ -145,7 +145,7 @@ describe("status command", () => {
         last_scan_at: new Date().toISOString(),
         service_pid: 12345,
       });
-      vi.spyOn(processModule, "isProcessRunning").mockResolvedValue(true);
+      vi.spyOn(processModule, "isPidRunning").mockResolvedValue(true);
 
       const exitCode = await runStatus({});
 
@@ -161,7 +161,7 @@ describe("status command", () => {
         last_scan_at: new Date().toISOString(),
         service_pid: 12345,
       });
-      vi.spyOn(processModule, "isProcessRunning").mockResolvedValue(false);
+      vi.spyOn(processModule, "isPidRunning").mockResolvedValue(false);
 
       const exitCode = await runStatus({});
 

@@ -89,4 +89,27 @@ describe("process utilities", () => {
       expect(result).toBe(false);
     });
   });
+
+  describe("isPidRunning", () => {
+    it("returns true for current process PID", async () => {
+      const { isPidRunning } = await import("./process.js");
+      const result = await isPidRunning(process.pid);
+      expect(result).toBe(true);
+    });
+
+    it("returns false for non-existent PID", async () => {
+      const { isPidRunning } = await import("./process.js");
+      const result = await isPidRunning(99999999);
+      expect(result).toBe(false);
+    });
+  });
+
+  describe("runCommand", () => {
+    it("runs a command and returns output", async () => {
+      const { runCommand } = await import("./process.js");
+      const result = await runCommand("echo hello");
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout.trim()).toBe("hello");
+    });
+  });
 });

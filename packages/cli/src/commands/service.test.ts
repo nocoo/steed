@@ -9,6 +9,7 @@ const mocks = {
   stateUpdatePid: vi.fn(),
   loadConfig: vi.fn(),
   isProcessRunning: vi.fn(),
+  isPidRunning: vi.fn(),
   killProcess: vi.fn(),
   detectPlatform: vi.fn(),
   generateSystemdUnit: vi.fn(),
@@ -47,7 +48,8 @@ vi.mock("../config/index.js", () => ({
 }));
 
 vi.mock("../lib/process.js", () => ({
-  isProcessRunning: (...args: unknown[]) => mocks.isProcessRunning(...args),
+  isProcessRunning: (...args: unknown[]) => mocks.isPidRunning(...args),
+  isPidRunning: (...args: unknown[]) => mocks.isPidRunning(...args),
   killProcess: (...args: unknown[]) => mocks.killProcess(...args),
 }));
 
@@ -88,7 +90,7 @@ describe("service command", () => {
     mocks.stateLoad.mockResolvedValue(null);
     mocks.stateUpdatePid.mockResolvedValue(undefined);
     mocks.loadConfig.mockResolvedValue({ host_id: "test-host" });
-    mocks.isProcessRunning.mockResolvedValue(false);
+    mocks.isPidRunning.mockResolvedValue(false);
     mocks.killProcess.mockResolvedValue(true);
     mocks.detectPlatform.mockResolvedValue("launchd");
     mocks.generateSystemdUnit.mockReturnValue("[Unit]\nDescription=Test");
@@ -158,7 +160,7 @@ describe("service command", () => {
         last_scan_at: new Date().toISOString(),
         last_report_at: new Date().toISOString(),
       });
-      mocks.isProcessRunning.mockResolvedValue(true);
+      mocks.isPidRunning.mockResolvedValue(true);
 
       await program.parseAsync(["node", "test", "service", "status"]);
 
@@ -169,7 +171,7 @@ describe("service command", () => {
 
     it("shows stale PID warning when process not running", async () => {
       mocks.stateLoad.mockResolvedValue({ service_pid: 99999 });
-      mocks.isProcessRunning.mockResolvedValue(false);
+      mocks.isPidRunning.mockResolvedValue(false);
 
       await program.parseAsync(["node", "test", "service", "status"]);
 
@@ -182,7 +184,7 @@ describe("service command", () => {
         service_pid: 12345,
         last_error: { message: "Test error", type: "scan" },
       });
-      mocks.isProcessRunning.mockResolvedValue(true);
+      mocks.isPidRunning.mockResolvedValue(true);
 
       await program.parseAsync(["node", "test", "service", "status"]);
 
@@ -195,7 +197,7 @@ describe("service command", () => {
         service_pid: 12345,
         last_scan_at: thirtyMinutesAgo,
       });
-      mocks.isProcessRunning.mockResolvedValue(true);
+      mocks.isPidRunning.mockResolvedValue(true);
 
       await program.parseAsync(["node", "test", "service", "status"]);
 
@@ -208,7 +210,7 @@ describe("service command", () => {
         service_pid: 12345,
         last_scan_at: twoHoursAgo,
       });
-      mocks.isProcessRunning.mockResolvedValue(true);
+      mocks.isPidRunning.mockResolvedValue(true);
 
       await program.parseAsync(["node", "test", "service", "status"]);
 
@@ -221,7 +223,7 @@ describe("service command", () => {
         service_pid: 12345,
         last_scan_at: twoDaysAgo,
       });
-      mocks.isProcessRunning.mockResolvedValue(true);
+      mocks.isPidRunning.mockResolvedValue(true);
 
       await program.parseAsync(["node", "test", "service", "status"]);
 
@@ -619,7 +621,7 @@ describe("service command", () => {
     it("shows error when service already running", async () => {
       mocks.loadConfig.mockResolvedValue({ host_id: "test" });
       mocks.stateLoad.mockResolvedValue({ service_pid: 12345 });
-      mocks.isProcessRunning.mockResolvedValue(true);
+      mocks.isPidRunning.mockResolvedValue(true);
 
       await program.parseAsync(["node", "test", "service", "start"]);
 

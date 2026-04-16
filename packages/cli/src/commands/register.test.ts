@@ -4,13 +4,23 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { runRegister } from "./register.js";
 import { ConfigManager } from "../config/index.js";
+import * as configModule from "../config/index.js";
 import type { HostConfig } from "../config/schema.js";
+
+const mockPost = vi.fn();
+
+vi.mock("../lib/http.js", () => ({
+  HttpClient: class {
+    post = (...args: unknown[]) => mockPost(...args);
+  },
+}));
 
 describe("register command", () => {
   let tempDir: string;
   let configPath: string;
   let originalLog: typeof console.log;
   let originalError: typeof console.error;
+  let originalWarn: typeof console.warn;
   let logs: string[];
 
   beforeEach(async () => {
@@ -19,17 +29,23 @@ describe("register command", () => {
     logs = [];
     originalLog = console.log;
     originalError = console.error;
+    originalWarn = console.warn;
     console.log = vi.fn((...args: unknown[]) => {
       logs.push(args.map(String).join(" "));
     });
     console.error = vi.fn((...args: unknown[]) => {
       logs.push(args.map(String).join(" "));
     });
+    console.warn = vi.fn((...args: unknown[]) => {
+      logs.push(args.map(String).join(" "));
+    });
+    mockPost.mockReset();
   });
 
   afterEach(async () => {
     console.log = originalLog;
     console.error = originalError;
+    console.warn = originalWarn;
     await rm(tempDir, { recursive: true, force: true });
     vi.restoreAllMocks();
   });
@@ -192,9 +208,15 @@ describe("register command", () => {
       expect(logs.some((l) => l.includes("Failed to save config"))).toBe(true);
     });
 
-    it("displays note about Worker registration when not --local-only", async () => {
+    it("registers with Worker API when not --local-only", async () => {
       vi.spyOn(ConfigManager.prototype, "load").mockResolvedValue(getValidConfig());
       vi.spyOn(ConfigManager.prototype, "save").mockResolvedValue(undefined);
+      vi.spyOn(configModule, "loadConfig").mockResolvedValue(getValidConfig());
+
+      mockPost.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ id: "agent-123" }),
+      });
 
       const exitCode = await runRegister({
         matchKey: "openclaw:/home/agent",
@@ -202,9 +224,58 @@ describe("register command", () => {
       });
 
       expect(exitCode).toBe(0);
-      expect(logs.some((l) => l.includes("Worker registration not yet implemented"))).toBe(
-        true
-      );
+      expect(mockPost).toHaveBeenCalledWith("/api/v1/agents", expect.objectContaining({
+        match_key: "openclaw:/home/agent",
+      }));
+      expect(logs.some((l) => l.includes("Agent registered with Worker"))).toBe(true);
+    });
+
+    it("handles Worker API failure gracefully", async () => {
+      vi.spyOn(ConfigManager.prototype, "load").mockResolvedValue(getValidConfig());
+      vi.spyOn(ConfigManager.prototype, "save").mockResolvedValue(undefined);
+      vi.spyOn(configModule, "loadConfig").mockResolvedValue(getValidConfig());
+
+      mockPost.mockResolvedValue({
+        ok: false,
+        statusText: "Internal Server Error",
+        json: () => Promise.resolve({ error: "server error" }),
+      });
+
+      const exitCode = await runRegister({
+        matchKey: "openclaw:/home/agent2",
+      });
+
+      expect(exitCode).toBe(0);
+      expect(logs.some((l) => l.includes("Worker registration failed"))).toBe(true);
+      expect(logs.some((l) => l.includes("registered locally"))).toBe(true);
+    });
+
+    it("handles Worker API network error gracefully", async () => {
+      vi.spyOn(ConfigManager.prototype, "load").mockResolvedValue(getValidConfig());
+      vi.spyOn(ConfigManager.prototype, "save").mockResolvedValue(undefined);
+      vi.spyOn(configModule, "loadConfig").mockResolvedValue(getValidConfig());
+
+      mockPost.mockRejectedValue(new Error("Connection refused"));
+
+      const exitCode = await runRegister({
+        matchKey: "openclaw:/home/agent3",
+      });
+
+      expect(exitCode).toBe(0);
+      expect(logs.some((l) => l.includes("Connection refused"))).toBe(true);
+    });
+  });
+
+  describe("createRegisterCommand", () => {
+    it("registers command with required options", async () => {
+      const { createRegisterCommand } = await import("./register.js");
+      const { Command } = await import("commander");
+      const program = new Command();
+      createRegisterCommand(program);
+
+      const cmd = program.commands.find((c) => c.name() === "register");
+      expect(cmd).toBeDefined();
+      expect(cmd?.description()).toContain("Register");
     });
   });
 });

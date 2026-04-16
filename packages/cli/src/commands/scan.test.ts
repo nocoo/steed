@@ -6,6 +6,13 @@ import { runScan } from "./scan.js";
 import * as configModule from "../config/index.js";
 import type { HostConfig } from "../config/schema.js";
 
+// Mock StateManager so scan doesn't try to write state files
+vi.mock("../service/state.js", () => ({
+  StateManager: class {
+    updateScanResults = vi.fn();
+  },
+}));
+
 describe("scan command", () => {
   let tempDir: string;
   let originalLog: typeof console.log;

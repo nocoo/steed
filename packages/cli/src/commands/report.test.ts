@@ -176,4 +176,17 @@ describe("report command", () => {
       expect(logs.some((l) => l.includes("API error"))).toBe(true);
     });
   });
+
+  describe("createReportCommand", () => {
+    it("registers command with options", async () => {
+      const { createReportCommand } = await import("./report.js");
+      const { Command } = await import("commander");
+      const program = new Command();
+      createReportCommand(program);
+
+      const cmd = program.commands.find((c) => c.name() === "report");
+      expect(cmd).toBeDefined();
+      expect(cmd?.description()).toContain("snapshot");
+    });
+  });
 });
