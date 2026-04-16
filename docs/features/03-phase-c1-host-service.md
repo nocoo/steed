@@ -6,6 +6,18 @@
 
 Host Service is a resident process running on each agent host. It periodically scans local resources and reports snapshots to the Worker API. This is the foundation for maintaining real-time visibility of distributed agents and data sources.
 
+## Platform Support
+
+**Supported platforms:** macOS, Linux only.
+
+Host Service relies on Unix-specific tools and conventions:
+- Process detection: `pgrep -f`
+- PATH probe: `which`
+- Service management: systemd (Linux), launchd (macOS)
+- File permissions: POSIX chmod
+
+Windows is not supported in v1.
+
 ## Core Responsibilities
 
 1. **Heartbeat Reporting**: POST `/api/v1/snapshot` every 10 minutes with full resource snapshot
@@ -42,6 +54,18 @@ Host Service is a resident process running on each agent host. It periodically s
 ```
 ~/.steed/config.json
 ```
+
+### File Permissions
+
+Config file contains the Host API key in plaintext. **Mandatory permissions:**
+
+- `~/.steed/` directory: `0700` (owner read/write/execute only)
+- `~/.steed/config.json`: `0600` (owner read/write only)
+- `~/.steed/state.json`: `0600` (owner read/write only)
+
+CLI and Host Service must:
+1. **On write**: Create files with correct permissions (`chmod 0600`)
+2. **On read**: Verify permissions are not more permissive than required; warn if world/group readable
 
 ### Config Schema
 
@@ -192,18 +216,19 @@ interface McpScannerConfig {
 
 For each registered agent in config:
 
-1. Run detection based on configured method:
-   - `process`: Check if process matching pattern is running (`pgrep -f`)
-   - `config_file`: Check if config file exists (indicates installed)
-   - `custom`: Run custom command
+1. **Run detection based on configured method** — each method has its own status mapping:
 
-2. Determine status:
-   - Detection succeeds → `running` or `stopped` based on process state
-   - Detection fails → Agent not included in snapshot (Worker marks as `missing`)
+   | Method | Detection Logic | Status Mapping |
+   |--------|-----------------|----------------|
+   | `process` | `pgrep -f {pattern}` | Found → `running`; Not found → `stopped` |
+   | `config_file` | File exists at `{pattern}` | Exists → `stopped` (installed but not running); Not exists → not included (Worker marks `missing`) |
+   | `custom` | Run `{pattern}` as command | Exit 0 → `running`; Exit 1 → `stopped`; Exit 2+ or error → not included (Worker marks `missing`) |
 
-3. Collect runtime info:
+   > **Rationale**: `process` directly reflects runtime state. `config_file` only confirms installation — presence means "installed but we can't tell if running" → report as `stopped`; absence means "not installed" → don't report. `custom` gives full control via exit codes.
+
+2. **Collect runtime info** (only if detection produced a status):
    - `runtime_app`: Extract from match_key prefix (e.g., "openclaw" from "openclaw:/path")
-   - `runtime_version`: Run version_command if configured
+   - `runtime_version`: Run version_command if configured; on failure, report `null`
 
 ### Data Source Scanning
 
@@ -242,9 +267,67 @@ Every 10 minutes:
   4. Build SnapshotRequest payload
   5. POST to {worker_url}/api/v1/snapshot
      - Header: Authorization: Bearer {api_key}
-  6. Log result (agents_updated, data_sources_updated, etc.)
-  7. Handle errors with exponential backoff retry
+  6. Write scan result to state file (see State File below)
+  7. Log result (agents_updated, data_sources_updated, etc.)
+  8. Handle errors with exponential backoff retry
 ```
+
+## State File
+
+Host Service maintains a state file for CLI status queries and debugging.
+
+### Location
+
+```
+~/.steed/state.json
+```
+
+### Schema
+
+```typescript
+interface HostState {
+  // Last successful scan timestamp (ISO 8601)
+  last_scan_at: string | null;
+  
+  // Last successful report timestamp (ISO 8601)
+  last_report_at: string | null;
+  
+  // Last scan results (for steed status)
+  last_scan: {
+    agents: AgentSnapshot[];
+    data_sources: DataSourceSnapshot[];
+  } | null;
+  
+  // Last report response from Worker
+  last_report_response: SnapshotResponse | null;
+  
+  // Service PID (written on startup, cleared on shutdown)
+  service_pid: number | null;
+  
+  // Last error (if any)
+  last_error: {
+    timestamp: string;
+    message: string;
+    type: "scan" | "report" | "config";
+  } | null;
+}
+```
+
+### Write Timing
+
+| Event | Fields Updated |
+|-------|----------------|
+| Service starts | `service_pid` |
+| Service stops | `service_pid = null` |
+| Scan completes | `last_scan_at`, `last_scan` |
+| Report succeeds | `last_report_at`, `last_report_response` |
+| Error occurs | `last_error` |
+
+### CLI Fallback
+
+When `steed status` runs and no state file exists:
+- Show "No state file found. Run `steed scan` or start the service."
+- Exit with code 0 (not an error)
 
 ## Error Handling
 

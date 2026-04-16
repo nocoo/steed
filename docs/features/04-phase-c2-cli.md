@@ -6,6 +6,18 @@
 
 The CLI provides manual control over Host Service operations and agent registration. It complements the automated heartbeat cycle with on-demand commands for debugging, registration, and service management.
 
+## Platform Support
+
+**Supported platforms:** macOS, Linux only.
+
+CLI relies on Unix-specific tools and conventions:
+- Process detection: `pgrep -f`
+- PATH probe: `which`
+- Service management: systemd (Linux), launchd (macOS)
+- File permissions: POSIX chmod
+
+Windows is not supported in v1.
+
 ## Commands
 
 ### Command Structure
@@ -48,10 +60,16 @@ steed init --url <worker-url> --key <api-key>
 **Behavior:**
 
 1. Validate URL format and API key format (`sk_host_*`)
-2. Test connection to Worker (GET `/api/v1/health`)
-3. Create `~/.steed/config.json` with provided values
-4. Add default CLI scanners from built-in list
-5. Print success message with next steps
+2. Test Worker connectivity (GET `/api/v1/health`)
+3. **Validate API key** by calling POST `/api/v1/snapshot` with empty payload
+   - Worker returns 200 with `agents_updated: 0` → key is valid
+   - Worker returns 401 → key is invalid, abort with error
+4. Create `~/.steed/` directory with `0700` permissions
+5. Create `~/.steed/config.json` with `0600` permissions
+6. Add default CLI scanners from built-in list
+7. Print success message with next steps
+
+> **Why POST /snapshot for validation?** The `/health` endpoint is public and doesn't verify auth. We use `/snapshot` with an empty payload because it's the only host-role endpoint that exists in Phase A, and an empty snapshot is safe (updates nothing).
 
 **Example:**
 
@@ -233,9 +251,13 @@ steed status [options]
 
 **Behavior:**
 
-1. Check if Host Service is running
-2. Load last scan results (cached)
-3. Display summary
+1. Read state file `~/.steed/state.json` (see Phase C1 State File spec)
+2. Check `service_pid` — if set, verify process is running
+3. Display summary from `last_scan` and `last_report_response`
+
+**Fallback when no state file:**
+- Show "No state file found. Run `steed scan` or start the service."
+- Exit code 0 (not an error condition)
 
 **Example:**
 
