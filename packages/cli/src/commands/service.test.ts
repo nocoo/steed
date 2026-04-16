@@ -8,9 +8,10 @@ const mocks = {
   stateLoad: vi.fn(),
   stateUpdatePid: vi.fn(),
   loadConfig: vi.fn(),
-  isProcessRunning: vi.fn(),
   isPidRunning: vi.fn(),
   killProcess: vi.fn(),
+  spawnInteractive: vi.fn(),
+  spawnCapture: vi.fn(),
   detectPlatform: vi.fn(),
   generateSystemdUnit: vi.fn(),
   generateLaunchdPlist: vi.fn(),
@@ -22,7 +23,6 @@ const mocks = {
   warn: vi.fn(),
   writeFile: vi.fn(),
   unlink: vi.fn(),
-  spawn: vi.fn(),
   hostServiceStart: vi.fn(),
   hostServiceStop: vi.fn(),
 };
@@ -48,9 +48,10 @@ vi.mock("../config/index.js", () => ({
 }));
 
 vi.mock("../lib/process.js", () => ({
-  isProcessRunning: (...args: unknown[]) => mocks.isPidRunning(...args),
   isPidRunning: (...args: unknown[]) => mocks.isPidRunning(...args),
   killProcess: (...args: unknown[]) => mocks.killProcess(...args),
+  spawnInteractive: (...args: unknown[]) => mocks.spawnInteractive(...args),
+  spawnCapture: (...args: unknown[]) => mocks.spawnCapture(...args),
 }));
 
 vi.mock("../lib/platform.js", () => ({
@@ -68,13 +69,9 @@ vi.mock("../lib/output.js", () => ({
   warn: (...args: unknown[]) => mocks.warn(...args),
 }));
 
-vi.mock("node:fs/promises", () => ({
-  writeFile: (...args: unknown[]) => mocks.writeFile(...args),
-  unlink: (...args: unknown[]) => mocks.unlink(...args),
-}));
-
-vi.mock("node:child_process", () => ({
-  spawn: (...args: unknown[]) => mocks.spawn(...args),
+vi.mock("../lib/fs.js", () => ({
+  writeServiceFile: (...args: unknown[]) => mocks.writeFile(...args),
+  removeFile: (...args: unknown[]) => mocks.unlink(...args),
 }));
 
 // Import after mocks
@@ -108,18 +105,8 @@ describe("service command", () => {
     mocks.unlink.mockResolvedValue(undefined);
     mocks.hostServiceStart.mockResolvedValue(undefined);
     mocks.hostServiceStop.mockResolvedValue(undefined);
-    mocks.spawn.mockImplementation(() => {
-      const mockChild = {
-        on: vi.fn((event: string, handler: (code: number) => void) => {
-          if (event === "exit") {
-            setTimeout(() => handler(0), 10);
-          }
-          return mockChild;
-        }),
-        stderr: { on: vi.fn() },
-      };
-      return mockChild;
-    });
+    mocks.spawnCapture.mockResolvedValue({ success: true });
+    mocks.spawnInteractive.mockResolvedValue({ exitCode: 0 });
 
     program = new Command();
     program.exitOverride();
@@ -272,9 +259,7 @@ describe("service command", () => {
 
       await program.parseAsync(["node", "test", "service", "install"]);
 
-      expect(mocks.writeFile).toHaveBeenCalledWith("/tmp/test.plist", '<?xml version="1.0"?>', {
-        mode: 0o644,
-      });
+      expect(mocks.writeFile).toHaveBeenCalledWith("/tmp/test.plist", '<?xml version="1.0"?>', 0o644);
       expect(mocks.success).toHaveBeenCalledWith("Service installed successfully.");
       expect(mocks.info).toHaveBeenCalledWith(expect.stringContaining("To start the service"));
     });
@@ -289,7 +274,7 @@ describe("service command", () => {
       expect(mocks.writeFile).toHaveBeenCalledWith(
         "/etc/systemd/system/steed.service",
         "[Unit]\nDescription=Test",
-        { mode: 0o644 }
+        0o644
       );
     });
 
@@ -327,22 +312,11 @@ describe("service command", () => {
         logs: [],
       });
 
-      const mockChild = {
-        on: vi.fn((event: string, handler: (code: number) => void) => {
-          if (event === "exit") {
-            setTimeout(() => handler(0), 10);
-          }
-          return mockChild;
-        }),
-        stderr: { on: vi.fn() },
-      };
-      mocks.spawn.mockReturnValue(mockChild);
+      mocks.spawnCapture.mockResolvedValue({ success: true });
 
       await program.parseAsync(["node", "test", "service", "install"]);
 
-      expect(mocks.spawn).toHaveBeenCalledWith("sudo", ["systemctl", "daemon-reload"], {
-        stdio: "pipe",
-      });
+      expect(mocks.spawnCapture).toHaveBeenCalledWith("sudo", ["systemctl", "daemon-reload"]);
     });
 
     it("handles failed install command", async () => {
@@ -356,20 +330,7 @@ describe("service command", () => {
         logs: [],
       });
 
-      const mockChild = {
-        on: vi.fn((event: string, handler: (code: number | null) => void) => {
-          if (event === "exit") {
-            setTimeout(() => handler(1), 10);
-          }
-          return mockChild;
-        }),
-        stderr: {
-          on: vi.fn((_event: string, handler: (data: Buffer) => void) => {
-            handler(Buffer.from("daemon-reload failed"));
-          }),
-        },
-      };
-      mocks.spawn.mockReturnValue(mockChild);
+      mocks.spawnCapture.mockResolvedValue({ success: false, error: "daemon-reload failed" });
 
       await program.parseAsync(["node", "test", "service", "install"]);
 
@@ -389,16 +350,7 @@ describe("service command", () => {
         logs: [],
       });
 
-      const mockChild = {
-        on: vi.fn((event: string, handler: (err: Error) => void) => {
-          if (event === "error") {
-            setTimeout(() => handler(new Error("spawn error")), 10);
-          }
-          return mockChild;
-        }),
-        stderr: { on: vi.fn() },
-      };
-      mocks.spawn.mockReturnValue(mockChild);
+      mocks.spawnCapture.mockResolvedValue({ success: false, error: "spawn error" });
 
       await program.parseAsync(["node", "test", "service", "install"]);
 
@@ -510,23 +462,12 @@ describe("service command", () => {
         logs: [],
       });
 
-      const mockChild = {
-        on: vi.fn((event: string, handler: (code: number) => void) => {
-          if (event === "exit") {
-            setTimeout(() => handler(0), 10);
-          }
-          return mockChild;
-        }),
-        stderr: { on: vi.fn() },
-      };
-      mocks.spawn.mockReturnValue(mockChild);
+      mocks.spawnCapture.mockResolvedValue({ success: true });
 
       await program.parseAsync(["node", "test", "service", "uninstall"]);
 
       expect(mocks.info).toHaveBeenCalledWith("Stopping service...");
-      expect(mocks.spawn).toHaveBeenCalledWith("launchctl", ["stop", "com.steed.host-service"], {
-        stdio: "pipe",
-      });
+      expect(mocks.spawnCapture).toHaveBeenCalledWith("launchctl", ["stop", "com.steed.host-service"]);
     });
   });
 
@@ -542,20 +483,12 @@ describe("service command", () => {
         logs: ["tail", "-f", "/tmp/steed.log"],
       });
 
-      const mockChild = {
-        on: vi.fn((event: string, handler: (code: number) => void) => {
-          if (event === "exit") {
-            setTimeout(() => handler(0), 10);
-          }
-          return mockChild;
-        }),
-      };
-      mocks.spawn.mockReturnValue(mockChild);
+      mocks.spawnInteractive.mockResolvedValue({ exitCode: 0 });
 
       await program.parseAsync(["node", "test", "service", "logs"]);
 
       expect(mocks.info).toHaveBeenCalledWith("Streaming logs (Ctrl+C to stop)...\n");
-      expect(mocks.spawn).toHaveBeenCalledWith("tail", ["-f", "/tmp/steed.log"], { stdio: "inherit" });
+      expect(mocks.spawnInteractive).toHaveBeenCalledWith("tail", ["-f", "/tmp/steed.log"]);
     });
 
     it("shows error on unsupported platform", async () => {
@@ -593,15 +526,7 @@ describe("service command", () => {
         logs: ["tail", "-f", "/tmp/steed.log"],
       });
 
-      const mockChild = {
-        on: vi.fn((event: string, handler: (err: Error) => void) => {
-          if (event === "error") {
-            setTimeout(() => handler(new Error("spawn failed")), 10);
-          }
-          return mockChild;
-        }),
-      };
-      mocks.spawn.mockReturnValue(mockChild);
+      mocks.spawnInteractive.mockResolvedValue({ exitCode: 1, error: "spawn failed" });
 
       await program.parseAsync(["node", "test", "service", "logs"]);
 

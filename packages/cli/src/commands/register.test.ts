@@ -213,14 +213,11 @@ describe("register command", () => {
       vi.spyOn(ConfigManager.prototype, "save").mockResolvedValue(undefined);
       vi.spyOn(configModule, "loadConfig").mockResolvedValue(getValidConfig());
 
-      mockPost.mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ id: "agent-123" }),
-      });
+      // HttpClient.post() returns parsed JSON directly
+      mockPost.mockResolvedValue({ id: "agent-123" });
 
       const exitCode = await runRegister({
         matchKey: "openclaw:/home/agent",
-        // localOnly not set
       });
 
       expect(exitCode).toBe(0);
@@ -228,18 +225,15 @@ describe("register command", () => {
         match_key: "openclaw:/home/agent",
       }));
       expect(logs.some((l) => l.includes("Agent registered with Worker"))).toBe(true);
+      expect(logs.some((l) => l.includes("agent-123"))).toBe(true);
     });
 
-    it("handles Worker API failure gracefully", async () => {
+    it("handles Worker API error gracefully", async () => {
       vi.spyOn(ConfigManager.prototype, "load").mockResolvedValue(getValidConfig());
       vi.spyOn(ConfigManager.prototype, "save").mockResolvedValue(undefined);
       vi.spyOn(configModule, "loadConfig").mockResolvedValue(getValidConfig());
 
-      mockPost.mockResolvedValue({
-        ok: false,
-        statusText: "Internal Server Error",
-        json: () => Promise.resolve({ error: "server error" }),
-      });
+      mockPost.mockRejectedValue(new Error("HTTP 500: server error"));
 
       const exitCode = await runRegister({
         matchKey: "openclaw:/home/agent2",
@@ -263,6 +257,7 @@ describe("register command", () => {
 
       expect(exitCode).toBe(0);
       expect(logs.some((l) => l.includes("Connection refused"))).toBe(true);
+      expect(logs.some((l) => l.includes("registered locally"))).toBe(true);
     });
   });
 
