@@ -32,3 +32,12 @@ export interface RegisterHostResponse {
   name: string;
   api_key: string;
 }
+
+/**
+ * Response payload for verifying host API key
+ */
+export interface VerifyAuthResponse {
+  valid: boolean;
+  host_id: string;
+  host_name: string;
+}

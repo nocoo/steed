@@ -8,6 +8,7 @@ import { agents } from "./routes/agents";
 import { dataSources } from "./routes/data-sources";
 import { bindings } from "./routes/bindings";
 import { lanes } from "./routes/lanes";
+import { auth } from "./routes/auth";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -30,5 +31,6 @@ app.route("/api/v1/agents", agents);
 app.route("/api/v1/data-sources", dataSources);
 app.route("/api/v1/bindings", bindings);
 app.route("/api/v1/lanes", lanes);
+app.route("/api/v1/auth", auth);
 
 export default app;
