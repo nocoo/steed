@@ -890,15 +890,15 @@ C1-12: Host Service entry ←── enables C2-11 (steed service start)
 
 | Commit | Description | Status |
 |--------|-------------|--------|
-| C1-1 | Config schema | Pending |
-| C1-2 | Config manager + permissions | Pending |
-| C1-3 | HTTP client + auth verify | Pending |
-| C1-4 | Process detection | Pending |
-| C1-5 | PATH probe + version | Pending |
-| C1-6 | Agent scanner | Pending |
-| C1-7 | Data source scanner | Pending |
-| C1-8 | Scanner orchestrator | Pending |
-| C1-9 | State file manager | Pending |
-| C1-10 | Reporter + retry | Pending |
-| C1-11 | Scheduler | Pending |
-| C1-12 | Host Service entry | Pending |
+| C1-1 | Config schema | ✅ Done |
+| C1-2 | Config manager + permissions | ✅ Done |
+| C1-3 | HTTP client + auth verify | ✅ Done |
+| C1-4 | Process detection | ✅ Done |
+| C1-5 | PATH probe + version | ✅ Done |
+| C1-6 | Agent scanner | ✅ Done |
+| C1-7 | Data source scanner | ✅ Done |
+| C1-8 | Scanner orchestrator | ✅ Done |
+| C1-9 | State file manager | ✅ Done |
+| C1-10 | Reporter + retry | ✅ Done |
+| C1-11 | Scheduler | ✅ Done |
+| C1-12 | Host Service entry | ✅ Done |

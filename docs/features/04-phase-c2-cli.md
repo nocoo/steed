@@ -886,15 +886,15 @@ Phase 6: Integration
 
 | Commit | Description | Status |
 |--------|-------------|--------|
-| C2-1 | CLI package scaffold | Pending |
-| C2-2 | Output utilities | Pending |
-| C2-3 | Init command | Pending |
-| C2-4 | Scan command | Pending |
-| C2-5 | Report command | Pending |
-| C2-6 | Match key utilities | Pending |
-| C2-7 | Register command | Pending |
-| C2-8 | Status command | Pending |
-| C2-9 | Config command | Pending |
-| C2-10 | Platform utilities | Pending |
-| C2-11 | Service command | Pending |
+| C2-1 | CLI package scaffold | ✅ Done |
+| C2-2 | Output utilities | ✅ Done |
+| C2-3 | Init command | ✅ Done |
+| C2-4 | Scan command | ✅ Done |
+| C2-5 | Report command | ✅ Done |
+| C2-6 | Match key utilities | ✅ Done |
+| C2-7 | Register command | ✅ Done |
+| C2-8 | Status command | ✅ Done |
+| C2-9 | Config command | ✅ Done |
+| C2-10 | Platform utilities | ✅ Done |
+| C2-11 | Service command | ✅ Done |
 | C2-12 | E2E tests | Pending |
