@@ -55,8 +55,9 @@ describe("version utilities", () => {
 
     it("returns null on timeout", async () => {
       // This test uses a very short timeout to force timeout
-      const version = await getVersion("sleep 10", 10);
+      // Give the test itself extra time since process cleanup can be slow in CI
+      const version = await getVersion("sleep 10", 100);
       expect(version).toBeNull();
-    });
+    }, 10000);
   });
 });
