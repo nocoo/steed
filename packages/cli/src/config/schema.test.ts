@@ -4,6 +4,8 @@ import {
   hostStateSchema,
   agentDetectionSchema,
   authCheckSchema,
+  createEmptyState,
+  createEmptyDataSourceConfig,
   type HostConfig,
   type HostState,
 } from "./schema.js";
@@ -229,6 +231,32 @@ describe("Config Schema", () => {
 
       const result = hostStateSchema.safeParse(stateWithError);
       expect(result.success).toBe(true);
+    });
+  });
+
+  describe("createEmptyState", () => {
+    it("returns a valid empty state", () => {
+      const state = createEmptyState();
+
+      expect(state.last_scan_at).toBeNull();
+      expect(state.last_report_at).toBeNull();
+      expect(state.last_scan).toBeNull();
+      expect(state.last_report_response).toBeNull();
+      expect(state.service_pid).toBeNull();
+      expect(state.last_error).toBeNull();
+
+      // Verify it passes schema validation
+      const result = hostStateSchema.safeParse(state);
+      expect(result.success).toBe(true);
+    });
+  });
+
+  describe("createEmptyDataSourceConfig", () => {
+    it("returns a valid empty data source config", () => {
+      const config = createEmptyDataSourceConfig();
+
+      expect(config.cli_scanners).toEqual([]);
+      expect(config.mcp_scanners).toEqual([]);
     });
   });
 });

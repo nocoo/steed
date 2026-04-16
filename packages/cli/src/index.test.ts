@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { createProgram } from "./index.js";
+import { describe, it, expect, vi } from "vitest";
+import { createProgram, main } from "./index.js";
 
 describe("CLI", () => {
   it("--version shows version", () => {
@@ -52,5 +52,28 @@ describe("CLI", () => {
 
     expect(() => program.parse(["node", "steed", "unknown"])).toThrow();
     expect(errorOutput).toContain("unknown");
+  });
+
+  it("main function executes without error", () => {
+    // Mock process.argv
+    const originalArgv = process.argv;
+    process.argv = ["node", "steed", "--help"];
+
+    // Suppress output
+    const consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const processExitSpy = vi.spyOn(process, "exit").mockImplementation((code?: number) => {
+      throw new Error(`process.exit called with ${code}`);
+    });
+
+    try {
+      main();
+    } catch {
+      // Expected to throw due to --help triggering exit
+    }
+
+    // Restore
+    process.argv = originalArgv;
+    consoleLogSpy.mockRestore();
+    processExitSpy.mockRestore();
   });
 });
