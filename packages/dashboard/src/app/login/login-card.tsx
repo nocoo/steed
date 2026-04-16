@@ -1,67 +1,27 @@
 "use client";
 
 import { signIn } from "next-auth/react";
-import { Shield } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 
-export function LoginCard() {
-  const handleGoogleSignIn = () => {
-    signIn("google", { callbackUrl: "/overview" });
-  };
-
+function Barcode() {
+  const bars = [2, 1, 3, 1, 2, 1, 1, 3, 1, 2, 1, 3, 2, 1, 1, 2, 3, 1, 2, 1];
   return (
-    <div className="w-72 overflow-hidden rounded-2xl bg-card shadow-xl">
-      {/* Top colored stripe with barcode decoration */}
-      <div className="relative h-16 bg-primary">
-        <div className="absolute inset-x-4 bottom-2 flex justify-center gap-[2px]">
-          {/* Barcode lines */}
-          {Array.from({ length: 24 }).map((_, i) => (
-            <div
-              key={i}
-              className="bg-primary-foreground/30"
-              style={{
-                width: i % 3 === 0 ? "3px" : "2px",
-                height: `${12 + (i % 5) * 4}px`,
-              }}
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* Main content */}
-      <div className="flex flex-col items-center px-6 py-8">
-        {/* Logo container */}
-        <div className="flex h-24 w-24 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-          <span className="text-4xl font-bold">S</span>
-        </div>
-
-        {/* Title */}
-        <h1 className="mt-4 text-xl font-semibold text-foreground">Steed</h1>
-        <p className="mt-1 text-sm text-muted-foreground">AI Asset Hub</p>
-
-        {/* Google Sign-in button */}
-        <Button
-          onClick={handleGoogleSignIn}
-          variant="outline"
-          className="mt-8 w-full gap-2"
-        >
-          <GoogleIcon className="h-4 w-4" />
-          Sign in with Google
-        </Button>
-
-        {/* Security indicator */}
-        <div className="mt-6 flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Shield className="h-3.5 w-3.5" />
-          <span>Authorized personnel only</span>
-        </div>
-      </div>
+    <div className="flex items-stretch gap-[1.5px] h-full">
+      {bars.map((w, i) => (
+        <div
+          key={i}
+          className="rounded-[0.5px] bg-primary-foreground"
+          style={{ width: `${w * 1.5}px`, opacity: i % 3 === 0 ? 0.9 : 0.5 }}
+        />
+      ))}
     </div>
   );
 }
 
-function GoogleIcon({ className }: { className?: string }) {
+function GoogleIcon() {
   return (
-    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+    <svg className="h-4 w-4" viewBox="0 0 24 24" aria-hidden="true">
       <path
         d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
         fill="#4285F4"
@@ -79,5 +39,165 @@ function GoogleIcon({ className }: { className?: string }) {
         fill="#EA4335"
       />
     </svg>
+  );
+}
+
+function LoginContent() {
+  const searchParams = useSearchParams();
+  const error = searchParams.get("error");
+  const rawCallback = searchParams.get("callbackUrl");
+  const callbackUrl =
+    rawCallback && rawCallback.startsWith("/") && !rawCallback.startsWith("//")
+      ? rawCallback
+      : "/overview";
+  const year = new Date().getFullYear();
+  const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+
+  const handleGoogleLogin = () => {
+    signIn("google", { callbackUrl });
+  };
+
+  return (
+    <div className="relative flex min-h-screen flex-col bg-background overflow-hidden">
+      <div className="flex flex-1 items-center justify-center p-4">
+        {/* Radial glow */}
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background: [
+              "radial-gradient(ellipse 70% 55% at 50% 50%,",
+              "hsl(var(--foreground) / 0.045) 0%,",
+              "hsl(var(--foreground) / 0.042) 10%,",
+              "hsl(var(--foreground) / 0.036) 20%,",
+              "hsl(var(--foreground) / 0.028) 32%,",
+              "hsl(var(--foreground) / 0.020) 45%,",
+              "hsl(var(--foreground) / 0.012) 58%,",
+              "hsl(var(--foreground) / 0.006) 72%,",
+              "hsl(var(--foreground) / 0.002) 86%,",
+              "transparent 100%)",
+            ].join(" "),
+          }}
+        />
+
+        <div className="flex flex-col items-center">
+          {/* Badge card */}
+          <div
+            className="relative w-72 overflow-hidden rounded-2xl bg-card flex flex-col ring-1 ring-black/[0.08] dark:ring-white/[0.06]"
+            style={{
+              boxShadow: [
+                "0 1px 2px rgba(0,0,0,0.06)",
+                "0 4px 8px rgba(0,0,0,0.04)",
+                "0 12px 24px rgba(0,0,0,0.06)",
+                "0 24px 48px rgba(0,0,0,0.04)",
+                "0 0 0 0.5px rgba(0,0,0,0.02)",
+                "0 0 60px rgba(0,0,0,0.03)",
+              ].join(", "),
+            }}
+          >
+            {/* Header strip with barcode */}
+            <div className="bg-primary px-5 py-4">
+              <div className="flex items-center justify-between">
+                {/* Punch hole */}
+                <div
+                  className="h-4 w-8 rounded-full bg-background/80"
+                  style={{
+                    boxShadow:
+                      "inset 0 1.5px 3px rgba(0,0,0,0.35), inset 0 -0.5px 1px rgba(255,255,255,0.1)",
+                  }}
+                />
+                <div className="flex items-center gap-2">
+                  <span className="text-lg font-bold text-primary-foreground">
+                    S
+                  </span>
+                  <span className="text-sm font-semibold text-primary-foreground">
+                    Steed
+                  </span>
+                </div>
+                <span className="text-[10px] font-medium uppercase tracking-widest text-primary-foreground/60">
+                  HUB
+                </span>
+              </div>
+              {/* Barcode row */}
+              <div className="mt-3 flex items-center justify-between">
+                <span className="text-[9px] font-mono text-primary-foreground/40 tracking-wider">
+                  ID {year}-{today.slice(4)}
+                </span>
+                <div className="h-6">
+                  <Barcode />
+                </div>
+              </div>
+            </div>
+
+            {/* Badge content */}
+            <div className="flex flex-1 flex-col items-center px-6 pt-6 pb-5">
+              {/* Logo placeholder */}
+              <div className="h-24 w-24 overflow-hidden rounded-full bg-secondary dark:bg-[#171717] ring-1 ring-border flex items-center justify-center">
+                <span className="text-4xl font-bold text-foreground">S</span>
+              </div>
+
+              <p className="mt-5 text-lg font-semibold text-foreground">
+                AI Asset Hub
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Sign in to manage your agents
+              </p>
+
+              {/* Error message */}
+              {error && (
+                <div className="mt-3 w-full rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive text-center">
+                  {error === "AccessDenied"
+                    ? "Your account is not authorized to access this application."
+                    : "Sign in failed. Please try again."}
+                </div>
+              )}
+
+              {/* Divider */}
+              <div className="mt-5 h-px w-full bg-border" />
+
+              {/* Spacing before action area */}
+              <div className="mt-5" />
+
+              {/* Google Sign-in button */}
+              <button
+                onClick={handleGoogleLogin}
+                className="flex w-full items-center justify-center gap-2.5 rounded-xl bg-secondary px-4 py-3 text-sm font-medium text-foreground transition-colors hover:bg-accent cursor-pointer"
+              >
+                <GoogleIcon />
+                Sign in with Google
+              </button>
+
+              {/* Terms */}
+              <p className="mt-3 text-center text-[10px] leading-relaxed text-muted-foreground/60">
+                Authorized personnel only
+              </p>
+            </div>
+
+            {/* Footer strip */}
+            <div className="mt-auto flex items-center justify-center border-t border-border bg-secondary/50 py-2.5">
+              <div className="flex items-center gap-1.5">
+                <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+                <span className="text-[10px] text-muted-foreground">
+                  Secure Auth
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function LoginCard() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center">
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      }
+    >
+      <LoginContent />
+    </Suspense>
   );
 }
