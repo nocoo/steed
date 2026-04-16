@@ -1,99 +1,45 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Command } from "commander";
 
-// Use a mocks object to avoid hoisting issues
-// vitest hoists vi.mock factories above variable declarations
-// so we can't reference top-level vi.fn() directly in factories
-const mocks = {
-  stateLoad: vi.fn(),
-  stateUpdatePid: vi.fn(),
-  loadConfig: vi.fn(),
-  isPidRunning: vi.fn(),
-  killProcess: vi.fn(),
-  spawnInteractive: vi.fn(),
-  spawnCapture: vi.fn(),
-  detectPlatform: vi.fn(),
-  generateSystemdUnit: vi.fn(),
-  generateLaunchdPlist: vi.fn(),
-  getServicePath: vi.fn(),
-  getServiceCommands: vi.fn(),
-  success: vi.fn(),
-  error: vi.fn(),
-  info: vi.fn(),
-  warn: vi.fn(),
-  writeFile: vi.fn(),
-  unlink: vi.fn(),
-  hostServiceStart: vi.fn(),
-  hostServiceStop: vi.fn(),
-};
-
-// Mock modules - use arrow functions that reference mocks object
-vi.mock("../service/index.js", () => ({
-  HostService: class {
-    start = (...args: unknown[]) => mocks.hostServiceStart(...args);
-    stop = (...args: unknown[]) => mocks.hostServiceStop(...args);
-  },
-  setupSignalHandlers: vi.fn(),
-}));
-
-vi.mock("../service/state.js", () => ({
-  StateManager: class {
-    load = (...args: unknown[]) => mocks.stateLoad(...args);
-    updateServicePid = (...args: unknown[]) => mocks.stateUpdatePid(...args);
-  },
-}));
-
-vi.mock("../config/index.js", () => ({
-  loadConfig: (...args: unknown[]) => mocks.loadConfig(...args),
-}));
-
-vi.mock("../lib/process.js", () => ({
-  isPidRunning: (...args: unknown[]) => mocks.isPidRunning(...args),
-  killProcess: (...args: unknown[]) => mocks.killProcess(...args),
-  spawnInteractive: (...args: unknown[]) => mocks.spawnInteractive(...args),
-  spawnCapture: (...args: unknown[]) => mocks.spawnCapture(...args),
-}));
-
-vi.mock("../lib/platform.js", () => ({
-  detectPlatform: (...args: unknown[]) => mocks.detectPlatform(...args),
-  generateSystemdUnit: (...args: unknown[]) => mocks.generateSystemdUnit(...args),
-  generateLaunchdPlist: (...args: unknown[]) => mocks.generateLaunchdPlist(...args),
-  getServicePath: (...args: unknown[]) => mocks.getServicePath(...args),
-  getServiceCommands: (...args: unknown[]) => mocks.getServiceCommands(...args),
-}));
-
-vi.mock("../lib/output.js", () => ({
-  success: (...args: unknown[]) => mocks.success(...args),
-  error: (...args: unknown[]) => mocks.error(...args),
-  info: (...args: unknown[]) => mocks.info(...args),
-  warn: (...args: unknown[]) => mocks.warn(...args),
-}));
-
-vi.mock("../lib/fs.js", () => ({
-  writeServiceFile: (...args: unknown[]) => mocks.writeFile(...args),
-  removeFile: (...args: unknown[]) => mocks.unlink(...args),
-}));
-
-// Import after mocks
+// Import real modules — we spy on them instead of mocking
+import * as configModule from "../config/index.js";
+import * as processModule from "../lib/process.js";
+import * as platformModule from "../lib/platform.js";
+import * as outputModule from "../lib/output.js";
+import * as fsModule from "../lib/fs.js";
+import { HostService } from "../service/index.js";
+import { StateManager } from "../service/state.js";
 import { createServiceCommand } from "./service.js";
+
+// Helper to cast spied methods for re-mocking in individual tests
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const asMock = (fn: unknown) => fn as ReturnType<typeof vi.fn<(...args: any[]) => any>>;
 
 describe("service command", () => {
   let program: Command;
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    // Spy on class prototypes
+    vi.spyOn(StateManager.prototype, "load").mockResolvedValue(null);
+    vi.spyOn(StateManager.prototype, "updateServicePid").mockResolvedValue(undefined);
+    vi.spyOn(HostService.prototype, "start").mockResolvedValue(undefined);
+    vi.spyOn(HostService.prototype, "stop").mockResolvedValue(undefined);
 
-    // Set default mock implementations
-    mocks.stateLoad.mockResolvedValue(null);
-    mocks.stateUpdatePid.mockResolvedValue(undefined);
-    mocks.loadConfig.mockResolvedValue({ host_id: "test-host" });
-    mocks.isPidRunning.mockResolvedValue(false);
-    mocks.killProcess.mockResolvedValue(true);
-    mocks.detectPlatform.mockResolvedValue("launchd");
-    mocks.generateSystemdUnit.mockReturnValue("[Unit]\nDescription=Test");
-    mocks.generateLaunchdPlist.mockReturnValue('<?xml version="1.0"?>');
-    mocks.getServicePath.mockReturnValue("/tmp/test.plist");
-    mocks.getServiceCommands.mockReturnValue({
+    // Spy on config module
+    vi.spyOn(configModule, "loadConfig").mockResolvedValue(null as unknown as Awaited<ReturnType<typeof configModule.loadConfig>>);
+
+    // Spy on process module
+    vi.spyOn(processModule, "isPidRunning").mockResolvedValue(false);
+    vi.spyOn(processModule, "killProcess").mockResolvedValue(true);
+    vi.spyOn(processModule, "spawnInteractive").mockResolvedValue({ exitCode: 0 });
+    vi.spyOn(processModule, "spawnCapture").mockResolvedValue({ success: true });
+
+    // Spy on platform module
+    vi.spyOn(platformModule, "detectPlatform").mockResolvedValue("launchd" as Awaited<ReturnType<typeof platformModule.detectPlatform>>);
+    vi.spyOn(platformModule, "generateSystemdUnit").mockReturnValue("[Unit]\nDescription=Test");
+    vi.spyOn(platformModule, "generateLaunchdPlist").mockReturnValue('<?xml version="1.0"?>');
+    vi.spyOn(platformModule, "getServicePath").mockReturnValue("/tmp/test.plist");
+    vi.spyOn(platformModule, "getServiceCommands").mockReturnValue({
       install: [],
       uninstall: [],
       start: [],
@@ -101,12 +47,19 @@ describe("service command", () => {
       status: [],
       logs: ["tail", "-f", "/tmp/test.log"],
     });
-    mocks.writeFile.mockResolvedValue(undefined);
-    mocks.unlink.mockResolvedValue(undefined);
-    mocks.hostServiceStart.mockResolvedValue(undefined);
-    mocks.hostServiceStop.mockResolvedValue(undefined);
-    mocks.spawnCapture.mockResolvedValue({ success: true });
-    mocks.spawnInteractive.mockResolvedValue({ exitCode: 0 });
+
+    // Spy on output module — suppress output
+    vi.spyOn(outputModule, "success").mockImplementation(() => {});
+    vi.spyOn(outputModule, "error").mockImplementation(() => {});
+    vi.spyOn(outputModule, "info").mockImplementation(() => {});
+    vi.spyOn(outputModule, "warn").mockImplementation(() => {});
+
+    // Spy on fs module
+    vi.spyOn(fsModule, "writeServiceFile").mockResolvedValue(undefined);
+    vi.spyOn(fsModule, "removeFile").mockResolvedValue(undefined);
+
+    // Set loadConfig to return valid config by default
+    asMock(configModule.loadConfig).mockResolvedValue({ host_id: "test-host" });
 
     program = new Command();
     program.exitOverride();
@@ -134,144 +87,144 @@ describe("service command", () => {
 
   describe("service status", () => {
     it("shows stopped when no state", async () => {
-      mocks.stateLoad.mockResolvedValue(null);
+      asMock(StateManager.prototype.load).mockResolvedValue(null);
 
       await program.parseAsync(["node", "test", "service", "status"]);
 
-      expect(mocks.info).toHaveBeenCalledWith("Host Service: stopped");
+      expect(outputModule.info).toHaveBeenCalledWith("Host Service: stopped");
     });
 
     it("shows running with PID when process is running", async () => {
-      mocks.stateLoad.mockResolvedValue({
+      asMock(StateManager.prototype.load).mockResolvedValue({
         service_pid: 12345,
         last_scan_at: new Date().toISOString(),
         last_report_at: new Date().toISOString(),
       });
-      mocks.isPidRunning.mockResolvedValue(true);
+      asMock(processModule.isPidRunning).mockResolvedValue(true);
 
       await program.parseAsync(["node", "test", "service", "status"]);
 
-      expect(mocks.success).toHaveBeenCalledWith("Host Service: running (PID: 12345)");
-      expect(mocks.info).toHaveBeenCalledWith(expect.stringContaining("Last scan:"));
-      expect(mocks.info).toHaveBeenCalledWith(expect.stringContaining("Last report:"));
+      expect(outputModule.success).toHaveBeenCalledWith("Host Service: running (PID: 12345)");
+      expect(outputModule.info).toHaveBeenCalledWith(expect.stringContaining("Last scan:"));
+      expect(outputModule.info).toHaveBeenCalledWith(expect.stringContaining("Last report:"));
     });
 
     it("shows stale PID warning when process not running", async () => {
-      mocks.stateLoad.mockResolvedValue({ service_pid: 99999 });
-      mocks.isPidRunning.mockResolvedValue(false);
+      asMock(StateManager.prototype.load).mockResolvedValue({ service_pid: 99999 });
+      asMock(processModule.isPidRunning).mockResolvedValue(false);
 
       await program.parseAsync(["node", "test", "service", "status"]);
 
-      expect(mocks.info).toHaveBeenCalledWith("Host Service: stopped (stale PID in state file)");
-      expect(mocks.stateUpdatePid).toHaveBeenCalledWith(null);
+      expect(outputModule.info).toHaveBeenCalledWith("Host Service: stopped (stale PID in state file)");
+      expect(StateManager.prototype.updateServicePid).toHaveBeenCalledWith(null);
     });
 
     it("shows last error if present", async () => {
-      mocks.stateLoad.mockResolvedValue({
+      asMock(StateManager.prototype.load).mockResolvedValue({
         service_pid: 12345,
         last_error: { message: "Test error", type: "scan" },
       });
-      mocks.isPidRunning.mockResolvedValue(true);
+      asMock(processModule.isPidRunning).mockResolvedValue(true);
 
       await program.parseAsync(["node", "test", "service", "status"]);
 
-      expect(mocks.warn).toHaveBeenCalledWith("Last error: Test error (scan)");
+      expect(outputModule.warn).toHaveBeenCalledWith("Last error: Test error (scan)");
     });
 
     it("shows time ago for old scans (minutes)", async () => {
       const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-      mocks.stateLoad.mockResolvedValue({
+      asMock(StateManager.prototype.load).mockResolvedValue({
         service_pid: 12345,
         last_scan_at: thirtyMinutesAgo,
       });
-      mocks.isPidRunning.mockResolvedValue(true);
+      asMock(processModule.isPidRunning).mockResolvedValue(true);
 
       await program.parseAsync(["node", "test", "service", "status"]);
 
-      expect(mocks.info).toHaveBeenCalledWith(expect.stringContaining("minutes ago"));
+      expect(outputModule.info).toHaveBeenCalledWith(expect.stringContaining("minutes ago"));
     });
 
     it("shows time ago for old scans (hours)", async () => {
       const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
-      mocks.stateLoad.mockResolvedValue({
+      asMock(StateManager.prototype.load).mockResolvedValue({
         service_pid: 12345,
         last_scan_at: twoHoursAgo,
       });
-      mocks.isPidRunning.mockResolvedValue(true);
+      asMock(processModule.isPidRunning).mockResolvedValue(true);
 
       await program.parseAsync(["node", "test", "service", "status"]);
 
-      expect(mocks.info).toHaveBeenCalledWith(expect.stringContaining("hours ago"));
+      expect(outputModule.info).toHaveBeenCalledWith(expect.stringContaining("hours ago"));
     });
 
     it("shows time ago for old scans (days)", async () => {
       const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
-      mocks.stateLoad.mockResolvedValue({
+      asMock(StateManager.prototype.load).mockResolvedValue({
         service_pid: 12345,
         last_scan_at: twoDaysAgo,
       });
-      mocks.isPidRunning.mockResolvedValue(true);
+      asMock(processModule.isPidRunning).mockResolvedValue(true);
 
       await program.parseAsync(["node", "test", "service", "status"]);
 
-      expect(mocks.info).toHaveBeenCalledWith(expect.stringContaining("days ago"));
+      expect(outputModule.info).toHaveBeenCalledWith(expect.stringContaining("days ago"));
     });
   });
 
   describe("service stop", () => {
     it("stops running service", async () => {
-      mocks.stateLoad.mockResolvedValue({ service_pid: 12345 });
-      mocks.killProcess.mockResolvedValue(true);
+      asMock(StateManager.prototype.load).mockResolvedValue({ service_pid: 12345 });
+      asMock(processModule.killProcess).mockResolvedValue(true);
 
       await program.parseAsync(["node", "test", "service", "stop"]);
 
-      expect(mocks.info).toHaveBeenCalledWith("Stopping service (PID: 12345)...");
-      expect(mocks.killProcess).toHaveBeenCalledWith(12345);
-      expect(mocks.success).toHaveBeenCalledWith("Service stopped.");
+      expect(outputModule.info).toHaveBeenCalledWith("Stopping service (PID: 12345)...");
+      expect(processModule.killProcess).toHaveBeenCalledWith(12345);
+      expect(outputModule.success).toHaveBeenCalledWith("Service stopped.");
     });
 
     it("shows error when service not running", async () => {
-      mocks.stateLoad.mockResolvedValue(null);
+      asMock(StateManager.prototype.load).mockResolvedValue(null);
 
       await program.parseAsync(["node", "test", "service", "stop"]);
 
-      expect(mocks.error).toHaveBeenCalledWith("Service not running.");
+      expect(outputModule.error).toHaveBeenCalledWith("Service not running.");
     });
 
     it("handles failed kill gracefully", async () => {
-      mocks.stateLoad.mockResolvedValue({ service_pid: 12345 });
-      mocks.killProcess.mockResolvedValue(false);
+      asMock(StateManager.prototype.load).mockResolvedValue({ service_pid: 12345 });
+      asMock(processModule.killProcess).mockResolvedValue(false);
 
       await program.parseAsync(["node", "test", "service", "stop"]);
 
-      expect(mocks.error).toHaveBeenCalledWith(
+      expect(outputModule.error).toHaveBeenCalledWith(
         "Failed to stop service. Process may have already exited."
       );
-      expect(mocks.stateUpdatePid).toHaveBeenCalledWith(null);
+      expect(StateManager.prototype.updateServicePid).toHaveBeenCalledWith(null);
     });
   });
 
   describe("service install", () => {
     it("installs service on launchd platform", async () => {
-      mocks.detectPlatform.mockResolvedValue("launchd");
-      mocks.generateLaunchdPlist.mockReturnValue('<?xml version="1.0"?>');
-      mocks.getServicePath.mockReturnValue("/tmp/test.plist");
+      asMock(platformModule.detectPlatform).mockResolvedValue("launchd");
+      asMock(platformModule.generateLaunchdPlist).mockReturnValue('<?xml version="1.0"?>');
+      asMock(platformModule.getServicePath).mockReturnValue("/tmp/test.plist");
 
       await program.parseAsync(["node", "test", "service", "install"]);
 
-      expect(mocks.writeFile).toHaveBeenCalledWith("/tmp/test.plist", '<?xml version="1.0"?>', 0o644);
-      expect(mocks.success).toHaveBeenCalledWith("Service installed successfully.");
-      expect(mocks.info).toHaveBeenCalledWith(expect.stringContaining("To start the service"));
+      expect(fsModule.writeServiceFile).toHaveBeenCalledWith("/tmp/test.plist", '<?xml version="1.0"?>', 0o644);
+      expect(outputModule.success).toHaveBeenCalledWith("Service installed successfully.");
+      expect(outputModule.info).toHaveBeenCalledWith(expect.stringContaining("To start the service"));
     });
 
     it("installs service on systemd platform", async () => {
-      mocks.detectPlatform.mockResolvedValue("systemd");
-      mocks.generateSystemdUnit.mockReturnValue("[Unit]\nDescription=Test");
-      mocks.getServicePath.mockReturnValue("/etc/systemd/system/steed.service");
+      asMock(platformModule.detectPlatform).mockResolvedValue("systemd");
+      asMock(platformModule.generateSystemdUnit).mockReturnValue("[Unit]\nDescription=Test");
+      asMock(platformModule.getServicePath).mockReturnValue("/etc/systemd/system/steed.service");
 
       await program.parseAsync(["node", "test", "service", "install"]);
 
-      expect(mocks.writeFile).toHaveBeenCalledWith(
+      expect(fsModule.writeServiceFile).toHaveBeenCalledWith(
         "/etc/systemd/system/steed.service",
         "[Unit]\nDescription=Test",
         0o644
@@ -279,31 +232,31 @@ describe("service command", () => {
     });
 
     it("shows error on unsupported platform", async () => {
-      mocks.detectPlatform.mockResolvedValue("unknown");
+      asMock(platformModule.detectPlatform).mockResolvedValue("unknown");
 
       await program.parseAsync(["node", "test", "service", "install"]);
 
-      expect(mocks.error).toHaveBeenCalledWith(
+      expect(outputModule.error).toHaveBeenCalledWith(
         "Unsupported platform. Service installation requires systemd (Linux) or launchd (macOS)."
       );
     });
 
     it("handles permission denied error", async () => {
-      mocks.detectPlatform.mockResolvedValue("systemd");
-      mocks.getServicePath.mockReturnValue("/etc/systemd/system/steed.service");
+      asMock(platformModule.detectPlatform).mockResolvedValue("systemd");
+      asMock(platformModule.getServicePath).mockReturnValue("/etc/systemd/system/steed.service");
 
       const permError = new Error("Permission denied") as NodeJS.ErrnoException;
       permError.code = "EACCES";
-      mocks.writeFile.mockRejectedValue(permError);
+      asMock(fsModule.writeServiceFile).mockRejectedValue(permError);
 
       await program.parseAsync(["node", "test", "service", "install"]);
 
-      expect(mocks.error).toHaveBeenCalledWith("Permission denied. On Linux, run with sudo:");
+      expect(outputModule.error).toHaveBeenCalledWith("Permission denied. On Linux, run with sudo:");
     });
 
     it("runs install command when provided", async () => {
-      mocks.detectPlatform.mockResolvedValue("systemd");
-      mocks.getServiceCommands.mockReturnValue({
+      asMock(platformModule.detectPlatform).mockResolvedValue("systemd");
+      asMock(platformModule.getServiceCommands).mockReturnValue({
         install: ["sudo", "systemctl", "daemon-reload"],
         uninstall: [],
         start: [],
@@ -312,16 +265,16 @@ describe("service command", () => {
         logs: [],
       });
 
-      mocks.spawnCapture.mockResolvedValue({ success: true });
+      asMock(processModule.spawnCapture).mockResolvedValue({ success: true });
 
       await program.parseAsync(["node", "test", "service", "install"]);
 
-      expect(mocks.spawnCapture).toHaveBeenCalledWith("sudo", ["systemctl", "daemon-reload"]);
+      expect(processModule.spawnCapture).toHaveBeenCalledWith("sudo", ["systemctl", "daemon-reload"]);
     });
 
     it("handles failed install command", async () => {
-      mocks.detectPlatform.mockResolvedValue("systemd");
-      mocks.getServiceCommands.mockReturnValue({
+      asMock(platformModule.detectPlatform).mockResolvedValue("systemd");
+      asMock(platformModule.getServiceCommands).mockReturnValue({
         install: ["sudo", "systemctl", "daemon-reload"],
         uninstall: [],
         start: [],
@@ -330,18 +283,18 @@ describe("service command", () => {
         logs: [],
       });
 
-      mocks.spawnCapture.mockResolvedValue({ success: false, error: "daemon-reload failed" });
+      asMock(processModule.spawnCapture).mockResolvedValue({ success: false, error: "daemon-reload failed" });
 
       await program.parseAsync(["node", "test", "service", "install"]);
 
-      expect(mocks.error).toHaveBeenCalledWith(
+      expect(outputModule.error).toHaveBeenCalledWith(
         expect.stringContaining("Failed to enable service:")
       );
     });
 
     it("handles spawn error in install command", async () => {
-      mocks.detectPlatform.mockResolvedValue("systemd");
-      mocks.getServiceCommands.mockReturnValue({
+      asMock(platformModule.detectPlatform).mockResolvedValue("systemd");
+      asMock(platformModule.getServiceCommands).mockReturnValue({
         install: ["sudo", "systemctl", "daemon-reload"],
         uninstall: [],
         start: [],
@@ -350,11 +303,11 @@ describe("service command", () => {
         logs: [],
       });
 
-      mocks.spawnCapture.mockResolvedValue({ success: false, error: "spawn error" });
+      asMock(processModule.spawnCapture).mockResolvedValue({ success: false, error: "spawn error" });
 
       await program.parseAsync(["node", "test", "service", "install"]);
 
-      expect(mocks.error).toHaveBeenCalledWith(
+      expect(outputModule.error).toHaveBeenCalledWith(
         expect.stringContaining("Failed to enable service: spawn error")
       );
     });
@@ -362,9 +315,9 @@ describe("service command", () => {
 
   describe("service uninstall", () => {
     it("uninstalls service", async () => {
-      mocks.detectPlatform.mockResolvedValue("launchd");
-      mocks.getServicePath.mockReturnValue("/tmp/test.plist");
-      mocks.getServiceCommands.mockReturnValue({
+      asMock(platformModule.detectPlatform).mockResolvedValue("launchd");
+      asMock(platformModule.getServicePath).mockReturnValue("/tmp/test.plist");
+      asMock(platformModule.getServiceCommands).mockReturnValue({
         install: [],
         uninstall: [],
         start: [],
@@ -375,22 +328,22 @@ describe("service command", () => {
 
       await program.parseAsync(["node", "test", "service", "uninstall"]);
 
-      expect(mocks.unlink).toHaveBeenCalledWith("/tmp/test.plist");
-      expect(mocks.success).toHaveBeenCalledWith("Service uninstalled.");
+      expect(fsModule.removeFile).toHaveBeenCalledWith("/tmp/test.plist");
+      expect(outputModule.success).toHaveBeenCalledWith("Service uninstalled.");
     });
 
     it("shows error on unsupported platform", async () => {
-      mocks.detectPlatform.mockResolvedValue("unknown");
+      asMock(platformModule.detectPlatform).mockResolvedValue("unknown");
 
       await program.parseAsync(["node", "test", "service", "uninstall"]);
 
-      expect(mocks.error).toHaveBeenCalledWith("Unsupported platform.");
+      expect(outputModule.error).toHaveBeenCalledWith("Unsupported platform.");
     });
 
     it("handles already removed service file", async () => {
-      mocks.detectPlatform.mockResolvedValue("launchd");
-      mocks.getServicePath.mockReturnValue("/tmp/test.plist");
-      mocks.getServiceCommands.mockReturnValue({
+      asMock(platformModule.detectPlatform).mockResolvedValue("launchd");
+      asMock(platformModule.getServicePath).mockReturnValue("/tmp/test.plist");
+      asMock(platformModule.getServiceCommands).mockReturnValue({
         install: [],
         uninstall: [],
         start: [],
@@ -401,18 +354,18 @@ describe("service command", () => {
 
       const noentError = new Error("No such file") as NodeJS.ErrnoException;
       noentError.code = "ENOENT";
-      mocks.unlink.mockRejectedValue(noentError);
+      asMock(fsModule.removeFile).mockRejectedValue(noentError);
 
       await program.parseAsync(["node", "test", "service", "uninstall"]);
 
-      expect(mocks.info).toHaveBeenCalledWith("Service file already removed.");
-      expect(mocks.success).toHaveBeenCalledWith("Service uninstalled.");
+      expect(outputModule.info).toHaveBeenCalledWith("Service file already removed.");
+      expect(outputModule.success).toHaveBeenCalledWith("Service uninstalled.");
     });
 
     it("handles permission denied on uninstall", async () => {
-      mocks.detectPlatform.mockResolvedValue("launchd");
-      mocks.getServicePath.mockReturnValue("/tmp/test.plist");
-      mocks.getServiceCommands.mockReturnValue({
+      asMock(platformModule.detectPlatform).mockResolvedValue("launchd");
+      asMock(platformModule.getServicePath).mockReturnValue("/tmp/test.plist");
+      asMock(platformModule.getServiceCommands).mockReturnValue({
         install: [],
         uninstall: [],
         start: [],
@@ -423,17 +376,17 @@ describe("service command", () => {
 
       const permError = new Error("Permission denied") as NodeJS.ErrnoException;
       permError.code = "EACCES";
-      mocks.unlink.mockRejectedValue(permError);
+      asMock(fsModule.removeFile).mockRejectedValue(permError);
 
       await program.parseAsync(["node", "test", "service", "uninstall"]);
 
-      expect(mocks.error).toHaveBeenCalledWith("Permission denied. On Linux, run with sudo.");
+      expect(outputModule.error).toHaveBeenCalledWith("Permission denied. On Linux, run with sudo.");
     });
 
     it("rethrows unknown errors on uninstall", async () => {
-      mocks.detectPlatform.mockResolvedValue("launchd");
-      mocks.getServicePath.mockReturnValue("/tmp/test.plist");
-      mocks.getServiceCommands.mockReturnValue({
+      asMock(platformModule.detectPlatform).mockResolvedValue("launchd");
+      asMock(platformModule.getServicePath).mockReturnValue("/tmp/test.plist");
+      asMock(platformModule.getServiceCommands).mockReturnValue({
         install: [],
         uninstall: [],
         start: [],
@@ -444,7 +397,7 @@ describe("service command", () => {
 
       const unknownError = new Error("Unknown error") as NodeJS.ErrnoException;
       unknownError.code = "EUNKNOWN";
-      mocks.unlink.mockRejectedValue(unknownError);
+      asMock(fsModule.removeFile).mockRejectedValue(unknownError);
 
       await expect(
         program.parseAsync(["node", "test", "service", "uninstall"])
@@ -452,8 +405,8 @@ describe("service command", () => {
     });
 
     it("stops service before uninstalling", async () => {
-      mocks.detectPlatform.mockResolvedValue("launchd");
-      mocks.getServiceCommands.mockReturnValue({
+      asMock(platformModule.detectPlatform).mockResolvedValue("launchd");
+      asMock(platformModule.getServiceCommands).mockReturnValue({
         install: [],
         uninstall: ["launchctl", "unload", "/tmp/test.plist"],
         start: [],
@@ -462,19 +415,19 @@ describe("service command", () => {
         logs: [],
       });
 
-      mocks.spawnCapture.mockResolvedValue({ success: true });
+      asMock(processModule.spawnCapture).mockResolvedValue({ success: true });
 
       await program.parseAsync(["node", "test", "service", "uninstall"]);
 
-      expect(mocks.info).toHaveBeenCalledWith("Stopping service...");
-      expect(mocks.spawnCapture).toHaveBeenCalledWith("launchctl", ["stop", "com.steed.host-service"]);
+      expect(outputModule.info).toHaveBeenCalledWith("Stopping service...");
+      expect(processModule.spawnCapture).toHaveBeenCalledWith("launchctl", ["stop", "com.steed.host-service"]);
     });
   });
 
   describe("service logs", () => {
     it("streams logs on supported platform", async () => {
-      mocks.detectPlatform.mockResolvedValue("launchd");
-      mocks.getServiceCommands.mockReturnValue({
+      asMock(platformModule.detectPlatform).mockResolvedValue("launchd");
+      asMock(platformModule.getServiceCommands).mockReturnValue({
         install: [],
         uninstall: [],
         start: [],
@@ -483,25 +436,25 @@ describe("service command", () => {
         logs: ["tail", "-f", "/tmp/steed.log"],
       });
 
-      mocks.spawnInteractive.mockResolvedValue({ exitCode: 0 });
+      asMock(processModule.spawnInteractive).mockResolvedValue({ exitCode: 0 });
 
       await program.parseAsync(["node", "test", "service", "logs"]);
 
-      expect(mocks.info).toHaveBeenCalledWith("Streaming logs (Ctrl+C to stop)...\n");
-      expect(mocks.spawnInteractive).toHaveBeenCalledWith("tail", ["-f", "/tmp/steed.log"]);
+      expect(outputModule.info).toHaveBeenCalledWith("Streaming logs (Ctrl+C to stop)...\n");
+      expect(processModule.spawnInteractive).toHaveBeenCalledWith("tail", ["-f", "/tmp/steed.log"]);
     });
 
     it("shows error on unsupported platform", async () => {
-      mocks.detectPlatform.mockResolvedValue("unknown");
+      asMock(platformModule.detectPlatform).mockResolvedValue("unknown");
 
       await program.parseAsync(["node", "test", "service", "logs"]);
 
-      expect(mocks.error).toHaveBeenCalledWith("Unsupported platform.");
+      expect(outputModule.error).toHaveBeenCalledWith("Unsupported platform.");
     });
 
     it("shows error when logs not available", async () => {
-      mocks.detectPlatform.mockResolvedValue("launchd");
-      mocks.getServiceCommands.mockReturnValue({
+      asMock(platformModule.detectPlatform).mockResolvedValue("launchd");
+      asMock(platformModule.getServiceCommands).mockReturnValue({
         install: [],
         uninstall: [],
         start: [],
@@ -512,12 +465,12 @@ describe("service command", () => {
 
       await program.parseAsync(["node", "test", "service", "logs"]);
 
-      expect(mocks.error).toHaveBeenCalledWith("Log viewing not available for this platform.");
+      expect(outputModule.error).toHaveBeenCalledWith("Log viewing not available for this platform.");
     });
 
     it("handles spawn error", async () => {
-      mocks.detectPlatform.mockResolvedValue("launchd");
-      mocks.getServiceCommands.mockReturnValue({
+      asMock(platformModule.detectPlatform).mockResolvedValue("launchd");
+      asMock(platformModule.getServiceCommands).mockReturnValue({
         install: [],
         uninstall: [],
         start: [],
@@ -526,41 +479,38 @@ describe("service command", () => {
         logs: ["tail", "-f", "/tmp/steed.log"],
       });
 
-      mocks.spawnInteractive.mockResolvedValue({ exitCode: 1, error: "spawn failed" });
+      asMock(processModule.spawnInteractive).mockResolvedValue({ exitCode: 1, error: "spawn failed" });
 
       await program.parseAsync(["node", "test", "service", "logs"]);
 
-      expect(mocks.error).toHaveBeenCalledWith("Failed to stream logs: spawn failed");
+      expect(outputModule.error).toHaveBeenCalledWith("Failed to stream logs: spawn failed");
     });
   });
 
   describe("service start", () => {
     it("shows error when no config", async () => {
-      mocks.loadConfig.mockResolvedValue(null);
+      asMock(configModule.loadConfig).mockResolvedValue(null);
 
       await program.parseAsync(["node", "test", "service", "start"]);
 
-      expect(mocks.error).toHaveBeenCalledWith("No config found. Run 'steed init' first.");
+      expect(outputModule.error).toHaveBeenCalledWith("No config found. Run 'steed init' first.");
     });
 
     it("shows error when service already running", async () => {
-      mocks.loadConfig.mockResolvedValue({ host_id: "test" });
-      mocks.stateLoad.mockResolvedValue({ service_pid: 12345 });
-      mocks.isPidRunning.mockResolvedValue(true);
+      asMock(StateManager.prototype.load).mockResolvedValue({ service_pid: 12345 });
+      asMock(processModule.isPidRunning).mockResolvedValue(true);
 
       await program.parseAsync(["node", "test", "service", "start"]);
 
-      expect(mocks.error).toHaveBeenCalledWith("Service already running (PID: 12345)");
+      expect(outputModule.error).toHaveBeenCalledWith("Service already running (PID: 12345)");
     });
 
     it("handles start failure", async () => {
-      mocks.loadConfig.mockResolvedValue({ host_id: "test" });
-      mocks.stateLoad.mockResolvedValue(null);
-      mocks.hostServiceStart.mockRejectedValue(new Error("Start failed"));
+      asMock(HostService.prototype.start).mockRejectedValue(new Error("Start failed"));
 
       await program.parseAsync(["node", "test", "service", "start"]);
 
-      expect(mocks.error).toHaveBeenCalledWith("Failed to start service: Start failed");
+      expect(outputModule.error).toHaveBeenCalledWith("Failed to start service: Start failed");
     });
   });
 });

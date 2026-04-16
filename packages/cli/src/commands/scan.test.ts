@@ -4,14 +4,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { runScan } from "./scan.js";
 import * as configModule from "../config/index.js";
+import { StateManager } from "../service/state.js";
 import type { HostConfig } from "../config/schema.js";
-
-// Mock StateManager so scan doesn't try to write state files
-vi.mock("../service/state.js", () => ({
-  StateManager: class {
-    updateScanResults = vi.fn();
-  },
-}));
 
 describe("scan command", () => {
   let tempDir: string;
@@ -24,6 +18,8 @@ describe("scan command", () => {
     logs = [];
     originalLog = console.log;
     originalWarn = console.warn;
+    // Spy on StateManager so scan doesn't try to write state files
+    vi.spyOn(StateManager.prototype, "updateScanResults").mockResolvedValue(undefined);
     console.log = vi.fn((...args: unknown[]) => {
       logs.push(args.map(String).join(" "));
     });

@@ -5,15 +5,8 @@ import { tmpdir } from "node:os";
 import { runRegister } from "./register.js";
 import { ConfigManager } from "../config/index.js";
 import * as configModule from "../config/index.js";
+import { HttpClient } from "../lib/http.js";
 import type { HostConfig } from "../config/schema.js";
-
-const mockPost = vi.fn();
-
-vi.mock("../lib/http.js", () => ({
-  HttpClient: class {
-    post = (...args: unknown[]) => mockPost(...args);
-  },
-}));
 
 describe("register command", () => {
   let tempDir: string;
@@ -39,7 +32,6 @@ describe("register command", () => {
     console.warn = vi.fn((...args: unknown[]) => {
       logs.push(args.map(String).join(" "));
     });
-    mockPost.mockReset();
   });
 
   afterEach(async () => {
@@ -214,14 +206,14 @@ describe("register command", () => {
       vi.spyOn(configModule, "loadConfig").mockResolvedValue(getValidConfig());
 
       // HttpClient.post() returns parsed JSON directly
-      mockPost.mockResolvedValue({ id: "agent-123" });
+      vi.spyOn(HttpClient.prototype, "post").mockResolvedValue({ id: "agent-123" });
 
       const exitCode = await runRegister({
         matchKey: "openclaw:/home/agent",
       });
 
       expect(exitCode).toBe(0);
-      expect(mockPost).toHaveBeenCalledWith("/api/v1/agents", expect.objectContaining({
+      expect(HttpClient.prototype.post).toHaveBeenCalledWith("/api/v1/agents", expect.objectContaining({
         match_key: "openclaw:/home/agent",
       }));
       expect(logs.some((l) => l.includes("Agent registered with Worker"))).toBe(true);
@@ -233,7 +225,7 @@ describe("register command", () => {
       vi.spyOn(ConfigManager.prototype, "save").mockResolvedValue(undefined);
       vi.spyOn(configModule, "loadConfig").mockResolvedValue(getValidConfig());
 
-      mockPost.mockRejectedValue(new Error("HTTP 500: server error"));
+      vi.spyOn(HttpClient.prototype, "post").mockRejectedValue(new Error("HTTP 500: server error"));
 
       const exitCode = await runRegister({
         matchKey: "openclaw:/home/agent2",
@@ -249,7 +241,7 @@ describe("register command", () => {
       vi.spyOn(ConfigManager.prototype, "save").mockResolvedValue(undefined);
       vi.spyOn(configModule, "loadConfig").mockResolvedValue(getValidConfig());
 
-      mockPost.mockRejectedValue(new Error("Connection refused"));
+      vi.spyOn(HttpClient.prototype, "post").mockRejectedValue(new Error("Connection refused"));
 
       const exitCode = await runRegister({
         matchKey: "openclaw:/home/agent3",
