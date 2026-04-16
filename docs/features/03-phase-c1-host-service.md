@@ -426,30 +426,21 @@ packages/cli/src/
 │   ├── permissions.ts     # File permission utilities
 │   └── defaults.ts        # Default CLI scanners
 └── lib/
+    ├── http.ts            # HTTP client + auth verify
     ├── process.ts         # Process detection utilities
     ├── path.ts            # PATH probe utilities
     └── version.ts         # Version parsing utilities
 ```
 
+> **Note:** CLI package scaffold (package.json, tsconfig, bin/) is created in Phase C2-1. C1 commits only add modules under `src/`.
+
 ### Commit Plan
 
-#### Commit C1-1: CLI package setup and config schema
+#### Commit C1-1: Config schema
 
 **Files:**
 
 ```
-packages/cli/package.json
-  - Add dependencies: zod, undici (HTTP client)
-  - Add devDependencies: vitest, @types/node
-  - Scripts: test, build
-
-packages/cli/tsconfig.json
-  - Extend shared tsconfig
-  - Target: ESNext, module: ESNext
-
-packages/cli/vitest.config.ts
-  - Setup vitest for CLI package
-
 packages/cli/src/config/schema.ts
   - HostConfig interface
   - RegisteredAgent interface  
@@ -521,7 +512,43 @@ packages/cli/src/config/index.test.ts
 
 ---
 
-#### Commit C1-3: Process detection utilities
+#### Commit C1-3: HTTP client and auth verify
+
+**Files:**
+
+```
+packages/cli/src/lib/http.ts
+  - HttpClient class:
+    - constructor(baseUrl: string, apiKey?: string)
+    - get<T>(path): Promise<T>
+    - post<T>(path, body): Promise<T>
+  - Sets Authorization header if apiKey provided
+  - Timeout: 30 seconds
+  - Error types: NetworkError, ApiError, AuthError
+  - verifyApiKey(baseUrl, apiKey): Promise<{ valid: boolean; host_id: string; host_name: string }>
+    - Calls POST /api/v1/auth/verify
+    - Returns parsed response or throws AuthError on 401
+
+packages/cli/src/lib/http.test.ts
+  - GET request works
+  - POST request works
+  - Auth header set correctly
+  - 401 response throws AuthError
+  - 500 response throws ApiError
+  - Network error throws NetworkError
+  - verifyApiKey returns host info on success
+  - verifyApiKey throws on 401
+```
+
+**Verification:**
+- HTTP client works
+- `verifyApiKey()` validates Host API key
+
+> **Note:** This is placed early (C1-3) so `steed init` (C2-3) can use `verifyApiKey()` without waiting for the full Reporter.
+
+---
+
+#### Commit C1-4: Process detection utilities
 
 **Files:**
 
@@ -550,7 +577,7 @@ packages/cli/src/lib/process.test.ts
 
 ---
 
-#### Commit C1-4: PATH probe and version utilities
+#### Commit C1-5: PATH probe and version utilities
 
 **Files:**
 
@@ -597,7 +624,7 @@ packages/cli/src/lib/version.test.ts
 
 ---
 
-#### Commit C1-5: Agent scanner
+#### Commit C1-6: Agent scanner
 
 **Files:**
 
@@ -632,7 +659,7 @@ packages/cli/src/service/scanner/agent.test.ts
 
 ---
 
-#### Commit C1-6: Data source scanner
+#### Commit C1-7: Data source scanner
 
 **Files:**
 
@@ -665,7 +692,7 @@ packages/cli/src/service/scanner/data-source.test.ts
 
 ---
 
-#### Commit C1-7: Scanner orchestrator
+#### Commit C1-8: Scanner orchestrator
 
 **Files:**
 
@@ -692,7 +719,7 @@ packages/cli/src/service/scanner/index.test.ts
 
 ---
 
-#### Commit C1-8: State file manager
+#### Commit C1-9: State file manager
 
 **Files:**
 
@@ -726,37 +753,34 @@ packages/cli/src/service/state.test.ts
 
 ---
 
-#### Commit C1-9: Reporter with retry logic
+#### Commit C1-10: Reporter with retry logic
 
 **Files:**
 
 ```
 packages/cli/src/service/reporter.ts
   - Reporter class:
-    - constructor(config: HostConfig)
+    - constructor(httpClient: HttpClient, config: HostConfig)
     - report(snapshot: SnapshotRequest): Promise<SnapshotResponse>
-    - verify(): Promise<{ valid: boolean; host_id: string }>
-  - HTTP POST to {worker_url}/api/v1/snapshot
-  - Header: Authorization: Bearer {api_key}
+  - Uses HttpClient from C1-3
+  - POST to /api/v1/snapshot
   - Retry with exponential backoff: 1s, 2s, 4s (max 3 retries)
-  - Timeout: 30 seconds per request
 
 packages/cli/src/service/reporter.test.ts
   - Successful report returns SnapshotResponse
-  - Auth header sent correctly
-  - 401 response throws AuthError
+  - 401 response throws AuthError (no retry)
   - 500 response triggers retry
   - Max retries exceeded throws NetworkError
-  - Timeout throws TimeoutError
-  - verify() calls /auth/verify endpoint
 ```
 
 **Verification:**
 - HTTP reporting works with retry logic
 
+> **Note:** `verifyApiKey()` is in `lib/http.ts` (C1-3), not in Reporter. Reporter only handles snapshot reporting.
+
 ---
 
-#### Commit C1-10: Scheduler
+#### Commit C1-11: Scheduler
 
 **Files:**
 
@@ -785,7 +809,7 @@ packages/cli/src/service/scheduler.test.ts
 
 ---
 
-#### Commit C1-11: Host Service entry point
+#### Commit C1-12: Host Service entry point
 
 **Files:**
 
@@ -822,30 +846,32 @@ packages/cli/src/service/index.test.ts
 
 ## Recommended Implementation Order
 
-Phase C1 commits should be implemented in order (1 → 11) as each depends on previous:
+Phase C1 commits should be implemented in order (1 → 12) as each depends on previous:
 
 ```
-C1-1: CLI package + config schema
+C1-1: Config schema
   ↓
 C1-2: Config manager + permissions
   ↓
-C1-3: Process detection ─────────────┐
+C1-3: HTTP client + auth verify ←── enables C2-3 (steed init)
+  ↓
+C1-4: Process detection ─────────────┐
   ↓                                  │
-C1-4: PATH probe + version ──────────┤
+C1-5: PATH probe + version ──────────┤
   ↓                                  │
-C1-5: Agent scanner ←────────────────┤
+C1-6: Agent scanner ←────────────────┤
   ↓                                  │
-C1-6: Data source scanner ←──────────┘
+C1-7: Data source scanner ←──────────┘
   ↓
-C1-7: Scanner orchestrator
+C1-8: Scanner orchestrator ←── enables C2-4 (steed scan)
   ↓
-C1-8: State file manager
+C1-9: State file manager
   ↓
-C1-9: Reporter + retry
+C1-10: Reporter + retry ←── enables C2-5 (steed report)
   ↓
-C1-10: Scheduler
+C1-11: Scheduler
   ↓
-C1-11: Host Service entry
+C1-12: Host Service entry ←── enables C2-11 (steed service start)
 ```
 
 **Milestone checkpoints:**
@@ -853,9 +879,10 @@ C1-11: Host Service entry
 | After Commit | Capability |
 |--------------|------------|
 | C1-2 | Config files can be read/written securely |
-| C1-7 | `Scanner.scanAll()` produces valid `SnapshotRequest` |
-| C1-9 | Can report snapshot to Worker |
-| C1-11 | Full Host Service runs with 10-min heartbeat |
+| C1-3 | `verifyApiKey()` validates Host API key (enables `steed init`) |
+| C1-8 | `Scanner.scanAll()` produces valid `SnapshotRequest` |
+| C1-10 | Can report snapshot to Worker |
+| C1-12 | Full Host Service runs with 10-min heartbeat |
 
 ---
 
@@ -863,14 +890,15 @@ C1-11: Host Service entry
 
 | Commit | Description | Status |
 |--------|-------------|--------|
-| C1-1 | CLI package + config schema | Pending |
+| C1-1 | Config schema | Pending |
 | C1-2 | Config manager + permissions | Pending |
-| C1-3 | Process detection | Pending |
-| C1-4 | PATH probe + version | Pending |
-| C1-5 | Agent scanner | Pending |
-| C1-6 | Data source scanner | Pending |
-| C1-7 | Scanner orchestrator | Pending |
-| C1-8 | State file manager | Pending |
-| C1-9 | Reporter + retry | Pending |
-| C1-10 | Scheduler | Pending |
-| C1-11 | Host Service entry | Pending |
+| C1-3 | HTTP client + auth verify | Pending |
+| C1-4 | Process detection | Pending |
+| C1-5 | PATH probe + version | Pending |
+| C1-6 | Agent scanner | Pending |
+| C1-7 | Data source scanner | Pending |
+| C1-8 | Scanner orchestrator | Pending |
+| C1-9 | State file manager | Pending |
+| C1-10 | Reporter + retry | Pending |
+| C1-11 | Scheduler | Pending |
+| C1-12 | Host Service entry | Pending |
