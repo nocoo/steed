@@ -10,7 +10,11 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "json-summary"],
-      include: ["packages/shared/src/**/*.ts", "packages/worker/src/**/*.ts"],
+      include: [
+        "packages/shared/src/**/*.ts",
+        "packages/worker/src/**/*.ts",
+        "packages/cli/src/**/*.ts",
+      ],
       exclude: ["**/*.test.ts", "**/index.ts"],
       thresholds: {
         statements: 90,
