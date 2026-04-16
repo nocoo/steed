@@ -44,6 +44,15 @@ export async function binaryExistsInPath(binary: string): Promise<boolean> {
 }
 
 /**
+ * Check if a process with the given PID exists
+ * Uses: kill -0 to test if process exists without sending a signal
+ */
+export async function isPidRunning(pid: number): Promise<boolean> {
+  const { exitCode } = await execCommand("kill", ["-0", String(pid)]);
+  return exitCode === 0;
+}
+
+/**
  * Check if a process matching the pattern is running
  * Uses: pgrep -f "{pattern}"
  */

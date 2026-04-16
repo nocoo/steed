@@ -32,16 +32,12 @@ export async function runReport(options: ReportOptions): Promise<number> {
   spin.text = "Scan complete";
   spin.succeed();
 
-  // Update state with scan results
-  const stateManager = new StateManager();
-  await stateManager.updateScanResults(scanResult.agents, scanResult.dataSources);
-
   // Display scan summary
   info(
     `Found ${scanResult.agents.length} agents, ${scanResult.dataSources.length} data sources`
   );
 
-  // Dry run - just show what would be sent
+  // Dry run - just show what would be sent (no side effects)
   if (options.dryRun) {
     info("\nDry run - payload that would be sent:");
     console.log(
@@ -58,6 +54,9 @@ export async function runReport(options: ReportOptions): Promise<number> {
   }
 
   // Send report
+  const stateManager = new StateManager();
+  await stateManager.updateScanResults(scanResult.agents, scanResult.dataSources);
+
   const reportSpin = spinner(
     `Reporting to ${config.worker_url}/api/v1/snapshot...`
   ).start();

@@ -5,7 +5,7 @@ import { spawn } from "node:child_process";
 import { HostService, setupSignalHandlers } from "../service/index.js";
 import { StateManager } from "../service/state.js";
 import { loadConfig } from "../config/index.js";
-import { isProcessRunning, killProcess } from "../lib/process.js";
+import { isPidRunning, killProcess } from "../lib/process.js";
 import {
   detectPlatform,
   generateSystemdUnit,
@@ -30,7 +30,7 @@ async function runServiceStart(): Promise<number> {
   const stateManager = new StateManager();
   const state = await stateManager.load();
   if (state?.service_pid) {
-    const running = await isProcessRunning(`steed.*service.*start`);
+    const running = await isPidRunning(state.service_pid);
     if (running) {
       error(`Service already running (PID: ${state.service_pid})`);
       return 1;
@@ -72,7 +72,7 @@ async function runServiceStatus(): Promise<number> {
   }
 
   // Check if process is actually running
-  const running = await isProcessRunning(`steed.*service.*start`);
+  const running = await isPidRunning(state.service_pid);
 
   if (running) {
     success(`Host Service: running (PID: ${state.service_pid})`);

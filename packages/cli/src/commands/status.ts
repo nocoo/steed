@@ -1,7 +1,7 @@
 import type { Command } from "commander";
 import { loadConfig, CONFIG_FILE } from "../config/index.js";
 import { StateManager } from "../service/state.js";
-import { isProcessRunning } from "../lib/process.js";
+import { isPidRunning } from "../lib/process.js";
 import { success, error, info, warn, formatTimestamp } from "../lib/output.js";
 import type { HostState } from "../config/schema.js";
 
@@ -63,7 +63,7 @@ export async function runStatus(options: StatusOptions): Promise<number> {
 async function displayStatus(state: HostState, workerUrl: string): Promise<void> {
   // Service status
   if (state.service_pid !== null) {
-    const isRunning = await isProcessRunning(String(state.service_pid));
+    const isRunning = await isPidRunning(state.service_pid);
     if (isRunning) {
       success(`Host Service: running (PID ${state.service_pid})`);
     } else {
