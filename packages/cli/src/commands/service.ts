@@ -1,11 +1,9 @@
 import type { Command } from "commander";
-import type { ChildProcess } from "node:child_process";
-import { writeFile } from "node:fs/promises";
-import { spawn } from "node:child_process";
 import { HostService, setupSignalHandlers } from "../service/index.js";
 import { StateManager } from "../service/state.js";
 import { loadConfig } from "../config/index.js";
-import { isPidRunning, killProcess } from "../lib/process.js";
+import { isPidRunning, killProcess, spawnInteractive, spawnCapture } from "../lib/process.js";
+import { writeServiceFile, removeFile } from "../lib/fs.js";
 import {
   detectPlatform,
   generateSystemdUnit,
@@ -153,7 +151,7 @@ async function runServiceInstall(): Promise<number> {
   info(`Installing service to ${servicePath}...`);
 
   try {
-    await writeFile(servicePath, serviceContent, { mode: 0o644 });
+    await writeServiceFile(servicePath, serviceContent, 0o644);
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "EACCES") {
       error(`Permission denied. On Linux, run with sudo:`);
@@ -211,8 +209,7 @@ async function runServiceUninstall(): Promise<number> {
 
   // Remove service file
   try {
-    const { unlink } = await import("node:fs/promises");
-    await unlink(servicePath);
+    await removeFile(servicePath);
     success(`Service file removed: ${servicePath}`);
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") {
@@ -254,17 +251,13 @@ async function runServiceLogs(): Promise<number> {
     error("No log command available.");
     return 1;
   }
-  const child: ChildProcess = spawn(cmd, args, { stdio: "inherit" });
 
-  return new Promise((resolve) => {
-    child.on("exit", (code: number | null) => {
-      resolve(code ?? 0);
-    });
-    child.on("error", (err: Error) => {
-      error(`Failed to stream logs: ${err.message}`);
-      resolve(1);
-    });
-  });
+  const result = await spawnInteractive(cmd, args);
+  if (result.error) {
+    error(`Failed to stream logs: ${result.error}`);
+    return 1;
+  }
+  return result.exitCode;
 }
 
 /**
@@ -290,26 +283,7 @@ async function runExternalCommand(
     return { success: false, error: "No command provided" };
   }
 
-  return new Promise((resolve) => {
-    const child: ChildProcess = spawn(cmd, restArgs, { stdio: "pipe" });
-
-    let stderr = "";
-    child.stderr?.on("data", (data: Buffer) => {
-      stderr += data.toString();
-    });
-
-    child.on("exit", (code: number | null) => {
-      if (code === 0) {
-        resolve({ success: true });
-      } else {
-        resolve({ success: false, error: stderr || `Exit code ${code}` });
-      }
-    });
-
-    child.on("error", (err: Error) => {
-      resolve({ success: false, error: err.message });
-    });
-  });
+  return spawnCapture(cmd, restArgs);
 }
 
 /**

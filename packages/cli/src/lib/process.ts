@@ -115,3 +115,54 @@ export async function runCommand(
   const { stdout, exitCode } = await execCommand(cmd, args, timeout);
   return { exitCode, stdout };
 }
+
+/**
+ * Spawn a command with inherited stdio (for interactive use like log streaming)
+ * Returns exit code via promise
+ */
+export async function spawnInteractive(
+  cmd: string,
+  args: string[]
+): Promise<{ exitCode: number; error?: string }> {
+  return new Promise((resolve) => {
+    const child = spawn(cmd, args, { stdio: "inherit" });
+
+    child.on("exit", (code: number | null) => {
+      resolve({ exitCode: code ?? 0 });
+    });
+
+    child.on("error", (err: Error) => {
+      resolve({ exitCode: 1, error: err.message });
+    });
+  });
+}
+
+/**
+ * Spawn a command capturing stderr, used for system service management
+ * Returns success status and optional error message
+ */
+export async function spawnCapture(
+  cmd: string,
+  args: string[]
+): Promise<{ success: boolean; error?: string }> {
+  return new Promise((resolve) => {
+    const child = spawn(cmd, args, { stdio: "pipe" });
+
+    let stderr = "";
+    child.stderr?.on("data", (data: Buffer) => {
+      stderr += data.toString();
+    });
+
+    child.on("exit", (code: number | null) => {
+      if (code === 0) {
+        resolve({ success: true });
+      } else {
+        resolve({ success: false, error: stderr || `Exit code ${code}` });
+      }
+    });
+
+    child.on("error", (err: Error) => {
+      resolve({ success: false, error: err.message });
+    });
+  });
+}

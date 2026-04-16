@@ -1,8 +1,9 @@
 import type { Command } from "commander";
-import { ConfigManager } from "../config/index.js";
+import { ConfigManager, loadConfig } from "../config/index.js";
 import type { AgentDetectionMethod, RegisteredAgent } from "../config/schema.js";
 import { parseMatchKey, inferDetection } from "../lib/match-key.js";
-import { success, error, info } from "../lib/output.js";
+import { HttpClient } from "../lib/http.js";
+import { success, error, info, warn, spinner } from "../lib/output.js";
 
 /**
  * Options for register command
@@ -82,9 +83,27 @@ export async function runRegister(options: RegisterOptions): Promise<number> {
     info(`  Version: ${agent.detection.version_command}`);
   }
 
-  // TODO: If not --local-only, register with Worker API
+  // Register with Worker API (unless --local-only)
   if (!options.localOnly) {
-    info("\nNote: Worker registration not yet implemented. Use --local-only for now.");
+    const fullConfig = await loadConfig();
+    if (fullConfig) {
+      const spin = spinner("Registering with Worker...").start();
+      try {
+        const httpClient = new HttpClient(fullConfig.worker_url, fullConfig.api_key);
+        const data = await httpClient.post<{ id: string }>("/api/v1/agents", {
+          match_key: agent.match_key,
+          nickname: options.nickname,
+          role: options.role,
+        });
+
+        spin.succeed();
+        success(`Agent registered with Worker (id: ${data.id})`);
+      } catch (err) {
+        spin.fail();
+        warn(`Worker registration failed: ${err instanceof Error ? err.message : String(err)}`);
+        info("Agent is registered locally. Retry Worker registration with 'steed register' later.");
+      }
+    }
   }
 
   info("\nTest with: steed scan --agents");

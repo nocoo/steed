@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 import { loadConfig } from "../config/index.js";
 import { Scanner, type ScanResult } from "../service/scanner/index.js";
+import { StateManager } from "../service/state.js";
 import { info, success, warn, table } from "../lib/output.js";
 
 /**
@@ -26,6 +27,10 @@ export async function runScan(options: ScanOptions): Promise<number> {
   // Run scanner
   const scanner = new Scanner();
   const result = await scanner.scan(config);
+
+  // Update state file with scan results
+  const stateManager = new StateManager();
+  await stateManager.updateScanResults(result.agents, result.dataSources);
 
   // Filter results based on options
   const filteredResult = filterResult(result, options);
