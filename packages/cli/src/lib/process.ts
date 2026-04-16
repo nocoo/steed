@@ -36,6 +36,14 @@ async function execCommand(
 }
 
 /**
+ * Check if a binary exists in PATH using `which`
+ */
+export async function binaryExistsInPath(binary: string): Promise<boolean> {
+  const { exitCode } = await execCommand("which", [binary]);
+  return exitCode === 0;
+}
+
+/**
  * Check if a process matching the pattern is running
  * Uses: pgrep -f "{pattern}"
  */

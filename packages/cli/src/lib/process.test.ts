@@ -3,6 +3,7 @@ import {
   isProcessRunning,
   getProcessPid,
   runCommand,
+  binaryExistsInPath,
 } from "./process.js";
 
 // Generate pattern at runtime with timestamp to ensure it never matches any process
@@ -54,6 +55,18 @@ describe("process utilities", () => {
     it("handles empty command", async () => {
       const result = await runCommand("");
       expect(result.exitCode).toBe(127);
+    });
+  });
+
+  describe("binaryExistsInPath", () => {
+    it("returns true for existing binary", async () => {
+      const result = await binaryExistsInPath("ls");
+      expect(result).toBe(true);
+    });
+
+    it("returns false for non-existent binary", async () => {
+      const result = await binaryExistsInPath("nonexistent_binary_xyz_12345");
+      expect(result).toBe(false);
     });
   });
 });
