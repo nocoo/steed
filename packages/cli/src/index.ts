@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { createInitCommand } from "./commands/init.js";
 
 const VERSION = "0.1.0";
 
@@ -10,14 +11,8 @@ function createProgram(): Command {
     .description("Steed CLI — Agent asset visibility")
     .version(VERSION);
 
-  program
-    .command("init")
-    .description("Initialize host configuration")
-    .requiredOption("--url <url>", "Worker API URL")
-    .requiredOption("--key <key>", "Host API key")
-    .action(() => {
-      throw new Error("Not implemented: init");
-    });
+  // Add init command
+  program.addCommand(createInitCommand());
 
   program
     .command("scan")
