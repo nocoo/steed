@@ -1,8 +1,13 @@
-title = "Steed gitleaks config"
+# Gitleaks configuration
+# https://github.com/gitleaks/gitleaks
+
+title = "Steed Gitleaks Config"
 
 [allowlist]
-  description = "Known non-secret patterns"
-
+  description = "Ignore dev/local files and example patterns"
   paths = [
     '''\.env\..*\.example$''',
+    '''^packages/dashboard/\.env\.local$''',
+    '''^packages/dashboard/\.next/''',
+    '''\.wrangler/''',
   ]
