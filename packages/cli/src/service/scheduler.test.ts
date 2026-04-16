@@ -173,6 +173,41 @@ describe("Scheduler", () => {
 
       scheduler.stop();
     });
+
+    it("skips execution when already in flight", async () => {
+      vi.useRealTimers(); // Use real timers for this test
+      const scheduler = new Scheduler(10);
+      let callCount = 0;
+      let resolveCallback: (() => void) | null = null;
+
+      // Callback that waits for manual resolution
+      const callback = vi.fn().mockImplementation(async () => {
+        callCount++;
+        await new Promise<void>((resolve) => {
+          resolveCallback = resolve;
+        });
+      });
+
+      // Start first run
+      const firstRun = scheduler.runOnce(callback);
+
+      // Wait a bit for the callback to start
+      await new Promise((r) => setTimeout(r, 5));
+      expect(scheduler.isInFlight()).toBe(true);
+
+      // Try to run again while first is still in flight
+      const secondRun = scheduler.runOnce(callback);
+      await secondRun;
+
+      // Second run should have been skipped
+      expect(callCount).toBe(1);
+
+      // Complete the first run
+      if (resolveCallback) resolveCallback();
+      await firstRun;
+
+      expect(scheduler.isInFlight()).toBe(false);
+    });
   });
 
   describe("error handling", () => {

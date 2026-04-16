@@ -4,6 +4,7 @@ import {
   getProcessPid,
   runCommand,
   binaryExistsInPath,
+  killProcess,
 } from "./process.js";
 
 // Generate pattern at runtime with timestamp to ensure it never matches any process
@@ -56,6 +57,11 @@ describe("process utilities", () => {
       const result = await runCommand("");
       expect(result.exitCode).toBe(127);
     });
+
+    it("handles command with only spaces", async () => {
+      const result = await runCommand("   ");
+      expect(result.exitCode).toBe(127);
+    });
   });
 
   describe("binaryExistsInPath", () => {
@@ -66,6 +72,20 @@ describe("process utilities", () => {
 
     it("returns false for non-existent binary", async () => {
       const result = await binaryExistsInPath("nonexistent_binary_xyz_12345");
+      expect(result).toBe(false);
+    });
+  });
+
+  describe("killProcess", () => {
+    it("returns false for non-existent PID", async () => {
+      // Use a very high PID that's unlikely to exist
+      const result = await killProcess(99999999);
+      expect(result).toBe(false);
+    });
+
+    it("accepts custom signal", async () => {
+      // Use a non-existent PID with custom signal
+      const result = await killProcess(99999999, "SIGKILL");
       expect(result).toBe(false);
     });
   });
