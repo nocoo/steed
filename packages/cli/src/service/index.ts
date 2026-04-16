@@ -5,6 +5,7 @@
  * local agents and data sources, then reports snapshots to the Worker API.
  */
 
+import { dirname, join } from "node:path";
 import type { HostConfig } from "../config/schema.js";
 import { ConfigManager } from "../config/index.js";
 import { StateManager } from "./state.js";
@@ -18,6 +19,11 @@ import { Scheduler } from "./scheduler.js";
 export interface HostServiceOptions {
   /** Path to config file (default: ~/.steed/config.json) */
   configPath?: string;
+  /**
+   * Path to state file. If not provided, derived from configPath
+   * (state.json alongside config.json) or defaults to ~/.steed/state.json.
+   */
+  statePath?: string;
   /** Heartbeat interval in milliseconds (default: 10 minutes) */
   intervalMs?: number;
 }
@@ -40,7 +46,13 @@ export class HostService {
 
   constructor(options: HostServiceOptions = {}) {
     this.configManager = new ConfigManager(options.configPath);
-    this.stateManager = new StateManager();
+    // Derive state path: explicit > alongside configPath > default
+    const statePath =
+      options.statePath ??
+      (options.configPath
+        ? join(dirname(options.configPath), "state.json")
+        : undefined);
+    this.stateManager = new StateManager(statePath);
     this.intervalMs = options.intervalMs ?? 600_000; // Default 10 minutes
   }
 

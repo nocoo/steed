@@ -36,8 +36,8 @@ function createEmptyState(): HostState {
 export class StateManager {
   private statePath: string;
 
-  constructor(statePath: string = STATE_FILE) {
-    this.statePath = statePath;
+  constructor(statePath?: string) {
+    this.statePath = statePath ?? STATE_FILE;
   }
 
   /**

@@ -1,8 +1,10 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { join } from "node:path";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { Scanner } from "./index.js";
+import { AgentScanner } from "./agent.js";
+import { DataSourceScanner } from "./data-source.js";
 import type { HostConfig } from "../../config/schema.js";
 
 describe("Scanner", () => {
@@ -16,6 +18,7 @@ describe("Scanner", () => {
 
   afterEach(async () => {
     await rm(tempDir, { recursive: true, force: true });
+    vi.restoreAllMocks();
   });
 
   describe("scan", () => {
@@ -150,6 +153,79 @@ describe("Scanner", () => {
       // Should only have echo
       expect(result.dataSources).toHaveLength(1);
       expect(result.dataSources[0]?.name).toBe("echo");
+    });
+
+    it("continues when agent scanner fails but data source scanner succeeds", async () => {
+      vi.spyOn(AgentScanner.prototype, "scan").mockRejectedValue(
+        new Error("agent scan boom")
+      );
+
+      const config: HostConfig = {
+        worker_url: "https://example.com",
+        api_key: "sk_host_test",
+        agents: [],
+        data_sources: {
+          cli_scanners: [{ name: "echo", type: "personal_cli", binary: "echo" }],
+          mcp_scanners: [],
+        },
+      };
+
+      const result = await scanner.scan(config);
+
+      expect(result.agents).toHaveLength(0);
+      expect(result.dataSources).toHaveLength(1);
+    });
+
+    it("continues when data source scanner fails but agent scanner succeeds", async () => {
+      vi.spyOn(DataSourceScanner.prototype, "scan").mockRejectedValue(
+        new Error("data source scan boom")
+      );
+
+      const config: HostConfig = {
+        worker_url: "https://example.com",
+        api_key: "sk_host_test",
+        agents: [
+          { match_key: "bun:test", detection: { method: "process", pattern: "bun" } },
+        ],
+        data_sources: { cli_scanners: [], mcp_scanners: [] },
+      };
+
+      const result = await scanner.scan(config);
+
+      expect(result.agents.length).toBeGreaterThanOrEqual(1);
+      expect(result.dataSources).toHaveLength(0);
+    });
+
+    it("throws when both scanners fail", async () => {
+      vi.spyOn(AgentScanner.prototype, "scan").mockRejectedValue(
+        new Error("agent boom")
+      );
+      vi.spyOn(DataSourceScanner.prototype, "scan").mockRejectedValue(
+        new Error("ds boom")
+      );
+
+      const config: HostConfig = {
+        worker_url: "https://example.com",
+        api_key: "sk_host_test",
+        agents: [],
+        data_sources: { cli_scanners: [], mcp_scanners: [] },
+      };
+
+      await expect(scanner.scan(config)).rejects.toThrow("agent boom");
+    });
+
+    it("wraps non-Error rejection when both fail", async () => {
+      vi.spyOn(AgentScanner.prototype, "scan").mockRejectedValue("string error");
+      vi.spyOn(DataSourceScanner.prototype, "scan").mockRejectedValue("ds err");
+
+      const config: HostConfig = {
+        worker_url: "https://example.com",
+        api_key: "sk_host_test",
+        agents: [],
+        data_sources: { cli_scanners: [], mcp_scanners: [] },
+      };
+
+      await expect(scanner.scan(config)).rejects.toThrow("string error");
     });
   });
 });

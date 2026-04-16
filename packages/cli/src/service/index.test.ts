@@ -45,6 +45,49 @@ describe("HostService", () => {
       const service = new HostService({ configPath: testConfigPath });
       expect(service.isRunning()).toBe(false);
     });
+
+    it("derives state path from config path by default", async () => {
+      // Write test config and start/stop to exercise state writes
+      await writeFile(testConfigPath, JSON.stringify(mockConfig), { mode: 0o600 });
+      const service = new HostService({
+        configPath: testConfigPath,
+        intervalMs: 60_000,
+      });
+
+      try {
+        await service.start();
+      } catch {
+        // ignore network / heartbeat errors
+      } finally {
+        await service.stop();
+      }
+
+      // State file should be written alongside config, NOT in ~/.steed
+      const { stat } = await import("node:fs/promises");
+      const expectedStatePath = `${testDir}/state.json`;
+      await expect(stat(expectedStatePath)).resolves.toBeDefined();
+    });
+
+    it("accepts explicit state path", async () => {
+      await writeFile(testConfigPath, JSON.stringify(mockConfig), { mode: 0o600 });
+      const customStatePath = `${testDir}/custom-state.json`;
+      const service = new HostService({
+        configPath: testConfigPath,
+        statePath: customStatePath,
+        intervalMs: 60_000,
+      });
+
+      try {
+        await service.start();
+      } catch {
+        // ignore
+      } finally {
+        await service.stop();
+      }
+
+      const { stat } = await import("node:fs/promises");
+      await expect(stat(customStatePath)).resolves.toBeDefined();
+    });
   });
 
   describe("isRunning", () => {
