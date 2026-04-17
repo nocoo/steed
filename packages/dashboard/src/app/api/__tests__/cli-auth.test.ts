@@ -24,6 +24,7 @@ vi.mock("@/lib/worker-api", () => ({
       register: vi.fn(),
     },
   },
+  getWorkerApiUrl: vi.fn(() => "https://steed.worker.hexly.ai"),
 }));
 
 // Mock next/navigation
@@ -122,6 +123,7 @@ describe("GET /api/auth/cli", () => {
       const url = getRedirectUrl(e);
       expect(url).toContain("127.0.0.1");
       expect(url).toContain("api_key=sk_host_test123");
+      expect(url).toContain("worker_url=https%3A%2F%2Fsteed.worker.hexly.ai");
     }
   });
 
@@ -159,7 +161,7 @@ describe("GET /api/auth/cli", () => {
     }
   });
 
-  it("should redirect to callback with api_key on success", async () => {
+  it("should redirect to callback with api_key and worker_url on success", async () => {
     mockAuth.mockResolvedValue({ user: { email: "test@example.com" } });
     mockHostsRegister.mockResolvedValue({
       id: "host_1",
@@ -178,6 +180,7 @@ describe("GET /api/auth/cli", () => {
     } catch (e) {
       const url = getRedirectUrl(e);
       expect(url).toContain("api_key=sk_host_test123");
+      expect(url).toContain("worker_url=https%3A%2F%2Fsteed.worker.hexly.ai");
       expect(url).toContain("state=test-nonce");
       expect(url).toContain("email=test%40example.com");
     }

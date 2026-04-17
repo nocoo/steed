@@ -21,6 +21,14 @@ function getRequiredEnv(name: string): string {
 const WORKER_API_URL = getRequiredEnv("WORKER_API_URL");
 const DASHBOARD_SERVICE_TOKEN = getRequiredEnv("DASHBOARD_SERVICE_TOKEN");
 
+/**
+ * Get the Worker API URL from environment.
+ * Exposed for CLI auth endpoint to pass to CLI.
+ */
+export function getWorkerApiUrl(): string {
+  return WORKER_API_URL;
+}
+
 async function workerFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${WORKER_API_URL}${path}`, {
     ...init,

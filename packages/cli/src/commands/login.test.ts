@@ -67,7 +67,19 @@ describe("login command", () => {
   it("returns error when no API key received", async () => {
     mockPerformLogin.mockResolvedValue({
       success: true,
+      params: { worker_url: "https://steed.worker.hexly.ai" },
       // No onSaveToken called, so apiKey is undefined
+    });
+
+    const exitCode = await runLogin(configManager, "https://steed.hexly.ai");
+
+    expect(exitCode).toBe(1);
+  });
+
+  it("returns error when no worker_url received", async () => {
+    mockPerformLogin.mockImplementation(async (deps) => {
+      deps.onSaveToken("sk_host_test123");
+      return { success: true, params: {} }; // No worker_url
     });
 
     const exitCode = await runLogin(configManager, "https://steed.hexly.ai");
@@ -78,7 +90,11 @@ describe("login command", () => {
   it("handles worker health check failure", async () => {
     mockPerformLogin.mockImplementation(async (deps) => {
       deps.onSaveToken("sk_host_test123");
-      return { success: true, email: "test@example.com" };
+      return {
+        success: true,
+        email: "test@example.com",
+        params: { worker_url: "https://steed.worker.hexly.ai" },
+      };
     });
 
     // Health check fails
@@ -92,7 +108,11 @@ describe("login command", () => {
   it("handles API key verification failure", async () => {
     mockPerformLogin.mockImplementation(async (deps) => {
       deps.onSaveToken("sk_host_test123");
-      return { success: true, email: "test@example.com" };
+      return {
+        success: true,
+        email: "test@example.com",
+        params: { worker_url: "https://steed.worker.hexly.ai" },
+      };
     });
 
     // Health check succeeds
@@ -119,7 +139,11 @@ describe("login command", () => {
   it("creates config file on success", async () => {
     mockPerformLogin.mockImplementation(async (deps) => {
       deps.onSaveToken("sk_host_test123");
-      return { success: true, email: "test@example.com" };
+      return {
+        success: true,
+        email: "test@example.com",
+        params: { worker_url: "https://steed.worker.hexly.ai" },
+      };
     });
 
     // Health check succeeds
@@ -143,10 +167,10 @@ describe("login command", () => {
 
     expect(exitCode).toBe(0);
 
-    // Verify config file created
+    // Verify config file created with worker_url from params
     const content = await readFile(configPath, "utf-8");
     const config = JSON.parse(content) as HostConfig;
-    expect(config.worker_url).toBe("https://steed-worker.hexly.ai");
+    expect(config.worker_url).toBe("https://steed.worker.hexly.ai");
     expect(config.api_key).toBe("sk_host_test123");
     expect(config.agents).toEqual([]);
     expect(config.data_sources.cli_scanners.length).toBeGreaterThan(0);
@@ -169,7 +193,11 @@ describe("login command", () => {
 
     mockPerformLogin.mockImplementation(async (deps) => {
       deps.onSaveToken("sk_host_new123");
-      return { success: true, email: "test@example.com" };
+      return {
+        success: true,
+        email: "test@example.com",
+        params: { worker_url: "https://steed.worker.hexly.ai" },
+      };
     });
 
     // Health check succeeds
@@ -197,14 +225,21 @@ describe("login command", () => {
     const content = await readFile(configPath, "utf-8");
     const config = JSON.parse(content) as HostConfig;
     expect(config.api_key).toBe("sk_host_new123");
+    expect(config.worker_url).toBe("https://steed.worker.hexly.ai");
     expect(config.agents).toHaveLength(1);
     expect(config.agents[0].match_key).toBe("test:/path");
   });
 
-  it("derives correct worker URL for dev environment", async () => {
+  it("uses worker_url from Dashboard params (not derived)", async () => {
+    // This test verifies that worker_url comes from Dashboard, not local derivation
+    const customWorkerUrl = "https://custom.nocoo.workers.dev";
+
     mockPerformLogin.mockImplementation(async (deps) => {
       deps.onSaveToken("sk_host_test123");
-      return { success: true };
+      return {
+        success: true,
+        params: { worker_url: customWorkerUrl },
+      };
     });
 
     // Health check succeeds
@@ -228,43 +263,17 @@ describe("login command", () => {
 
     const content = await readFile(configPath, "utf-8");
     const config = JSON.parse(content) as HostConfig;
-    expect(config.worker_url).toBe("https://steed-worker.dev.hexly.ai");
-  });
-
-  it("derives correct worker URL for localhost", async () => {
-    mockPerformLogin.mockImplementation(async (deps) => {
-      deps.onSaveToken("sk_host_test123");
-      return { success: true };
-    });
-
-    // Health check succeeds
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: () => Promise.resolve({ status: "ok" }),
-    } as Response);
-
-    // Auth verify succeeds
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: () =>
-        Promise.resolve({
-          valid: true,
-          host_id: "host_abc123",
-          host_name: "Test Host",
-        }),
-    } as Response);
-
-    await runLogin(configManager, "http://localhost:3000");
-
-    const content = await readFile(configPath, "utf-8");
-    const config = JSON.parse(content) as HostConfig;
-    expect(config.worker_url).toBe("http://localhost:8787");
+    // Should use the worker_url from params, NOT derived from dashboard URL
+    expect(config.worker_url).toBe(customWorkerUrl);
   });
 
   it("handles save config failure", async () => {
     mockPerformLogin.mockImplementation(async (deps) => {
       deps.onSaveToken("sk_host_test123");
-      return { success: true };
+      return {
+        success: true,
+        params: { worker_url: "https://steed.worker.hexly.ai" },
+      };
     });
 
     // Health check succeeds

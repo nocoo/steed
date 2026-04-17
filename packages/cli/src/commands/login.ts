@@ -81,17 +81,17 @@ export async function runLogin(
     return 1;
   }
 
+  // Get worker_url from callback params (provided by Dashboard)
+  const workerUrl = result.params?.worker_url;
+  if (!workerUrl) {
+    error("Login failed: No worker_url received from Dashboard");
+    return 1;
+  }
+
   success("Authentication successful!");
   if (result.email) {
     info(`Logged in as: ${result.email}`);
   }
-
-  // Extract Worker URL from API key verification
-  // The CLI needs to know the Worker URL to make API calls
-  // We'll derive it from the Dashboard URL for now
-  // Dashboard at https://steed.hexly.ai -> Worker at https://steed-worker.hexly.ai
-  // Or we could have the Dashboard return it in the callback
-  const workerUrl = deriveWorkerUrl(dashboardUrl);
 
   // Test connectivity with health check
   info(`Connecting to Worker at ${workerUrl}...`);
@@ -162,32 +162,4 @@ export async function runLogin(
   console.log("  3. Start service:       steed service start");
 
   return 0;
-}
-
-/**
- * Derive Worker URL from Dashboard URL
- *
- * Convention:
- * - Production: https://steed.hexly.ai -> https://steed-worker.hexly.ai
- * - Dev: https://steed.dev.hexly.ai -> https://steed-worker.dev.hexly.ai
- * - Local: http://localhost:3000 -> http://localhost:8787
- */
-function deriveWorkerUrl(dashboardUrl: string): string {
-  const url = new URL(dashboardUrl);
-
-  // Local development
-  if (url.hostname === "localhost" || url.hostname === "127.0.0.1") {
-    return "http://localhost:8787";
-  }
-
-  // Production/staging: replace first subdomain with worker variant
-  // steed.hexly.ai -> steed-worker.hexly.ai
-  // steed.dev.hexly.ai -> steed-worker.dev.hexly.ai
-  const parts = url.hostname.split(".");
-  if (parts.length >= 2) {
-    parts[0] = `${parts[0]}-worker`;
-    url.hostname = parts.join(".");
-  }
-
-  return url.origin;
 }

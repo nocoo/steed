@@ -5,7 +5,7 @@
  * 1. CLI starts local server, opens browser to this endpoint
  * 2. This endpoint checks Google OAuth session
  * 3. If authenticated, registers/gets host via Worker API
- * 4. Redirects back to CLI callback with api_key
+ * 4. Redirects back to CLI callback with api_key and worker_url
  *
  * Security:
  * - Only accepts callback URLs pointing to localhost/127.0.0.1
@@ -15,7 +15,7 @@
 import { redirect } from "next/navigation";
 import { hostname } from "node:os";
 import { auth } from "@/auth";
-import { workerApi } from "@/lib/worker-api";
+import { workerApi, getWorkerApiUrl } from "@/lib/worker-api";
 
 /**
  * Validate that callback URL is a localhost address
@@ -41,16 +41,18 @@ function errorRedirect(callbackUrl: string, state: string, error: string): strin
 }
 
 /**
- * Build success redirect URL with api_key
+ * Build success redirect URL with api_key and worker_url
  */
 function successRedirect(
   callbackUrl: string,
   state: string,
   apiKey: string,
+  workerUrl: string,
   email?: string | null
 ): string {
   const url = new URL(callbackUrl);
   url.searchParams.set("api_key", apiKey);
+  url.searchParams.set("worker_url", workerUrl);
   url.searchParams.set("state", state);
   if (email) {
     url.searchParams.set("email", email);
@@ -94,9 +96,12 @@ export async function GET(request: Request): Promise<Response> {
     const hostName = hostname();
     const result = await workerApi.hosts.register(hostName);
 
-    // Redirect to CLI callback with api_key
+    // Get the actual Worker URL from environment
+    const workerUrl = getWorkerApiUrl();
+
+    // Redirect to CLI callback with api_key and worker_url
     return redirect(
-      successRedirect(callbackUrl, state, result.api_key, session.user.email)
+      successRedirect(callbackUrl, state, result.api_key, workerUrl, session.user.email)
     );
   } catch (error) {
     // Re-throw Next.js redirect errors (they use throw for control flow)
