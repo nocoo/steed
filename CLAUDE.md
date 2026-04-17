@@ -3,6 +3,12 @@
 > AI Hub — Asset visibility & relationship management for the multi-agent era.
 > v1 scope: inventory, status display, manual classification & binding. No remote control.
 
+## Deployment Stance (Development Phase)
+
+- Currently in **development phase**, no external users — **do not treat deployment as a ceremonial event**.
+- This is a personal tool. **Whenever the Worker has a git update, just `wrangler deploy`** — ship first, fix later if it breaks.
+- If a deploy does break something, that means **our tests missed it**; note it down and backfill the missing test afterward. Don't let this slow the release cadence.
+
 ## Development Rules
 
 ### 1. Numbered Documents First
