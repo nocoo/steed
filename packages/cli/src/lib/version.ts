@@ -20,12 +20,23 @@ async function execCommand(
       stdout += data.toString();
     });
 
+    let settled = false;
+    const settle = (result: { stdout: string; exitCode: number }) => {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    };
+
     proc.on("error", () => {
-      resolve({ stdout, exitCode: 127 });
+      settle({ stdout, exitCode: 127 });
     });
 
-    proc.on("close", (code) => {
-      resolve({ stdout, exitCode: code ?? 1 });
+    // Use "exit" (fires on process exit) instead of "close" (waits for stdio).
+    // When the spawn timeout kills a shell, orphaned grandchildren (e.g. `sleep`)
+    // can keep stdout open, stalling "close" until they finish. "exit" returns
+    // control immediately so callers see the timeout as a failure.
+    proc.on("exit", (code) => {
+      settle({ stdout, exitCode: code ?? 1 });
     });
   });
 }
