@@ -3,6 +3,9 @@ import { writeFile, mkdir, rm } from "node:fs/promises";
 import type { HostConfig } from "../config/schema.js";
 import { HostService, setupSignalHandlers } from "./index.js";
 
+// Store original fetch
+const originalFetch = globalThis.fetch;
+
 describe("HostService", () => {
   const testDir = "/tmp/steed-test-" + Date.now();
   const testConfigPath = `${testDir}/config.json`;
@@ -18,10 +21,16 @@ describe("HostService", () => {
     vi.clearAllMocks();
     // Create test directory
     await mkdir(testDir, { recursive: true, mode: 0o700 });
+    // Mock fetch to prevent real HTTP requests from hanging
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ accepted: 0, rejected: 0 }),
+    } as Response);
   });
 
   afterEach(async () => {
     vi.useRealTimers();
+    globalThis.fetch = originalFetch;
     // Cleanup test directory
     try {
       await rm(testDir, { recursive: true, force: true });
