@@ -544,6 +544,49 @@ async function runTests(): Promise<void> {
     assertEqual(body.metadata.notes, "E2E test notes", "metadata preserved");
   })();
 
+  // 19.5. Snapshot accepts null runtime_version (e.g. when version_command is not configured
+  // or fails to parse) so the agent can still be reported as running/stopped. We keep
+  // reporting `nmem` alongside to preserve the data-source state the downstream tests
+  // expect (nmem=active, wrangler=missing from step 8).
+  await test("POST /api/v1/snapshot accepts null runtime_version", async () => {
+    assertExists(testAgentId, "testAgentId");
+    const res = await request("/api/v1/snapshot", {
+      method: "POST",
+      auth: "host",
+      body: JSON.stringify({
+        agents: [
+          {
+            match_key: "openclaw:/home/agent/workspace",
+            runtime_app: "openclaw",
+            runtime_version: null,
+            status: "running",
+          },
+        ],
+        data_sources: [
+          {
+            type: "personal_cli",
+            name: "nmem",
+            version: "1.2.1",
+            auth_status: "authenticated",
+          },
+        ],
+      }),
+    });
+    assertEqual(res.status, 200, "status");
+    const body = (await res.json()) as { agents_updated: number };
+    assertEqual(body.agents_updated, 1, "body.agents_updated");
+
+    // Verify the agent record reflects null version + running status
+    const detail = await request(`/api/v1/agents/${testAgentId!}`, { auth: "dashboard" });
+    assertEqual(detail.status, 200, "detail.status");
+    const agent = (await detail.json()) as {
+      runtime_version: string | null;
+      status: string;
+    };
+    assertEqual(agent.runtime_version, null, "agent.runtime_version");
+    assertEqual(agent.status, "running", "agent.status");
+  })();
+
   // 20. Host role cannot list agents (403)
   await test("Host role cannot list agents (403)", async () => {
     const res = await request("/api/v1/agents", { auth: "host" });

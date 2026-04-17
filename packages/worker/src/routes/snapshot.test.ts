@@ -722,6 +722,39 @@ describe("Snapshot Routes", () => {
       expect(body.error.message).toContain("runtime_version");
     });
 
+    it("should accept agent with null runtime_version", async () => {
+      const mockDb = createMockDb({
+        existingAgents: [
+          { id: "agent_1", host_id: "host_123", match_key: "hermes:main", status: "stopped" },
+        ],
+      });
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockHostAuth("host_123"));
+      app.route("/", snapshot);
+
+      const res = await app.request(
+        "/",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            agents: [{
+              match_key: "hermes:main",
+              runtime_app: "hermes",
+              runtime_version: null,
+              status: "running",
+            }],
+            data_sources: [],
+          }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as SnapshotResponse;
+      expect(body.agents_updated).toBe(1);
+    });
+
     it("should reject non-array data_sources field", async () => {
       const mockDb = createMockDb();
       const app = new Hono<{ Bindings: Env }>();

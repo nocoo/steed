@@ -46,12 +46,16 @@ export interface AgentListItem {
 }
 
 /**
- * Agent snapshot data from Host Service scan
+ * Agent snapshot data from Host Service scan.
+ * `runtime_version` is nullable: a registered agent may not have a
+ * version_command configured, or the command may fail / produce
+ * unparseable output. The Host Service still reports the agent so its
+ * status remains visible — it simply carries no version.
  */
 export interface AgentSnapshot {
   match_key: string;
   runtime_app: string;
-  runtime_version: string;
+  runtime_version: string | null;
   status: "running" | "stopped";
 }
 

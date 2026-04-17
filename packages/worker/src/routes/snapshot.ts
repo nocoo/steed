@@ -32,8 +32,8 @@ function validateAgentSnapshot(agent: unknown, index: number): string | null {
   if (typeof a.runtime_app !== "string") {
     return `agents[${index}].runtime_app: required string`;
   }
-  if (typeof a.runtime_version !== "string") {
-    return `agents[${index}].runtime_version: required string`;
+  if (a.runtime_version !== null && typeof a.runtime_version !== "string") {
+    return `agents[${index}].runtime_version: must be string or null`;
   }
   if (!VALID_AGENT_STATUS.includes(a.status as typeof VALID_AGENT_STATUS[number])) {
     return `agents[${index}].status: must be 'running' or 'stopped'`;
