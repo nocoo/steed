@@ -1,16 +1,11 @@
-name = "steed-worker"
+name = "steed"
 main = "src/index.ts"
 compatibility_date = "2024-12-01"
 
 # Production D1 binding
+# L2 E2E tests use `wrangler dev --local --persist-to .wrangler/state/e2e`
+# with their own in-process D1, so no separate remote test database is needed.
 [[d1_databases]]
 binding = "DB"
-database_name = "steed-db"
-database_id = "placeholder-will-be-replaced"
-
-# Test environment
-[env.test]
-[[env.test.d1_databases]]
-binding = "DB"
-database_name = "steed-db-test"
-database_id = "placeholder-test-will-be-replaced"
+database_name = "steed"
+database_id = "8c69f63f-38a5-4ad4-9832-ee04e0b2237d"
