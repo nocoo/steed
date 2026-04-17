@@ -31,6 +31,7 @@ describe("CLI", () => {
     expect(() => program.parse(["node", "steed", "--help"])).toThrow();
     expect(output).toContain("Steed CLI");
     expect(output).toContain("init");
+    expect(output).toContain("login");
     expect(output).toContain("scan");
     expect(output).toContain("report");
     expect(output).toContain("register");

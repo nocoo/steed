@@ -31,9 +31,19 @@ export function createInitCommand(configManager?: ConfigManager): Command {
   const cmd = new Command("init")
     .description("Initialize host configuration")
     .requiredOption("--url <url>", "Worker API URL")
-    .requiredOption("--key <key>", "Host API key")
-    .action(async (options: { url: string; key: string }) => {
+    .option("--key <key>", "Host API key (if not provided, use 'steed login' instead)")
+    .action(async (options: { url: string; key?: string }) => {
       const manager = configManager ?? new ConfigManager();
+
+      // If no key provided, suggest using login command
+      if (!options.key) {
+        info("No API key provided.");
+        info("For browser-based login, run: steed login --url <dashboard-url>");
+        info("Or provide key manually: steed init --url <url> --key <key>");
+        process.exitCode = 1;
+        return;
+      }
+
       process.exitCode = await runInit(manager, options.url, options.key);
     });
 
