@@ -6,6 +6,7 @@ import type {
   DataSourceListItem,
   Lane,
   Overview,
+  RegisterHostResponse,
 } from "@steed/shared";
 
 function getRequiredEnv(name: string): string {
@@ -51,6 +52,12 @@ export const workerApi = {
     // GET /hosts returns HostWithStatus[] directly (no pagination wrapper)
     list: () => workerFetch<HostWithStatus[]>("/api/v1/hosts"),
     get: (id: string) => workerFetch<HostWithStatus>(`/api/v1/hosts/${id}`),
+    // POST /hosts/register creates a new host and returns api_key
+    register: (name: string) =>
+      workerFetch<RegisterHostResponse>("/api/v1/hosts/register", {
+        method: "POST",
+        body: JSON.stringify({ name }),
+      }),
   },
   agents: {
     // GET /agents returns { data, next_cursor } pagination wrapper
