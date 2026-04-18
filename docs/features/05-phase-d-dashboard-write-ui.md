@@ -424,8 +424,8 @@ bun run test:e2e       # scripts/run-e2e.ts 真 HTTP，含 dashboard 写路径
 
 | Commit | Status |
 |--------|--------|
-| D-0: 文档先行 | 🔨 In Progress |
-| D-1: UI 原语 + 依赖 | 📝 Planned |
+| D-0: 文档先行 | ✅ Done |
+| D-1: UI 原语 + 依赖 | ✅ Done |
 | D-2: worker-api + zod schema | 📝 Planned |
 | D-3: BFF Agent 详情 + PATCH | 📝 Planned |
 | D-4: Agent 详情页 + ViewModel | 📝 Planned |
