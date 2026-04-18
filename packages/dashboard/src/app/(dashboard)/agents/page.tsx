@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {
   Card,
   CardContent,
@@ -100,7 +101,10 @@ function AgentRow({ agent }: AgentRowProps) {
     : "Never";
 
   return (
-    <div className="flex items-center justify-between rounded-lg border p-4">
+    <Link
+      href={`/agents/${agent.id}`}
+      className="flex items-center justify-between rounded-lg border p-4 transition-colors hover:bg-accent"
+    >
       <div className="flex items-center gap-4">
         <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
           <Bot className="h-5 w-5 text-muted-foreground" />
@@ -121,7 +125,7 @@ function AgentRow({ agent }: AgentRowProps) {
         )}
         <StatusBadge status={agent.status} />
       </div>
-    </div>
+    </Link>
   );
 }
 
