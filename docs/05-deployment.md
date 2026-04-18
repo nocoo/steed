@@ -100,6 +100,103 @@ in-process D1, so it never touches the prod database:
 bun run test:e2e
 ```
 
+## Railway Deployment (Dashboard)
+
+Dashboard deploys to Railway using a multi-stage Dockerfile. Key lessons learned:
+
+### 1. Must use Dockerfile builder, not Nixpacks/Railpack
+
+Railway's auto-detect (Railpack) doesn't handle bun workspaces correctly — it runs `npm install` which fails on `workspace:*` protocol. Force Dockerfile:
+
+```bash
+railway environment edit --json <<'JSON'
+{"services":{"<service-id>":{"source":{"rootDirectory":""},"build":{"builder":"DOCKERFILE","dockerfilePath":"Dockerfile"}}}}
+JSON
+```
+
+**Critical**: `rootDirectory` must be empty string `""` (not `null`), otherwise Railway looks for Dockerfile in the wrong place.
+
+### 2. Next.js standalone mode requires node, not next start
+
+```dockerfile
+# Wrong — fails with "next start does not work with output: standalone"
+CMD ["bun", "run", "start"]
+
+# Correct — use node directly
+CMD ["node", "packages/dashboard/server.js"]
+```
+
+### 3. Build-time env vars needed for Next.js
+
+Next.js reads env vars at build time for static page generation. Pass them via Docker ARG:
+
+```dockerfile
+ARG WORKER_API_URL
+ARG DASHBOARD_SERVICE_TOKEN
+ENV WORKER_API_URL=$WORKER_API_URL
+ENV DASHBOARD_SERVICE_TOKEN=$DASHBOARD_SERVICE_TOKEN
+# ... then RUN next build
+```
+
+Railway automatically passes service env vars as Docker build args.
+
+### 4. All workspace packages must be in Dockerfile
+
+Even if you only build one package, bun.lock references all workspace packages. Include all `package.json` files:
+
+```dockerfile
+COPY packages/shared/package.json packages/shared/
+COPY packages/dashboard/package.json packages/dashboard/
+COPY packages/cli/package.json packages/cli/
+COPY packages/worker/package.json packages/worker/
+RUN bun install --frozen-lockfile --ignore-scripts
+```
+
+### 5. Don't copy non-existent directories
+
+If `public/` doesn't exist, Docker build fails. Only copy what exists:
+
+```dockerfile
+COPY --from=builder /app/packages/dashboard/.next/standalone ./
+COPY --from=builder /app/packages/dashboard/.next/static ./packages/dashboard/.next/static
+# Skip public/ if it doesn't exist
+```
+
+### Current Dockerfile (reference: pew project)
+
+```dockerfile
+FROM oven/bun:1 AS base
+
+FROM base AS deps
+WORKDIR /app
+COPY package.json bun.lock ./
+COPY packages/shared/package.json packages/shared/
+COPY packages/dashboard/package.json packages/dashboard/
+COPY packages/cli/package.json packages/cli/
+COPY packages/worker/package.json packages/worker/
+RUN bun install --frozen-lockfile --ignore-scripts
+
+FROM base AS builder
+WORKDIR /app
+ARG WORKER_API_URL
+ARG DASHBOARD_SERVICE_TOKEN
+# ... other build-time vars
+ENV WORKER_API_URL=$WORKER_API_URL
+ENV DASHBOARD_SERVICE_TOKEN=$DASHBOARD_SERVICE_TOKEN
+COPY --from=deps /app ./
+COPY . .
+RUN bun run --filter @steed/shared build 2>/dev/null || true
+RUN bun run --filter @steed/dashboard build
+
+FROM node:22-slim AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=builder /app/packages/dashboard/.next/standalone ./
+COPY --from=builder /app/packages/dashboard/.next/static ./packages/dashboard/.next/static
+EXPOSE 3000
+CMD ["node", "packages/dashboard/server.js"]
+```
+
 ## Notes
 
 - `wrangler.toml` contains only the prod D1 binding. Do not add a remote
