@@ -1,10 +1,10 @@
 "use client";
 
-import { use, useEffect } from "react";
+import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, AlertCircle } from "lucide-react";
+import { ArrowLeft, AlertCircle, Plus, Trash2 } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -18,9 +18,18 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { LaneChips } from "@/components/ui/lane-chips";
 import { toast } from "@/components/ui/sonner";
 import { useAgentDetailViewModel } from "@/viewmodels/use-agent-detail-viewmodel";
+import { useAgentBindingsViewModel } from "@/viewmodels/use-agent-bindings-viewmodel";
 import { agentUpdateSchema, emptyToNull } from "@/lib/schemas";
 import type { LaneId, AgentStatus } from "@steed/shared";
 
@@ -37,6 +46,9 @@ interface PageProps {
 export default function AgentDetailPage({ params }: PageProps) {
   const { id } = use(params);
   const { agent, loading, error, save } = useAgentDetailViewModel(id);
+  const bindings = useAgentBindingsViewModel(id, agent?.host_id);
+  const [addOpen, setAddOpen] = useState(false);
+  const [selectedDsId, setSelectedDsId] = useState<string | null>(null);
 
   const {
     register,
@@ -182,6 +194,144 @@ export default function AgentDetailPage({ params }: PageProps) {
           </form>
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Data Sources</CardTitle>
+              <CardDescription>
+                Bindings to data sources on this host.
+              </CardDescription>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              onClick={async () => {
+                await bindings.ensureHostDataSources();
+                setSelectedDsId(null);
+                setAddOpen(true);
+              }}
+              disabled={bindings.loadingBindings}
+            >
+              <Plus className="mr-1 h-4 w-4" />
+              Add
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {bindings.loadingBindings ? (
+            <Skeleton className="h-16 w-full" />
+          ) : bindings.bindings.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">
+              No data sources bound yet.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {bindings.bindings.map((b) => {
+                const ds = bindings.hostDataSources.find(
+                  (d) => d.id === b.data_source_id
+                );
+                return (
+                  <li
+                    key={b.data_source_id}
+                    className="flex items-center justify-between rounded-md border p-3 text-sm"
+                  >
+                    <span>
+                      <span className="font-medium">
+                        {ds?.name ?? b.data_source_id}
+                      </span>
+                      {ds && (
+                        <span className="ml-2 text-muted-foreground">
+                          ({ds.type})
+                        </span>
+                      )}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={async () => {
+                        const r = await bindings.removeBinding(
+                          b.data_source_id
+                        );
+                        if (r.ok) toast.success("Binding removed");
+                        else toast.error(r.error ?? "Remove failed");
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      <span className="sr-only">Remove</span>
+                    </Button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add data source</DialogTitle>
+            <DialogDescription>
+              Pick an unbound data source on this host.
+            </DialogDescription>
+          </DialogHeader>
+          {bindings.loadingCandidates ? (
+            <Skeleton className="h-24 w-full" />
+          ) : bindings.candidateDataSources.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">
+              No more data sources available.
+            </p>
+          ) : (
+            <ul className="space-y-1 max-h-64 overflow-auto">
+              {bindings.candidateDataSources.map((ds) => (
+                <li key={ds.id}>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDsId(ds.id)}
+                    className={
+                      "w-full rounded-md border px-3 py-2 text-left text-sm transition-colors " +
+                      (selectedDsId === ds.id
+                        ? "border-primary bg-accent"
+                        : "border-input hover:bg-accent")
+                    }
+                  >
+                    <p className="font-medium">{ds.name}</p>
+                    <p className="text-xs text-muted-foreground">{ds.type}</p>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setAddOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={!selectedDsId}
+              onClick={async () => {
+                if (!selectedDsId) return;
+                const r = await bindings.addBinding(selectedDsId);
+                if (r.ok) {
+                  toast.success("Binding added");
+                  setAddOpen(false);
+                } else {
+                  toast.error(r.error ?? "Add failed");
+                }
+              }}
+            >
+              Confirm
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
