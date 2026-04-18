@@ -53,8 +53,11 @@ function calculateStatus(lastSeenAt: string | null): "online" | "offline" {
 const hosts = new Hono<{ Bindings: Env }>();
 
 /**
- * POST /hosts/register - Register a new host
+ * POST /hosts/register - Register a new host or regenerate key for existing
  * Requires: dashboard role
+ *
+ * If a host with the same name exists, regenerates its API key.
+ * This allows `steed login` to be idempotent on the same machine.
  */
 hosts.post("/register", requireRole("dashboard"), async (c) => {
   const body = await c.req.json<RegisterHostRequest>().catch(() => null);
@@ -63,12 +66,38 @@ hosts.post("/register", requireRole("dashboard"), async (c) => {
     return errors.invalidRequest(c, "Missing required field: name");
   }
 
-  const id = generateId("host");
   const apiKey = generateApiKey();
   const apiKeyHash = await hashApiKey(apiKey);
   const now = new Date().toISOString();
 
+  // Check if host with this name already exists
+  const existing = await c.env.DB.prepare(
+    `SELECT id FROM hosts WHERE name = ?`
+  )
+    .bind(body.name)
+    .first<{ id: string }>();
+
   try {
+    if (existing) {
+      // Update existing host's API key
+      await c.env.DB.prepare(
+        `UPDATE hosts SET api_key_hash = ? WHERE id = ?`
+      )
+        .bind(apiKeyHash, existing.id)
+        .run();
+
+      const response: RegisterHostResponse = {
+        id: existing.id,
+        name: body.name,
+        api_key: apiKey,
+      };
+
+      return jsonResponse(c, response, 200);
+    }
+
+    // Create new host
+    const id = generateId("host");
+
     await c.env.DB.prepare(
       `INSERT INTO hosts (id, name, api_key_hash, created_at) VALUES (?, ?, ?, ?)`
     )
@@ -83,7 +112,7 @@ hosts.post("/register", requireRole("dashboard"), async (c) => {
 
     return jsonResponse(c, response, 201);
   } catch {
-    // Any DB error (including unlikely api_key_hash collision) is internal error
+    // Any DB error is internal error
     return errors.internalError(c);
   }
 });

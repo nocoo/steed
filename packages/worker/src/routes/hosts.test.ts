@@ -32,7 +32,7 @@ function createMockDb() {
               last_seen_at: string | null;
             }>;
 
-            // Check for unique constraint
+            // Check for unique constraint on api_key_hash
             if (hostsData.some((h) => h.api_key_hash === apiKeyHash)) {
               throw new Error("UNIQUE constraint failed");
             }
@@ -46,9 +46,38 @@ function createMockDb() {
             });
             return { success: true };
           }
+          if (sql.includes("UPDATE hosts SET api_key_hash")) {
+            const [apiKeyHash, id] = args as string[];
+            const hostsData = data.get("hosts") as Array<{
+              id: string;
+              name: string;
+              api_key_hash: string;
+              created_at: string;
+              last_seen_at: string | null;
+            }>;
+            const host = hostsData.find((h) => h.id === id);
+            if (host) {
+              host.api_key_hash = apiKeyHash;
+            }
+            return { success: true };
+          }
           return { success: true };
         }),
-        first: vi.fn(async () => null),
+        first: vi.fn(async () => {
+          if (sql.includes("SELECT id FROM hosts WHERE name = ?")) {
+            const [name] = args;
+            const hostsData = data.get("hosts") as Array<{
+              id: string;
+              name: string;
+              api_key_hash: string;
+              created_at: string;
+              last_seen_at: string | null;
+            }>;
+            const host = hostsData.find((h) => h.name === name);
+            return host ? { id: host.id } : null;
+          }
+          return null;
+        }),
       })),
       all: vi.fn(async () => {
         if (sql.includes("SELECT") && sql.includes("hosts")) {
@@ -163,10 +192,14 @@ describe("Hosts Routes", () => {
 
     it("should return 500 when unique constraint violated (api_key_hash collision)", async () => {
       const mockDb = {
-        prepare: vi.fn(() => ({
+        prepare: vi.fn((sql: string) => ({
           bind: vi.fn(() => ({
+            first: vi.fn(async () => null), // No existing host
             run: vi.fn(async () => {
-              throw new Error("UNIQUE constraint failed");
+              if (sql.includes("INSERT INTO hosts")) {
+                throw new Error("UNIQUE constraint failed");
+              }
+              return { success: true };
             }),
           })),
         })),
@@ -192,12 +225,59 @@ describe("Hosts Routes", () => {
       expect(body).toHaveProperty("error.code", "internal_error");
     });
 
+    it("should regenerate key for existing host and return 200", async () => {
+      const mockDb = createMockDb();
+      // Pre-populate with existing host
+      const hostsData = mockDb._data.get("hosts") as Array<{
+        id: string;
+        name: string;
+        api_key_hash: string;
+        created_at: string;
+        last_seen_at: string | null;
+      }>;
+      hostsData.push({
+        id: "host_existing123",
+        name: "my-machine",
+        api_key_hash: "old_hash_value",
+        created_at: "2026-04-14T00:00:00Z",
+        last_seen_at: null,
+      });
+
+      const app = new Hono<{ Bindings: Env }>();
+      app.use("*", mockDashboardAuth);
+      app.route("/", hosts);
+
+      const res = await app.request(
+        "/register",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: "my-machine" }),
+        },
+        { DB: mockDb, DASHBOARD_SERVICE_TOKEN: "token" }
+      );
+
+      expect(res.status).toBe(200); // 200 for update, not 201
+      const body = (await res.json()) as RegisterHostResponse;
+      expect(body.id).toBe("host_existing123"); // Same ID
+      expect(body.name).toBe("my-machine");
+      expect(body.api_key).toMatch(/^sk_host_/); // New API key generated
+
+      // Verify hash was updated in mock DB
+      const updatedHost = hostsData.find((h) => h.id === "host_existing123");
+      expect(updatedHost?.api_key_hash).not.toBe("old_hash_value");
+    });
+
     it("should return 500 on other errors", async () => {
       const mockDb = {
-        prepare: vi.fn(() => ({
+        prepare: vi.fn((sql: string) => ({
           bind: vi.fn(() => ({
+            first: vi.fn(async () => null), // No existing host
             run: vi.fn(async () => {
-              throw new Error("Database connection failed");
+              if (sql.includes("INSERT INTO hosts")) {
+                throw new Error("Database connection failed");
+              }
+              return { success: true };
             }),
           })),
         })),
