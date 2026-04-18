@@ -102,15 +102,21 @@ async function startWrangler(): Promise<void> {
       `DASHBOARD_SERVICE_TOKEN:${DASHBOARD_TOKEN}`,
     ],
     cwd: workerDir,
-    stdout: "pipe",
-    stderr: "pipe",
+    // Inherit stdio so wrangler is never blocked on a full pipe buffer
+    // (the CI logs need this output anyway for diagnostics).
+    stdout: "inherit",
+    stderr: "inherit",
     env: {
       ...process.env,
+      // Disable wrangler's interactive prompts and update checks in CI
+      CI: "1",
+      WRANGLER_SEND_METRICS: "false",
     },
   });
 
-  // Wait for server to be ready
-  const maxWait = 60000; // 60 seconds
+  // Wait for server to be ready. Cold starts in CI (downloading workerd
+  // binary, compiling) can take noticeably longer than locally.
+  const maxWait = 120000; // 120 seconds
   const startTime = Date.now();
 
   while (Date.now() - startTime < maxWait) {
