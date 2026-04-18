@@ -10,10 +10,10 @@
  * Security:
  * - Only accepts callback URLs pointing to localhost/127.0.0.1
  * - Validates state parameter for CSRF protection
+ * - Hostname is provided by CLI (the machine initiating login)
  */
 
 import { redirect } from "next/navigation";
-import { hostname } from "node:os";
 import { auth } from "@/auth";
 import { workerApi, getWorkerApiUrl } from "@/lib/worker-api";
 
@@ -64,10 +64,18 @@ export async function GET(request: Request): Promise<Response> {
   const url = new URL(request.url);
   const callbackUrl = url.searchParams.get("callback");
   const state = url.searchParams.get("state");
+  const hostName = url.searchParams.get("hostname");
 
   // Validate required parameters
   if (!callbackUrl || !state) {
     return new Response("Missing required parameters: callback and state", {
+      status: 400,
+    });
+  }
+
+  // Hostname must be provided by CLI (the machine initiating login)
+  if (!hostName) {
+    return new Response("Missing required parameter: hostname", {
       status: 400,
     });
   }
@@ -90,10 +98,8 @@ export async function GET(request: Request): Promise<Response> {
     return redirect(loginUrl.toString());
   }
 
-  // Register host with Worker API
+  // Register host with Worker API using CLI-provided hostname
   try {
-    // Use machine hostname as the host name
-    const hostName = hostname();
     const result = await workerApi.hosts.register(hostName);
 
     // Get the actual Worker URL from environment

@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { hostname } from "node:os";
 import { performLogin, openBrowser } from "@nocoo/cli-base";
 import { ConfigManager } from "../config/index.js";
 import { DEFAULT_CLI_SCANNERS } from "../config/defaults.js";
@@ -62,6 +63,10 @@ export async function runLogin(
   info("Opening browser for authentication...");
   info(`Dashboard: ${dashboardUrl}`);
 
+  // Get local machine hostname to send to Dashboard
+  const localHostname = hostname();
+  info(`Host name: ${localHostname}`);
+
   let apiKey: string | undefined;
 
   const result = await performLogin({
@@ -74,6 +79,7 @@ export async function runLogin(
     tokenParam: "api_key",
     timeoutMs: LOGIN_TIMEOUT_MS,
     accentColor: "#16a34a", // Steed green
+    extraParams: { hostname: localHostname },
   });
 
   if (!result.success || !apiKey) {

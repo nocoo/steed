@@ -1,16 +1,4 @@
 import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
-import { hostname } from "node:os";
-
-// Mock node:os hostname
-vi.mock("node:os", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("node:os")>();
-  return {
-    ...actual,
-    hostname: vi.fn(() => "test-machine"),
-  };
-});
-
-const mockHostname = hostname as Mock;
 
 // Mock auth module
 vi.mock("@/auth", () => ({
@@ -70,11 +58,10 @@ function getRedirectUrl(error: unknown): string | null {
 describe("GET /api/auth/cli", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockHostname.mockReturnValue("test-machine");
   });
 
   it("should return 400 when callback is missing", async () => {
-    const request = createRequest({ state: "test-nonce" });
+    const request = createRequest({ state: "test-nonce", hostname: "test-machine" });
 
     const response = await GET(request);
 
@@ -84,7 +71,7 @@ describe("GET /api/auth/cli", () => {
   });
 
   it("should return 400 when state is missing", async () => {
-    const request = createRequest({ callback: "http://localhost:3456/callback" });
+    const request = createRequest({ callback: "http://localhost:3456/callback", hostname: "test-machine" });
 
     const response = await GET(request);
 
@@ -92,10 +79,23 @@ describe("GET /api/auth/cli", () => {
     expect(await response.text()).toContain("Missing required parameters");
   });
 
+  it("should return 400 when hostname is missing", async () => {
+    const request = createRequest({
+      callback: "http://localhost:3456/callback",
+      state: "test-nonce",
+    });
+
+    const response = await GET(request);
+
+    expect(response.status).toBe(400);
+    expect(await response.text()).toContain("Missing required parameter: hostname");
+  });
+
   it("should return 400 when callback is not localhost", async () => {
     const request = createRequest({
       callback: "http://evil.com/callback",
       state: "test-nonce",
+      hostname: "test-machine",
     });
 
     const response = await GET(request);
@@ -115,6 +115,7 @@ describe("GET /api/auth/cli", () => {
     const request = createRequest({
       callback: "http://127.0.0.1:3456/callback",
       state: "test-nonce",
+      hostname: "test-machine",
     });
 
     try {
@@ -133,6 +134,7 @@ describe("GET /api/auth/cli", () => {
     const request = createRequest({
       callback: "http://localhost:3456/callback",
       state: "test-nonce",
+      hostname: "test-machine",
     });
 
     try {
@@ -150,6 +152,7 @@ describe("GET /api/auth/cli", () => {
     const request = createRequest({
       callback: "http://localhost:3456/callback",
       state: "test-nonce",
+      hostname: "test-machine",
     });
 
     try {
@@ -172,6 +175,7 @@ describe("GET /api/auth/cli", () => {
     const request = createRequest({
       callback: "http://localhost:3456/callback",
       state: "test-nonce",
+      hostname: "test-machine",
     });
 
     try {
@@ -186,6 +190,8 @@ describe("GET /api/auth/cli", () => {
     }
 
     expect(mockHostsRegister).toHaveBeenCalledTimes(1);
+    // Verify hostname is passed from query param, not server's os.hostname()
+    expect(mockHostsRegister).toHaveBeenCalledWith("test-machine");
   });
 
   it("should redirect to callback with error on worker API failure", async () => {
@@ -195,6 +201,7 @@ describe("GET /api/auth/cli", () => {
     const request = createRequest({
       callback: "http://localhost:3456/callback",
       state: "test-nonce",
+      hostname: "test-machine",
     });
 
     try {
@@ -214,6 +221,7 @@ describe("GET /api/auth/cli", () => {
     const request = createRequest({
       callback: "http://localhost:3456/callback",
       state: "test-nonce",
+      hostname: "test-machine",
     });
 
     try {

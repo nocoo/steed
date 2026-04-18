@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { join } from "node:path";
 import { mkdtemp, rm, readFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { tmpdir, hostname } from "node:os";
 import { runLogin } from "./login.js";
 import { ConfigManager } from "../config/index.js";
 import type { HostConfig } from "../config/schema.js";
@@ -300,7 +300,7 @@ describe("login command", () => {
     expect(exitCode).toBe(1);
   });
 
-  it("passes correct options to performLogin", async () => {
+  it("passes correct options to performLogin including hostname", async () => {
     mockPerformLogin.mockResolvedValue({
       success: false,
       error: "Timeout",
@@ -315,6 +315,7 @@ describe("login command", () => {
         tokenParam: "api_key",
         timeoutMs: 120_000,
         accentColor: "#16a34a",
+        extraParams: { hostname: hostname() },
       })
     );
   });
