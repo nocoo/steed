@@ -23,6 +23,12 @@
 | 03 | [Phase C1: Host Service](./03-phase-c1-host-service.md) | 常驻进程，心跳快照上报 | ✅ 已验证 |
 | 04 | [Phase C2: CLI](./04-phase-c2-cli.md) | 命令行工具，手动操作 | ✅ 已验证 |
 
+## Phase D: Dashboard 写操作 UI
+
+| 编号 | 文档 | 说明 | 状态 |
+|------|------|------|------|
+| 05 | [Phase D: Dashboard 写操作 UI](./05-phase-d-dashboard-write-ui.md) | Agent / Data Source 详情编辑 + Lane 分配 + Bindings 管理 | 📝 设计完成 |
+
 ## 未归档功能
 
 以下功能已实现但尚未写入正式文档：

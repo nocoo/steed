@@ -6,6 +6,7 @@
 |------|------|------|
 | 01 | [项目概述](./01-overview.md) | 要解决的问题、核心概念、模块定义 |
 | 05 | [部署与本地 E2E 链路](./05-deployment.md) | Worker/D1 部署、Host 注册、Dashboard 本地运行 |
+| 05 | [Pilot Validation](./05-pilot-validation.md) | 真实环境验证清单、Host Service 24h 试运行记录 |
 
 ## 架构
 
@@ -21,3 +22,9 @@
 | 编号 | 文档 | 说明 |
 |------|------|------|
 | 01 | [Phase B1: Agent Management](./features/01-phase-b1-agent-management.md) | Agent CRUD 端点 |
+| 02 | [Phase B2: Data Source Management](./features/02-phase-b2-data-source-management.md) | Data Source + Bindings + Lanes 端点 |
+| 03 | [Phase C1: Host Service](./features/03-phase-c1-host-service.md) | 常驻进程，心跳快照上报 |
+| 04 | [Phase C2: CLI](./features/04-phase-c2-cli.md) | 命令行工具，手动操作 |
+| 05 | [Phase D: Dashboard 写操作 UI](./features/05-phase-d-dashboard-write-ui.md) | Agent / Data Source 详情编辑 + Lane 分配 + Bindings 管理 |
+
+> Features 子目录详细状态见 [features/README.md](./features/README.md)。
