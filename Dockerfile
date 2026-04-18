@@ -1,32 +1,33 @@
 FROM oven/bun:1 AS base
 
-# Install dependencies
+# --- Install dependencies ---
 FROM base AS deps
 WORKDIR /app
 COPY package.json bun.lock ./
-COPY packages/shared/package.json ./packages/shared/
-COPY packages/dashboard/package.json ./packages/dashboard/
-RUN bun install --frozen-lockfile
+COPY packages/shared/package.json packages/shared/
+COPY packages/dashboard/package.json packages/dashboard/
+RUN bun install --frozen-lockfile --ignore-scripts
 
-# Build the app
+# --- Build ---
 FROM base AS builder
 WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app ./
 COPY . .
-RUN bun run --cwd packages/dashboard build
+RUN bun run --filter @steed/shared build 2>/dev/null || true
+RUN bun run --filter @steed/dashboard build
 
-# Production image
-FROM node:22-alpine AS runner
+# --- Production image ---
+FROM node:22-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production
-ENV HOSTNAME=0.0.0.0
+ENV NEXT_TELEMETRY_DISABLED=1
 
-# Copy standalone build
 COPY --from=builder /app/packages/dashboard/.next/standalone ./
 COPY --from=builder /app/packages/dashboard/.next/static ./packages/dashboard/.next/static
 COPY --from=builder /app/packages/dashboard/public ./packages/dashboard/public
 
 EXPOSE 3000
 ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
 
 CMD ["node", "packages/dashboard/server.js"]
