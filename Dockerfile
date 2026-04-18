@@ -40,7 +40,6 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 COPY --from=builder /app/packages/dashboard/.next/standalone ./
 COPY --from=builder /app/packages/dashboard/.next/static ./packages/dashboard/.next/static
-COPY --from=builder /app/packages/dashboard/public ./packages/dashboard/public
 
 EXPOSE 3000
 ENV PORT=3000
