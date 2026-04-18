@@ -37,6 +37,21 @@ export function getWorkerApiUrl(): string {
   return WORKER_API_URL;
 }
 
+/**
+ * Error thrown by workerFetch helpers when the Worker returns a
+ * non-2xx response. Carries the original status so BFF route
+ * handlers can pass meaningful codes (404, 409, ...) back to the
+ * browser instead of collapsing everything to 500.
+ */
+export class WorkerApiError extends Error {
+  readonly status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "WorkerApiError";
+    this.status = status;
+  }
+}
+
 async function workerFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${WORKER_API_URL}${path}`, {
     ...init,
@@ -51,9 +66,10 @@ async function workerFetch<T>(path: string, init?: RequestInit): Promise<T> {
     const error = await res
       .json()
       .catch(() => ({ error: { message: res.statusText } }));
-    throw new Error(
+    throw new WorkerApiError(
       (error as { error?: { message?: string } }).error?.message ??
-        `Worker API error: ${res.status}`
+        `Worker API error: ${res.status}`,
+      res.status
     );
   }
 
@@ -77,9 +93,10 @@ async function workerFetchVoid(
     const error = await res
       .json()
       .catch(() => ({ error: { message: res.statusText } }));
-    throw new Error(
+    throw new WorkerApiError(
       (error as { error?: { message?: string } }).error?.message ??
-        `Worker API error: ${res.status}`
+        `Worker API error: ${res.status}`,
+      res.status
     );
   }
 }
