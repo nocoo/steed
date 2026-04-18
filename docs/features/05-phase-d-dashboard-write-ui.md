@@ -429,7 +429,7 @@ bun run test:e2e       # scripts/run-e2e.ts 真 HTTP，含 dashboard 写路径
 | D-2: worker-api + zod schema | ✅ Done |
 | D-3: BFF Agent 详情 + PATCH | ✅ Done |
 | D-4: Agent 详情页 + ViewModel | ✅ Done |
-| D-5: BFF Data Source 详情 + Lanes | 📝 Planned |
+| D-5: BFF Data Source 详情 + Lanes | ✅ Done |
 | D-6: Data Source 详情页 + ViewModel | 📝 Planned |
 | D-7: BFF Bindings | 📝 Planned |
 | D-8: Bindings 管理 UI | 📝 Planned |
