@@ -6,6 +6,8 @@ WORKDIR /app
 COPY package.json bun.lock ./
 COPY packages/shared/package.json packages/shared/
 COPY packages/dashboard/package.json packages/dashboard/
+COPY packages/cli/package.json packages/cli/
+COPY packages/worker/package.json packages/worker/
 RUN bun install --frozen-lockfile --ignore-scripts
 
 # --- Build ---
