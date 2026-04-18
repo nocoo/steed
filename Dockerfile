@@ -13,6 +13,20 @@ RUN bun install --frozen-lockfile --ignore-scripts
 # --- Build ---
 FROM base AS builder
 WORKDIR /app
+
+# Railway injects service env vars as Docker build args.
+# Next.js needs these at build time for page data collection.
+ARG WORKER_API_URL
+ARG DASHBOARD_SERVICE_TOKEN
+ARG NEXTAUTH_SECRET
+ARG AUTH_GOOGLE_ID
+ARG AUTH_GOOGLE_SECRET
+ENV WORKER_API_URL=$WORKER_API_URL
+ENV DASHBOARD_SERVICE_TOKEN=$DASHBOARD_SERVICE_TOKEN
+ENV NEXTAUTH_SECRET=$NEXTAUTH_SECRET
+ENV AUTH_GOOGLE_ID=$AUTH_GOOGLE_ID
+ENV AUTH_GOOGLE_SECRET=$AUTH_GOOGLE_SECRET
+
 COPY --from=deps /app ./
 COPY . .
 RUN bun run --filter @steed/shared build 2>/dev/null || true
