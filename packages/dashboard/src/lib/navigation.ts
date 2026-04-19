@@ -3,6 +3,7 @@ import {
   Server,
   Bot,
   Database,
+  Network,
   type LucideIcon,
 } from "lucide-react";
 
@@ -25,6 +26,11 @@ export const NAV_GROUPS: NavGroup[] = [
         title: "Overview",
         href: "/overview",
         icon: LayoutDashboard,
+      },
+      {
+        title: "Map",
+        href: "/map",
+        icon: Network,
       },
     ],
   },
