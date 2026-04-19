@@ -29,6 +29,12 @@
 |------|------|------|------|
 | 05 | [Phase D: Dashboard 写操作 UI](./05-phase-d-dashboard-write-ui.md) | Agent / Data Source 详情编辑 + Lane 分配 + Bindings 管理 | 📝 设计完成 |
 
+## Phase E: Lane 全景图谱
+
+| 编号 | 文档 | 说明 | 状态 |
+|------|------|------|------|
+| 06 | [Phase E: Lane 全景图谱](./06-phase-e-lane-map.md) | React Flow 三层拓扑图，按 Lane 分色，支持筛选 + 节点跳转 | 📝 设计完成 |
+
 ## 未归档功能
 
 以下功能已实现但尚未写入正式文档：
