@@ -52,45 +52,8 @@ export class WorkerApiError extends Error {
   }
 }
 
-/**
- * Detect transient network failures worth retrying once.
- * Common cause: Cloudflare cold-start or connection reuse hiccup
- * surfacing as `TypeError: fetch failed` with ECONNRESET / ENOTFOUND
- * / ETIMEDOUT in the cause chain.
- */
-function isTransientFetchError(err: unknown): boolean {
-  if (!(err instanceof TypeError)) return false;
-  const cause = (err as { cause?: { code?: string } }).cause;
-  const code = cause?.code;
-  return (
-    code === "ECONNRESET" ||
-    code === "ETIMEDOUT" ||
-    code === "ENOTFOUND" ||
-    code === "EAI_AGAIN" ||
-    code === "UND_ERR_SOCKET"
-  );
-}
-
-async function fetchWithRetry(
-  url: string,
-  init: RequestInit,
-  retries = 1
-): Promise<Response> {
-  let attempt = 0;
-  while (true) {
-    try {
-      return await fetch(url, init);
-    } catch (err) {
-      if (attempt >= retries || !isTransientFetchError(err)) throw err;
-      attempt += 1;
-      // Small backoff to let Cloudflare warm up / re-establish a socket.
-      await new Promise((r) => setTimeout(r, 200 * attempt));
-    }
-  }
-}
-
 async function workerFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetchWithRetry(`${WORKER_API_URL}${path}`, {
+  const res = await fetch(`${WORKER_API_URL}${path}`, {
     ...init,
     headers: {
       ...init?.headers,
@@ -117,7 +80,7 @@ async function workerFetchVoid(
   path: string,
   init?: RequestInit
 ): Promise<void> {
-  const res = await fetchWithRetry(`${WORKER_API_URL}${path}`, {
+  const res = await fetch(`${WORKER_API_URL}${path}`, {
     ...init,
     headers: {
       ...init?.headers,
