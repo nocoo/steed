@@ -141,12 +141,11 @@ describe("GET /api/map", () => {
     expect(body.error).toBe("upstream gone");
   });
 
-  it("returns 500 on unknown error", async () => {
+  it("returns 500 on unknown error from a list call", async () => {
     mockAuth.mockResolvedValue({ user: { email: "t@x" } });
     mockHosts.mockResolvedValue([host]);
     mockAgents.mockResolvedValue({ data: [], next_cursor: null });
-    mockDsList.mockResolvedValue({ data: [dsListItem], next_cursor: null });
-    mockDsGet.mockRejectedValue("string err");
+    mockDsList.mockRejectedValue("string err");
     mockBindings.mockResolvedValue({ data: [], next_cursor: null });
     mockLanes.mockResolvedValue({ data: [] });
 
@@ -154,5 +153,22 @@ describe("GET /api/map", () => {
     const body = await res.json();
     expect(res.status).toBe(500);
     expect(body.error).toBe("Unknown error");
+  });
+
+  it("tolerates per-DS detail failure by returning DS without lane_ids", async () => {
+    mockAuth.mockResolvedValue({ user: { email: "t@x" } });
+    mockHosts.mockResolvedValue([host]);
+    mockAgents.mockResolvedValue({ data: [agent], next_cursor: null });
+    mockDsList.mockResolvedValue({ data: [dsListItem], next_cursor: null });
+    mockDsGet.mockRejectedValue(new Error("ds detail down"));
+    mockBindings.mockResolvedValue({ data: [], next_cursor: null });
+    mockLanes.mockResolvedValue({ data: [] });
+
+    const res = await GET();
+    const body = await res.json();
+    expect(res.status).toBe(200);
+    expect(body.data_sources).toEqual([
+      { ...dsListItem, metadata: {}, lane_ids: [] },
+    ]);
   });
 });

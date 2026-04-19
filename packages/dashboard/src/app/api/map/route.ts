@@ -36,10 +36,24 @@ export async function GET() {
         workerApi.lanes.list(),
       ]);
 
-    // DataSource list omits lane_ids; fetch detail per id (v1: < 200 nodes).
-    const dataSources: DataSourceWithLanes[] = await Promise.all(
-      dsResp.data.map((ds) => workerApi.dataSources.get(ds.id))
-    );
+    // DataSource list omits lane_ids; fetch detail per id.
+    // Sequential (not Promise.all) to avoid TLS handshake storms against
+    // the Worker — observed ECONNRESET when issuing N parallel detail
+    // fetches alongside the 5 list calls above. v1 has < 200 nodes so the
+    // extra latency is acceptable.
+    const dataSources: DataSourceWithLanes[] = [];
+    for (const ds of dsResp.data) {
+      try {
+        dataSources.push(await workerApi.dataSources.get(ds.id));
+      } catch (err) {
+        console.error(`[/api/map] dataSources.get(${ds.id}) failed:`, err);
+        dataSources.push({
+          ...ds,
+          metadata: {},
+          lane_ids: [],
+        } satisfies DataSourceWithLanes);
+      }
+    }
 
     const payload: MapPayload = {
       hosts,
@@ -50,6 +64,7 @@ export async function GET() {
     };
     return NextResponse.json(payload);
   } catch (error) {
+    console.error("[/api/map] aggregate failed:", error);
     return bffErrorResponse(error);
   }
 }
