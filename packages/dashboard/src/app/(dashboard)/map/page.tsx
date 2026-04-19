@@ -6,6 +6,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Server, Bot, Database, Link2, AlertCircle } from "lucide-react";
 import { useMapViewModel } from "@/viewmodels/use-map-viewmodel";
+import { MapFilters } from "@/components/map/map-filters";
+import { MapLegend } from "@/components/map/map-legend";
+import { NodeDrawer } from "@/components/map/node-drawer";
 import type { MapNode } from "@/lib/map-data";
 
 // React Flow uses window/SVG measurements — disable SSR.
@@ -15,7 +18,8 @@ const LaneMap = dynamic(
 );
 
 export default function MapPage() {
-  const { data, loading, error, filteredGraph } = useMapViewModel();
+  const { data, loading, error, filters, setFilters, filteredGraph } =
+    useMapViewModel();
   const [selected, setSelected] = useState<MapNode | null>(null);
 
   if (error) {
@@ -64,20 +68,26 @@ export default function MapPage() {
         />
       </div>
 
-      {loading ? (
-        <Skeleton className="h-[640px] w-full" />
-      ) : (
-        <LaneMap graph={filteredGraph} onNodeClick={setSelected} />
-      )}
+      {/* Filters + legend */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <MapFilters
+          filters={filters}
+          hosts={data?.hosts ?? []}
+          onChange={setFilters}
+        />
+        <MapLegend />
+      </div>
 
-      {selected ? (
-        <Card>
-          <CardContent className="pt-6 text-sm">
-            <p className="font-medium">Selected: {selected.data.label}</p>
-            <p className="text-muted-foreground">{selected.kind}</p>
-          </CardContent>
-        </Card>
-      ) : null}
+      <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
+        {loading ? (
+          <Skeleton className="h-[640px] w-full" />
+        ) : (
+          <LaneMap graph={filteredGraph} onNodeClick={setSelected} />
+        )}
+        {selected ? (
+          <NodeDrawer node={selected} onClose={() => setSelected(null)} />
+        ) : null}
+      </div>
     </div>
   );
 }

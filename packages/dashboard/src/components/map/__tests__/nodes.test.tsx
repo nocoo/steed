@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, afterEach } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
 import { ReactFlowProvider } from "reactflow";
 import type {
   AgentListItem,
@@ -51,6 +51,8 @@ const ds: DataSourceWithLanes = {
 };
 
 describe("HostNode", () => {
+  afterEach(() => cleanup());
+
   it("renders host name and online status", () => {
     wrap(
       <HostNode
