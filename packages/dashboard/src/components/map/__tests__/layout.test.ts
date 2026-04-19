@@ -40,9 +40,9 @@ describe("layoutThreeColumn", () => {
     ];
     const out = layoutThreeColumn(nodes);
     const byId = Object.fromEntries(out.map((n) => [n.id, n]));
-    expect(byId.h1.position.x).toBe(COLUMN_X.host);
-    expect(byId.a1.position.x).toBe(COLUMN_X.agent);
-    expect(byId.d1.position.x).toBe(COLUMN_X.data_source);
+    expect(byId.h1?.position.x).toBe(COLUMN_X.host);
+    expect(byId.a1?.position.x).toBe(COLUMN_X.agent);
+    expect(byId.d1?.position.x).toBe(COLUMN_X.data_source);
   });
 
   it("groups same-column nodes by lane order (work before life)", () => {
@@ -85,7 +85,7 @@ describe("layoutThreeColumn", () => {
   it("preserves node data on positioned output", () => {
     const nodes: MapNode[] = [node("h1", "host", "unassigned")];
     const [out] = layoutThreeColumn(nodes);
-    expect(out.type).toBe("host");
-    expect(out.data.label).toBe("h1");
+    expect(out?.type).toBe("host");
+    expect(out?.data.label).toBe("h1");
   });
 });

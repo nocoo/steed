@@ -33,7 +33,7 @@
 
 | 编号 | 文档 | 说明 | 状态 |
 |------|------|------|------|
-| 06 | [Phase E: Lane 全景图谱](./06-phase-e-lane-map.md) | React Flow 三层拓扑图，按 Lane 分色，支持筛选 + 节点跳转 | 📝 设计完成 |
+| 06 | [Phase E: Lane 全景图谱](./06-phase-e-lane-map.md) | React Flow 三层拓扑图，按 Lane 分色，支持筛选 + 节点跳转 | 🔨 代码完成 |
 
 ## 未归档功能
 
