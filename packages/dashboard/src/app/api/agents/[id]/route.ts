@@ -49,7 +49,10 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   }
 
   try {
-    const agent = await workerApi.agents.update(id, parsed.data);
+    const patch = Object.fromEntries(
+      Object.entries(parsed.data).filter(([, v]) => v !== undefined)
+    );
+    const agent = await workerApi.agents.update(id, patch);
     return NextResponse.json(agent);
   } catch (error) {
     return bffErrorResponse(error);

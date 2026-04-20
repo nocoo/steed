@@ -49,7 +49,10 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   }
 
   try {
-    const dataSource = await workerApi.dataSources.update(id, parsed.data);
+    const patch = Object.fromEntries(
+      Object.entries(parsed.data).filter(([, v]) => v !== undefined)
+    );
+    const dataSource = await workerApi.dataSources.update(id, patch);
     return NextResponse.json(dataSource);
   } catch (error) {
     return bffErrorResponse(error);
