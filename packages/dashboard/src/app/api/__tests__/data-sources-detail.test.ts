@@ -50,7 +50,7 @@ const baseDS: DataSourceWithLanes = {
 
 function makeReq(method: "GET" | "PATCH", body?: unknown): NextRequest {
   const url = "http://localhost:3000/api/data-sources/ds_1";
-  const init: RequestInit = { method };
+  const init: { method: string; body?: string; headers?: Record<string, string> } = { method };
   if (body !== undefined) {
     init.body = typeof body === "string" ? body : JSON.stringify(body);
     init.headers = { "Content-Type": "application/json" };
