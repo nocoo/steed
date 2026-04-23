@@ -40,7 +40,9 @@ function parseAuthHeader(header: string | undefined): AuthHeaderResult {
   if (!header) return { status: "absent" };
   const match = /^Bearer\s+(.+)$/i.exec(header);
   if (!match) return { status: "malformed" };
-  return { status: "valid", token: match[1] };
+  const token = match[1];
+  if (!token) return { status: "malformed" };
+  return { status: "valid", token };
 }
 
 /**

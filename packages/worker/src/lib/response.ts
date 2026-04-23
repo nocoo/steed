@@ -1,4 +1,5 @@
 import type { Context } from "hono";
+import type { ContentfulStatusCode } from "hono/utils/http-status";
 
 /**
  * Standard error response format
@@ -13,7 +14,7 @@ export interface ErrorResponse {
 /**
  * Send a JSON success response
  */
-export function jsonResponse<T>(c: Context, data: T, status = 200) {
+export function jsonResponse<T>(c: Context, data: T, status: ContentfulStatusCode = 200) {
   return c.json(data, status);
 }
 
@@ -24,7 +25,7 @@ export function errorResponse(
   c: Context,
   code: string,
   message: string,
-  status: number
+  status: ContentfulStatusCode
 ) {
   const body: ErrorResponse = {
     error: { code, message },
