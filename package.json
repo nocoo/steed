@@ -2,6 +2,7 @@
   "name": "steed",
   "private": true,
   "workspaces": [
+    "apps/*",
     "packages/*"
   ],
   "scripts": {
