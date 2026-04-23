@@ -53,6 +53,19 @@
         "vitest": "^4.1.4",
       },
     },
+    "packages/api": {
+      "name": "@steed/api",
+      "version": "0.0.1",
+      "dependencies": {
+        "@steed/shared": "workspace:*",
+        "zod": "^4.3.6",
+      },
+      "devDependencies": {
+        "@vitest/coverage-v8": "^4.1.4",
+        "typescript": "^6.0.2",
+        "vitest": "^4.1.4",
+      },
+    },
     "packages/cli": {
       "name": "@steed/cli",
       "version": "0.1.0",
@@ -507,6 +520,8 @@
     "@standard-schema/spec": ["@standard-schema/spec@1.1.0", "", {}, "sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w=="],
 
     "@standard-schema/utils": ["@standard-schema/utils@0.3.0", "", {}, "sha512-e7Mew686owMaPJVNNLs55PUvgz371nKgwsc4vxE49zsODpJEnxgxRo2y/OKrqueavXgZNMDVj3DdHFlaSAeU8g=="],
+
+    "@steed/api": ["@steed/api@workspace:packages/api"],
 
     "@steed/cli": ["@steed/cli@workspace:packages/cli"],
 
