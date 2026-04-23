@@ -6,14 +6,14 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "bun run --cwd packages/dashboard dev",
+    "dev": "bun run --cwd apps/web_legacy dev",
     "dev:worker": "bun run --cwd packages/worker dev",
-    "build": "bun run --cwd packages/dashboard build",
+    "build": "bun run --cwd apps/web_legacy build",
     "deploy:worker": "bun run --cwd packages/worker deploy",
-    "start": "bun run --cwd packages/dashboard start",
+    "start": "bun run --cwd apps/web_legacy start",
     "typecheck": "tsc --noEmit",
     "lint": "eslint --max-warnings=0 .",
-    "test": "vitest run --coverage && bun run --cwd packages/dashboard test",
+    "test": "vitest run --coverage && bun run --cwd apps/web_legacy test",
     "test:watch": "vitest",
     "test:e2e": "bun scripts/run-e2e.ts",
     "check-coverage": "bun scripts/check-coverage.ts",

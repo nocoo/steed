@@ -17,9 +17,9 @@ pid_lint=$!
 bun run test &
 pid_test=$!
 
-# Dashboard tests run separately (jsdom environment)
-(cd packages/dashboard && bun vitest run --coverage) &
-pid_dashboard=$!
+# web_legacy tests run separately (jsdom environment)
+(cd apps/web_legacy && bun vitest run --coverage) &
+pid_web_legacy=$!
 
 # Wait for all and collect exit codes
 wait $pid_typecheck
@@ -31,8 +31,8 @@ exit_lint=$?
 wait $pid_test
 exit_test=$?
 
-wait $pid_dashboard
-exit_dashboard=$?
+wait $pid_web_legacy
+exit_web_legacy=$?
 
 # Check coverage after tests complete
 if [ $exit_test -eq 0 ]; then
@@ -44,7 +44,7 @@ fi
 
 # Report results
 echo ""
-if [ $exit_typecheck -eq 0 ] && [ $exit_lint -eq 0 ] && [ $exit_test -eq 0 ] && [ $exit_coverage -eq 0 ] && [ $exit_dashboard -eq 0 ]; then
+if [ $exit_typecheck -eq 0 ] && [ $exit_lint -eq 0 ] && [ $exit_test -eq 0 ] && [ $exit_coverage -eq 0 ] && [ $exit_web_legacy -eq 0 ]; then
   echo "✅ All pre-commit checks passed"
   exit 0
 else
@@ -53,6 +53,6 @@ else
   [ $exit_lint -ne 0 ] && echo "   - lint failed"
   [ $exit_test -ne 0 ] && echo "   - test failed"
   [ $exit_coverage -ne 0 ] && echo "   - coverage below threshold"
-  [ $exit_dashboard -ne 0 ] && echo "   - dashboard tests failed"
+  [ $exit_web_legacy -ne 0 ] && echo "   - web_legacy tests failed"
   exit 1
 fi

@@ -5,7 +5,7 @@ export default defineConfig({
     exclude: [
       "**/node_modules/**",
       "**/dist/**",
-      "packages/dashboard/**", // Dashboard tests run separately with jsdom
+      "apps/web_legacy/**", // web_legacy tests run separately with jsdom
     ],
     coverage: {
       provider: "v8",

@@ -1,5 +1,5 @@
 {
-  "name": "@steed/dashboard",
+  "name": "@steed/web-legacy",
   "version": "0.0.1",
   "private": true,
   "type": "module",
