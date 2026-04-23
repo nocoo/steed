@@ -35,6 +35,12 @@
 |------|------|------|------|
 | 06 | [Phase E: Lane 全景图谱](./06-phase-e-lane-map.md) | React Flow 三层拓扑图，按 Lane 分色，支持筛选 + 节点跳转 | 🔨 代码完成 |
 
+## Phase F: Vite Web + CF Access 重写
+
+| 编号 | 文档 | 说明 | 状态 |
+|------|------|------|------|
+| 07 | [Phase F: Vite Web on CF Worker + CF Access](./07-phase-f-vite-web-cf-access.md) | Dashboard 全面重写为 Vite SPA，部署到 CF Worker，认证换 CF Access；抽出 `packages/api` | 🔨 执行中 |
+
 ## 未归档功能
 
 以下功能已实现但尚未写入正式文档：

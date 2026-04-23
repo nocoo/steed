@@ -26,5 +26,7 @@
 | 03 | [Phase C1: Host Service](./features/03-phase-c1-host-service.md) | 常驻进程，心跳快照上报 |
 | 04 | [Phase C2: CLI](./features/04-phase-c2-cli.md) | 命令行工具，手动操作 |
 | 05 | [Phase D: Dashboard 写操作 UI](./features/05-phase-d-dashboard-write-ui.md) | Agent / Data Source 详情编辑 + Lane 分配 + Bindings 管理 |
+| 06 | [Phase E: Lane 全景图谱](./features/06-phase-e-lane-map.md) | React Flow 三层拓扑图（已实现） |
+| 07 | [Phase F: Vite Web on CF Worker + CF Access](./features/07-phase-f-vite-web-cf-access.md) | Dashboard 重写为 Vite SPA + CF Worker + CF Access；抽 packages/api |
 
 > Features 子目录详细状态见 [features/README.md](./features/README.md)。
