@@ -32,7 +32,7 @@ const mockAuth = auth as Mock;
 const mockSetLanes = workerApi.dataSources.setLanes as Mock;
 
 function makeReq(body?: unknown): NextRequest {
-  const init: RequestInit = { method: "PUT" };
+  const init: { method: string; body?: string; headers?: Record<string, string> } = { method: "PUT" };
   if (body !== undefined) {
     init.body = typeof body === "string" ? body : JSON.stringify(body);
     init.headers = { "Content-Type": "application/json" };

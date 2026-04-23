@@ -51,9 +51,9 @@ function listReq(query = ""): NextRequest {
 }
 
 function postReq(body: unknown): NextRequest {
-  const init: RequestInit = {
+  const init = {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json" } as Record<string, string>,
     body: typeof body === "string" ? body : JSON.stringify(body),
   };
   return new NextRequest(new URL("http://localhost:3000/api/bindings"), init);

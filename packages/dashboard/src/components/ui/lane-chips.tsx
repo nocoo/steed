@@ -1,6 +1,5 @@
 "use client";
 
-import * as React from "react";
 import { LANE_IDS, type LaneId } from "@steed/shared";
 
 import { cn } from "@/lib/utils";
