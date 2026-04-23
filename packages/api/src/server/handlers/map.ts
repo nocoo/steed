@@ -13,15 +13,18 @@ export const getMap: Handler = async (_req, { workerClient }) => {
       workerClient.lanes.list(),
     ]);
 
-  const dataSources: DataSourceWithLanes[] = await Promise.all(
-    dataSourcesRes.data.map(async (ds) => {
-      try {
-        return await workerClient.dataSources.get(ds.id);
-      } catch {
-        return { ...ds, metadata: {}, lane_ids: [] };
-      }
-    })
-  );
+  // Sequential (not Promise.all) to avoid TLS handshake storms against
+  // the Worker — observed ECONNRESET when issuing N parallel detail
+  // fetches alongside the 5 list calls above. v1 has < 200 nodes so the
+  // extra latency is acceptable.
+  const dataSources: DataSourceWithLanes[] = [];
+  for (const ds of dataSourcesRes.data) {
+    try {
+      dataSources.push(await workerClient.dataSources.get(ds.id));
+    } catch {
+      dataSources.push({ ...ds, metadata: {}, lane_ids: [] });
+    }
+  }
 
   const input: MapInput = {
     hosts: hostsRes,

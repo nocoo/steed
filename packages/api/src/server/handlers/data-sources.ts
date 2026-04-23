@@ -1,5 +1,6 @@
 import { jsonOk, jsonError } from "../router";
 import type { Handler } from "../router";
+import { dataSourceUpdateSchema, setLanesSchema } from "../../shared/schemas";
 
 export const listDataSources: Handler = async (req, { workerClient }) => {
   const url = new URL(req.url);
@@ -34,10 +35,16 @@ export const updateDataSource: Handler = async (
   } catch {
     return jsonError("invalid_request", "Invalid JSON body", 400);
   }
-  const data = await workerClient.dataSources.update(
-    params.id ?? "",
-    body as Record<string, unknown>
+
+  const parsed = dataSourceUpdateSchema.safeParse(body);
+  if (!parsed.success) {
+    return jsonError("invalid_request", "Invalid request body", 400, parsed.error.issues);
+  }
+
+  const patch = Object.fromEntries(
+    Object.entries(parsed.data).filter(([, v]) => v !== undefined)
   );
+  const data = await workerClient.dataSources.update(params.id ?? "", patch);
   return jsonOk(data);
 };
 
@@ -51,9 +58,12 @@ export const setDataSourceLanes: Handler = async (
   } catch {
     return jsonError("invalid_request", "Invalid JSON body", 400);
   }
-  const data = await workerClient.dataSources.setLanes(
-    params.id ?? "",
-    body as { lane_ids: string[] }
-  );
+
+  const parsed = setLanesSchema.safeParse(body);
+  if (!parsed.success) {
+    return jsonError("invalid_request", "Invalid request body", 400, parsed.error.issues);
+  }
+
+  const data = await workerClient.dataSources.setLanes(params.id ?? "", parsed.data);
   return jsonOk(data);
 };

@@ -106,9 +106,13 @@ export function jsonOk<T>(data: T, status = 200): Response {
 export function jsonError(
   code: string,
   message: string,
-  status: number
+  status: number,
+  issues?: unknown[]
 ): Response {
-  return new Response(JSON.stringify({ error: { code, message } }), {
+  const body = issues
+    ? { error: { code, message, issues } }
+    : { error: { code, message } };
+  return new Response(JSON.stringify(body), {
     status,
     headers: { "Content-Type": "application/json" },
   });

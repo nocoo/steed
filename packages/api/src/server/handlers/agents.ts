@@ -1,5 +1,6 @@
 import { jsonOk, jsonError } from "../router";
 import type { Handler } from "../router";
+import { agentUpdateSchema } from "../../shared/schemas";
 
 export const listAgents: Handler = async (req, { workerClient }) => {
   const url = new URL(req.url);
@@ -28,9 +29,15 @@ export const updateAgent: Handler = async (req, { workerClient, params }) => {
   } catch {
     return jsonError("invalid_request", "Invalid JSON body", 400);
   }
-  const data = await workerClient.agents.update(
-    params.id ?? "",
-    body as Record<string, unknown>
+
+  const parsed = agentUpdateSchema.safeParse(body);
+  if (!parsed.success) {
+    return jsonError("invalid_request", "Invalid request body", 400, parsed.error.issues);
+  }
+
+  const patch = Object.fromEntries(
+    Object.entries(parsed.data).filter(([, v]) => v !== undefined)
   );
+  const data = await workerClient.agents.update(params.id ?? "", patch);
   return jsonOk(data);
 };

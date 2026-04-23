@@ -141,6 +141,32 @@ describe("createApiRouter", () => {
     });
   });
 
+  it("returns 400 for invalid agent update body", async () => {
+    const router = createApiRouter();
+    const req = new Request("https://example.com/api/agents/a1", {
+      method: "PATCH",
+      body: JSON.stringify({ lane_id: "invalid_lane" }),
+      headers: { "Content-Type": "application/json" },
+    });
+    const res = await router.fetch(req, env, user);
+
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.error.issues).toBeDefined();
+  });
+
+  it("returns 400 for empty agent update body", async () => {
+    const router = createApiRouter();
+    const req = new Request("https://example.com/api/agents/a1", {
+      method: "PATCH",
+      body: JSON.stringify({}),
+      headers: { "Content-Type": "application/json" },
+    });
+    const res = await router.fetch(req, env, user);
+
+    expect(res.status).toBe(400);
+  });
+
   it("handles GET /api/data-sources", async () => {
     const router = createApiRouter();
     const req = new Request("https://example.com/api/data-sources");
@@ -189,17 +215,43 @@ describe("createApiRouter", () => {
     expect(mockWorkerClient.dataSources.update).toHaveBeenCalled();
   });
 
+  it("returns 400 for missing metadata in data source update", async () => {
+    const router = createApiRouter();
+    const req = new Request("https://example.com/api/data-sources/ds1", {
+      method: "PATCH",
+      body: JSON.stringify({}),
+      headers: { "Content-Type": "application/json" },
+    });
+    const res = await router.fetch(req, env, user);
+
+    expect(res.status).toBe(400);
+  });
+
   it("handles PUT /api/data-sources/:id/lanes", async () => {
     const router = createApiRouter();
     const req = new Request("https://example.com/api/data-sources/ds1/lanes", {
       method: "PUT",
-      body: JSON.stringify({ lane_ids: ["l1"] }),
+      body: JSON.stringify({ lane_ids: ["lane_work"] }),
       headers: { "Content-Type": "application/json" },
     });
     const res = await router.fetch(req, env, user);
 
     expect(res.status).toBe(200);
     expect(mockWorkerClient.dataSources.setLanes).toHaveBeenCalled();
+  });
+
+  it("returns 400 for invalid lane_ids in PUT /api/data-sources/:id/lanes", async () => {
+    const router = createApiRouter();
+    const req = new Request("https://example.com/api/data-sources/ds1/lanes", {
+      method: "PUT",
+      body: JSON.stringify({ lane_ids: ["invalid_lane"] }),
+      headers: { "Content-Type": "application/json" },
+    });
+    const res = await router.fetch(req, env, user);
+
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.error.issues).toBeDefined();
   });
 
   it("handles GET /api/bindings", async () => {
@@ -238,6 +290,38 @@ describe("createApiRouter", () => {
 
     expect(res.status).toBe(201);
     expect(mockWorkerClient.bindings.create).toHaveBeenCalled();
+  });
+
+  it("returns 400 for invalid binding create body", async () => {
+    const router = createApiRouter();
+    const req = new Request("https://example.com/api/bindings", {
+      method: "POST",
+      body: JSON.stringify({ agent_id: "" }),
+      headers: { "Content-Type": "application/json" },
+    });
+    const res = await router.fetch(req, env, user);
+
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.error.issues).toBeDefined();
+  });
+
+  it("returns 400 for invalid limit in GET /api/bindings", async () => {
+    const router = createApiRouter();
+    const req = new Request("https://example.com/api/bindings?limit=-5");
+    const res = await router.fetch(req, env, user);
+
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.error.message).toBe("Invalid limit");
+  });
+
+  it("returns 400 for non-numeric limit in GET /api/bindings", async () => {
+    const router = createApiRouter();
+    const req = new Request("https://example.com/api/bindings?limit=abc");
+    const res = await router.fetch(req, env, user);
+
+    expect(res.status).toBe(400);
   });
 
   it("handles DELETE /api/bindings/:agentId/:dataSourceId", async () => {
