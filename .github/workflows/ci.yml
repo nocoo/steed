@@ -11,8 +11,8 @@ jobs:
   quality:
     uses: nocoo/base-ci/.github/workflows/bun-quality.yml@v2026.1
     with:
-      test-command: "bun run test && bun run --cwd packages/dashboard test"
-      typecheck-command: "bun run typecheck && bun run --cwd packages/dashboard typecheck"
+      test-command: "bun run test"
+      typecheck-command: "bun run typecheck"
       lint-command: "bun run lint"
       enable-l2: "true"
       l2-command: "bun run test:e2e"

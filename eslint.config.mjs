@@ -9,6 +9,7 @@ export default tseslint.config(
       "**/.wrangler/**",
       "**/coverage/**",
       "**/.next/**",
+      "apps/web_legacy/**",
       "eslint.config.mjs",
       "vitest.config.ts",
       "vitest.workspace.ts",

@@ -5,17 +5,21 @@ export default defineConfig({
     exclude: [
       "**/node_modules/**",
       "**/dist/**",
-      "apps/web_legacy/**", // web_legacy tests run separately with jsdom
+      "apps/web_legacy/**",
     ],
     coverage: {
       provider: "v8",
       reporter: ["text", "json-summary"],
       include: [
-        "packages/shared/src/**/*.ts",
-        "packages/worker/src/**/*.ts",
-        "packages/cli/src/**/*.ts",
+        "packages/*/src/**/*.{ts,tsx}",
+        "apps/web/src/**/*.{ts,tsx}",
       ],
-      exclude: ["**/*.test.ts", "**/index.ts"],
+      exclude: [
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "**/index.ts",
+        "apps/web_legacy/**",
+      ],
       thresholds: {
         statements: 90,
         branches: 85,
