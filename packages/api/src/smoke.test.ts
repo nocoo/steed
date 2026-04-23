@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { VERSION as clientVersion } from "./client/index";
 import { WorkerApiError, createWorkerClient } from "./server/index";
-import { VERSION as sharedVersion } from "./shared/index";
+import { laneIdSchema, buildGraph } from "./shared/index";
 
 describe("@steed/api", () => {
   it("exports client module", () => {
@@ -14,6 +14,7 @@ describe("@steed/api", () => {
   });
 
   it("exports shared module", () => {
-    expect(sharedVersion).toBe("0.0.1");
+    expect(laneIdSchema).toBeDefined();
+    expect(buildGraph).toBeDefined();
   });
 });
