@@ -164,6 +164,21 @@ describe("createWorkerClient", () => {
         expect.anything()
       );
     });
+
+    it("works with empty params object", async () => {
+      const mockResponse = { data: [], next_cursor: null };
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        new Response(JSON.stringify(mockResponse), { status: 200 })
+      );
+
+      const client = createWorkerClient(mockEnv);
+      await client.agents.list({});
+
+      expect(fetch).toHaveBeenCalledWith(
+        "https://api.example.com/api/v1/agents",
+        expect.anything()
+      );
+    });
   });
 
   describe("agents.get", () => {
@@ -226,6 +241,36 @@ describe("createWorkerClient", () => {
       expect(callUrl).toContain("status=active");
       expect(callUrl).toContain("limit=20");
       expect(callUrl).toContain("cursor=xyz");
+    });
+
+    it("works without params", async () => {
+      const mockResponse = { data: [], next_cursor: null };
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        new Response(JSON.stringify(mockResponse), { status: 200 })
+      );
+
+      const client = createWorkerClient(mockEnv);
+      await client.dataSources.list();
+
+      expect(fetch).toHaveBeenCalledWith(
+        "https://api.example.com/api/v1/data-sources",
+        expect.anything()
+      );
+    });
+
+    it("works with empty params object", async () => {
+      const mockResponse = { data: [], next_cursor: null };
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        new Response(JSON.stringify(mockResponse), { status: 200 })
+      );
+
+      const client = createWorkerClient(mockEnv);
+      await client.dataSources.list({});
+
+      expect(fetch).toHaveBeenCalledWith(
+        "https://api.example.com/api/v1/data-sources",
+        expect.anything()
+      );
     });
   });
 
@@ -316,6 +361,36 @@ describe("createWorkerClient", () => {
       expect(callUrl).toContain("data_source_id=ds1");
       expect(callUrl).toContain("limit=5");
       expect(callUrl).toContain("cursor=cur");
+    });
+
+    it("works without params", async () => {
+      const mockResponse = { data: [], next_cursor: null };
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        new Response(JSON.stringify(mockResponse), { status: 200 })
+      );
+
+      const client = createWorkerClient(mockEnv);
+      await client.bindings.list();
+
+      expect(fetch).toHaveBeenCalledWith(
+        "https://api.example.com/api/v1/bindings",
+        expect.anything()
+      );
+    });
+
+    it("works with empty params object", async () => {
+      const mockResponse = { data: [], next_cursor: null };
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        new Response(JSON.stringify(mockResponse), { status: 200 })
+      );
+
+      const client = createWorkerClient(mockEnv);
+      await client.bindings.list({});
+
+      expect(fetch).toHaveBeenCalledWith(
+        "https://api.example.com/api/v1/bindings",
+        expect.anything()
+      );
     });
   });
 
