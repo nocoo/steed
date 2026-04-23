@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { VERSION as clientVersion } from "./client/index";
-import { VERSION as serverVersion } from "./server/index";
+import { WorkerApiError, createWorkerClient } from "./server/index";
 import { VERSION as sharedVersion } from "./shared/index";
 
 describe("@steed/api", () => {
@@ -9,7 +9,8 @@ describe("@steed/api", () => {
   });
 
   it("exports server module", () => {
-    expect(serverVersion).toBe("0.0.1");
+    expect(WorkerApiError).toBeDefined();
+    expect(createWorkerClient).toBeDefined();
   });
 
   it("exports shared module", () => {

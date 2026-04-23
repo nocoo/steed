@@ -1,1 +1,3 @@
-export const VERSION = "0.0.1";
+export { WorkerApiError, ApiHttpError } from "./errors";
+export type { ApiEnv, AuthedUser, ApiContext } from "./context";
+export { createWorkerClient, type WorkerClient } from "./worker-fetch";
