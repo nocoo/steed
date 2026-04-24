@@ -1,7 +1,14 @@
-import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
+import { createMockApiClient } from "@/viewmodels/__tests__/test-utils";
 import { routes } from "./router";
+
+const mockApiClient = createMockApiClient();
+
+vi.mock("@/contexts/api-client", () => ({
+  useApiClient: () => mockApiClient,
+}));
 
 function renderRoute(path: string) {
   const router = createMemoryRouter(routes, { initialEntries: [path] });
@@ -9,21 +16,47 @@ function renderRoute(path: string) {
 }
 
 describe("router", () => {
-  it("redirects / to /overview", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(mockApiClient.overview.get).mockResolvedValue({
+      hosts: { total: 0, online: 0, offline: 0 },
+      agents: { total: 0, running: 0, by_lane: { work: 0, life: 0, learning: 0, unassigned: 0 } },
+      data_sources: { total: 0, active: 0 },
+    });
+    vi.mocked(mockApiClient.hosts.list).mockResolvedValue([]);
+    vi.mocked(mockApiClient.agents.list).mockResolvedValue({ data: [], next_cursor: null });
+    vi.mocked(mockApiClient.dataSources.list).mockResolvedValue({ data: [], next_cursor: null });
+    vi.mocked(mockApiClient.map.get).mockResolvedValue({
+      hosts: [],
+      agents: [],
+      data_sources: [],
+      bindings: [],
+      lanes: [],
+      graph: { nodes: [], edges: [] },
+    });
+  });
+
+  it("redirects / to /overview", async () => {
     renderRoute("/");
-    expect(screen.getByRole("heading", { name: "Overview" })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Overview" })).toBeInTheDocument();
+    });
   });
 
-  it("renders overview page", () => {
+  it("renders overview page", async () => {
     renderRoute("/overview");
-    expect(screen.getByRole("heading", { name: "Overview" })).toBeInTheDocument();
-    expect(screen.getByText(/Dashboard overview/)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Overview" })).toBeInTheDocument();
+    });
+    expect(screen.getByText("AI asset visibility at a glance")).toBeInTheDocument();
   });
 
-  it("renders hosts page", () => {
+  it("renders hosts page", async () => {
     renderRoute("/hosts");
-    expect(screen.getByRole("heading", { name: "Hosts" })).toBeInTheDocument();
-    expect(screen.getByText(/Host list/)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Hosts" })).toBeInTheDocument();
+    });
+    expect(screen.getByText("Connected machines running the host service")).toBeInTheDocument();
   });
 
   it("renders agents list page", () => {
