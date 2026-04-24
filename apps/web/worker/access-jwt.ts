@@ -18,6 +18,12 @@ interface CfAccessCertResponse {
 const certsCache = new Map<string, { jwks: jose.JSONWebKeySet; expiresAt: number }>();
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
+function isLocalRequest(req: Request): boolean {
+  const url = new URL(req.url);
+  const host = url.hostname;
+  return host === "localhost" || host === "127.0.0.1" || host === "[::1]";
+}
+
 async function getCerts(team: string): Promise<jose.JSONWebKeySet> {
   const cached = certsCache.get(team);
   const now = Date.now();
@@ -42,7 +48,7 @@ export async function verifyAccessJwt(
   req: Request,
   opts: VerifyOptions
 ): Promise<VerifyResult> {
-  if (opts.devBypass) {
+  if (opts.devBypass && isLocalRequest(req)) {
     return { ok: true, user: { email: "dev@local", sub: "dev" } };
   }
 

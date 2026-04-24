@@ -12,8 +12,8 @@ describe("verifyAccessJwt", () => {
     globalThis.fetch = originalFetch;
   });
 
-  it("returns dev user when devBypass is true", async () => {
-    const req = new Request("https://example.com");
+  it("returns dev user when devBypass is true and request is from localhost", async () => {
+    const req = new Request("http://localhost:5173/api/test");
     const result = await verifyAccessJwt(req, {
       team: "test",
       aud: "test-aud",
@@ -23,6 +23,20 @@ describe("verifyAccessJwt", () => {
     expect(result).toEqual({
       ok: true,
       user: { email: "dev@local", sub: "dev" },
+    });
+  });
+
+  it("ignores devBypass when request is not from localhost", async () => {
+    const req = new Request("https://example.com/api/test");
+    const result = await verifyAccessJwt(req, {
+      team: "test",
+      aud: "test-aud",
+      devBypass: true,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      reason: "Missing Cf-Access-Jwt-Assertion header",
     });
   });
 
