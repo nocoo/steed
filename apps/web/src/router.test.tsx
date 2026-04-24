@@ -67,10 +67,28 @@ describe("router", () => {
     expect(screen.getByText("Autonomous agent entities across all hosts")).toBeInTheDocument();
   });
 
-  it("renders agent detail page with id", () => {
+  it("renders agent detail page with id", async () => {
+    vi.mocked(mockApiClient.agents.get).mockResolvedValueOnce({
+      id: "abc-123",
+      host_id: "h1",
+      match_key: "test-agent",
+      nickname: "Test Agent Nickname",
+      role: null,
+      lane_id: null,
+      runtime_app: null,
+      runtime_version: null,
+      status: "running",
+      created_at: "2024-01-01T00:00:00Z",
+      last_seen_at: null,
+      metadata: {},
+    });
+    vi.mocked(mockApiClient.bindings.list).mockResolvedValueOnce({ data: [], next_cursor: null });
+
     renderRoute("/agents/abc-123");
-    expect(screen.getByRole("heading", { name: "Agent Details" })).toBeInTheDocument();
-    expect(screen.getByText(/abc-123/)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("Test Agent Nickname")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Back to agents")).toBeInTheDocument();
   });
 
   it("renders data sources list page", () => {
