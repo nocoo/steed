@@ -17,7 +17,8 @@
     "forceConsistentCasingInFileNames": true,
     "paths": {
       "@steed/shared": ["./packages/shared/src/index.ts"],
-      "@steed/api/*": ["./packages/api/src/*/index.ts"]
+      "@steed/api/*": ["./packages/api/src/*/index.ts"],
+      "@/*": ["./apps/web/src/*"]
     }
   },
   "include": [
