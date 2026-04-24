@@ -91,10 +91,12 @@ describe("router", () => {
     expect(screen.getByText("Back to agents")).toBeInTheDocument();
   });
 
-  it("renders data sources list page", () => {
+  it("renders data sources list page", async () => {
     renderRoute("/data-sources");
-    expect(screen.getByRole("heading", { name: "Data Sources" })).toBeInTheDocument();
-    expect(screen.getByText(/Data source list/)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Data Sources" })).toBeInTheDocument();
+    });
+    expect(screen.getByText(/CLIs, MCP services, platforms/)).toBeInTheDocument();
   });
 
   it("renders data source detail page with id", () => {
