@@ -1,0 +1,17 @@
+name = "steed-web"
+main = "worker/index.ts"
+compatibility_date = "2026-04-01"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+[vars]
+CF_ACCESS_TEAM = "nocoo"
+CF_ACCESS_AUD = "a920d3430b1e5a636590cd5d4f04dc657f89f9939c76a6870140015c0381d9b3"
+
+# Secrets (set via wrangler secret put):
+#   WORKER_API_URL
+#   DASHBOARD_SERVICE_TOKEN

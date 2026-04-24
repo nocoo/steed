@@ -10,13 +10,16 @@ export default defineConfig({
     },
   },
   test: {
-    include: ["src/**/*.test.{ts,tsx}"],
+    include: ["src/**/*.test.{ts,tsx}", "worker/**/*.test.ts"],
     environment: "jsdom",
     setupFiles: ["./src/test-setup.ts"],
+    environmentMatchGlobs: [
+      ["worker/**/*.test.ts", "node"],
+    ],
     coverage: {
       provider: "v8",
       reporter: ["text", "json-summary"],
-      include: ["src/**/*.{ts,tsx}"],
+      include: ["src/**/*.{ts,tsx}", "worker/**/*.ts"],
       exclude: ["**/*.test.{ts,tsx}", "**/index.ts", "**/test-setup.ts", "**/main.tsx"],
       thresholds: {
         statements: 90,
