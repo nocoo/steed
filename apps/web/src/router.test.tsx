@@ -99,10 +99,26 @@ describe("router", () => {
     expect(screen.getByText(/CLIs, MCP services, platforms/)).toBeInTheDocument();
   });
 
-  it("renders data source detail page with id", () => {
+  it("renders data source detail page with id", async () => {
+    vi.mocked(mockApiClient.dataSources.get).mockResolvedValueOnce({
+      id: "ds-456",
+      host_id: "h1",
+      type: "personal_cli",
+      name: "Test Data Source",
+      version: "1.0.0",
+      auth_status: "authenticated",
+      status: "active",
+      metadata: {},
+      created_at: "2024-01-01T00:00:00Z",
+      last_seen_at: null,
+      lane_ids: [],
+    });
+
     renderRoute("/data-sources/ds-456");
-    expect(screen.getByRole("heading", { name: "Data Source Details" })).toBeInTheDocument();
-    expect(screen.getByText(/ds-456/)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("Test Data Source")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Back to data sources")).toBeInTheDocument();
   });
 
   it("renders map page", () => {
