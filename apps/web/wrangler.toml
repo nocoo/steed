@@ -15,3 +15,9 @@ CF_ACCESS_AUD = "a920d3430b1e5a636590cd5d4f04dc657f89f9939c76a6870140015c0381d9b
 # Secrets (set via wrangler secret put):
 #   WORKER_API_URL
 #   DASHBOARD_SERVICE_TOKEN
+
+# Local development: bypass CF Access JWT check for localhost requests
+[env.dev.vars]
+CF_ACCESS_DEV_BYPASS = "true"
+WORKER_API_URL = "http://localhost:8788"
+DASHBOARD_SERVICE_TOKEN = "dev-token"
