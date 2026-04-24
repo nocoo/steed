@@ -6,11 +6,11 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "bun run --cwd apps/web_legacy dev",
+    "dev": "bun run --cwd apps/web dev",
     "dev:worker": "bun run --cwd packages/worker dev",
-    "build": "bun run --cwd apps/web_legacy build",
+    "build": "bun run --cwd apps/web build",
     "deploy:worker": "bun run --cwd packages/worker deploy",
-    "start": "bun run --cwd apps/web_legacy start",
+    "start": "bun run --cwd apps/web preview",
     "typecheck": "tsc --noEmit",
     "lint": "eslint --max-warnings=0 .",
     "test": "vitest run --coverage",

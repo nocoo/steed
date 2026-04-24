@@ -39,7 +39,7 @@
 
 | 编号 | 文档 | 说明 | 状态 |
 |------|------|------|------|
-| 07 | [Phase F: Vite Web on CF Worker + CF Access](./07-phase-f-vite-web-cf-access.md) | Dashboard 全面重写为 Vite SPA，部署到 CF Worker，认证换 CF Access；抽出 `packages/api` | 🔨 执行中 |
+| 07 | [Phase F: Vite Web on CF Worker + CF Access](./07-phase-f-vite-web-cf-access.md) | Dashboard 全面重写为 Vite SPA，部署到 CF Worker，认证换 CF Access；抽出 `packages/api` | ✅ 已验证 |
 
 ## 未归档功能
 

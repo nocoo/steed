@@ -1,6 +1,6 @@
 # Phase F: Vite Web on CF Worker + CF Access
 
-> Status: 🔨 EXECUTING v4
+> Status: ✅ COMPLETED v4
 >
 > 本阶段目标：把 Dashboard 从 Next.js + Railway + Google OAuth 全面切换为 **Vite SPA + Cloudflare Worker (Static Assets) + Cloudflare Access**，并把当前散落在 dashboard 中的服务端 API 与客户端调用代码抽出为独立 `packages/api`。
 >
