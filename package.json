@@ -34,5 +34,8 @@
     "*.{ts,tsx}": [
       "eslint --max-warnings=0"
     ]
+  },
+  "overrides": {
+    "postcss": "^8.5.10"
   }
 }
