@@ -59,10 +59,12 @@ describe("router", () => {
     expect(screen.getByText("Connected machines running the host service")).toBeInTheDocument();
   });
 
-  it("renders agents list page", () => {
+  it("renders agents list page", async () => {
     renderRoute("/agents");
-    expect(screen.getByRole("heading", { name: "Agents" })).toBeInTheDocument();
-    expect(screen.getByText(/Agent list/)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Agents" })).toBeInTheDocument();
+    });
+    expect(screen.getByText("Autonomous agent entities across all hosts")).toBeInTheDocument();
   });
 
   it("renders agent detail page with id", () => {
