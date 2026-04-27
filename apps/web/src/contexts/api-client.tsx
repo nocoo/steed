@@ -10,7 +10,7 @@ export interface ApiClientProviderProps {
 
 export function ApiClientProvider({
   children,
-  baseUrl = "/api",
+  baseUrl = "",
 }: ApiClientProviderProps) {
   const client = useMemo(
     () => createApiClient({ baseUrl }),
