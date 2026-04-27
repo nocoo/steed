@@ -36,8 +36,8 @@ describe("worker", () => {
     vi.resetAllMocks();
   });
 
-  it("returns ok for /healthz without auth", async () => {
-    const req = new Request("https://example.com/healthz");
+  it("returns ok for /api/live without auth", async () => {
+    const req = new Request("https://example.com/api/live");
     const res = await worker.fetch(req, baseEnv, {} as ExecutionContext);
 
     expect(res.status).toBe(200);

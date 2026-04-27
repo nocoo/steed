@@ -17,7 +17,7 @@ export default {
   async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(req.url);
 
-    if (url.pathname === "/healthz") {
+    if (url.pathname === "/api/live") {
       return new Response("ok", { status: 200 });
     }
 
