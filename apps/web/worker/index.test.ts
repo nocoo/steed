@@ -88,10 +88,11 @@ describe("worker", () => {
     expect(res.status).toBe(200);
     expect(mocks.routerFetch).toHaveBeenCalledWith(
       req,
-      {
+      expect.objectContaining({
         WORKER_API_URL: "https://example.com",
         DASHBOARD_SERVICE_TOKEN: "token",
-      },
+        fetcher: expect.any(Function),
+      }),
       mockUser
     );
   });

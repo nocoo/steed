@@ -16,19 +16,25 @@ import type {
 import { WorkerApiError } from "./errors";
 import type { ApiEnv } from "./context";
 
+async function doFetch(env: ApiEnv, path: string, init?: RequestInit): Promise<Response> {
+  const url = `${env.WORKER_API_URL}${path}`;
+  const headers = {
+    ...init?.headers,
+    Authorization: `Bearer ${env.DASHBOARD_SERVICE_TOKEN}`,
+    "Content-Type": "application/json",
+  };
+  if (env.fetcher) {
+    return env.fetcher(new Request(url, { ...init, headers }));
+  }
+  return fetch(url, { ...init, headers });
+}
+
 async function workerFetch<T>(
   env: ApiEnv,
   path: string,
   init?: RequestInit
 ): Promise<T> {
-  const res = await fetch(`${env.WORKER_API_URL}${path}`, {
-    ...init,
-    headers: {
-      ...init?.headers,
-      Authorization: `Bearer ${env.DASHBOARD_SERVICE_TOKEN}`,
-      "Content-Type": "application/json",
-    },
-  });
+  const res = await doFetch(env, path, init);
 
   if (!res.ok) {
     const error = await res
@@ -50,14 +56,7 @@ async function workerFetchVoid(
   path: string,
   init?: RequestInit
 ): Promise<void> {
-  const res = await fetch(`${env.WORKER_API_URL}${path}`, {
-    ...init,
-    headers: {
-      ...init?.headers,
-      Authorization: `Bearer ${env.DASHBOARD_SERVICE_TOKEN}`,
-      "Content-Type": "application/json",
-    },
-  });
+  const res = await doFetch(env, path, init);
 
   if (!res.ok) {
     const error = await res

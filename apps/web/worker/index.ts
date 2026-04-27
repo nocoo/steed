@@ -42,10 +42,13 @@ export default {
       return dashboardRouter.fetch(
         req,
         {
-          // Same-origin URL — internal fetch loops back into this Worker and
-          // is matched by the /api/v1/ branch above.
+          // In-process: dashboard router calls /api/v1/* via app.fetch directly,
+          // not via outbound HTTP — a same-host fetch to ourselves loops through
+          // the edge and 522s. WORKER_API_URL is still required for URL building
+          // inside worker-fetch but never actually dialed.
           WORKER_API_URL: url.origin,
           DASHBOARD_SERVICE_TOKEN: env.DASHBOARD_SERVICE_TOKEN,
+          fetcher: async (r: Request) => app.fetch(r, env, ctx),
         },
         verifyResult.user
       );
