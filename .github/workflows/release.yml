@@ -1,3 +1,6 @@
+# Steed CD
+# - CI green on main → deploy: continuous deploy of latest main
+# - workflow_dispatch → deploy: manual redeploy
 name: Release
 
 on:
@@ -9,26 +12,63 @@ on:
 
 jobs:
   deploy:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    name: Deploy Worker (production)
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
+    timeout-minutes: 15
+    environment: production
+    concurrency:
+      group: deploy-steed-production
+      cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: oven-sh/setup-bun@v2
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
-          bun-version: latest
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
-      - run: bun install --frozen-lockfile
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
 
       - name: Build web SPA
-        working-directory: apps/web
         run: bun run build
 
-      - name: Deploy to Cloudflare Workers (production)
-        working-directory: apps/web
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: bunx wrangler deploy --env production
+      - name: Deploy Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/web
+          command: deploy --env production
+
+      - name: Verify deployment
+        run: |
+          set -e
+          for i in 1 2 3 4 5 6; do
+            STATUS=$(curl -fsS -o /dev/null -w "%{http_code}" https://steed.hexly.ai/api/live || true)
+            echo "attempt $i: status=$STATUS"
+            if [ "$STATUS" = "200" ] || [ "$STATUS" = "401" ]; then
+              echo "✅ Worker reachable (status $STATUS)"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "❌ Deployment verification failed after 30s"
+          exit 1
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Steed Deploy"
+            echo ""
+            echo "- Trigger: ${{ github.event_name }}"
+            echo "- SHA: \`${{ github.event.workflow_run.head_sha || github.sha }}\`"
+            echo "- Worker: \`steed\` (production)"
+            echo "- Verify: https://steed.hexly.ai/api/live"
+          } >> "$GITHUB_STEP_SUMMARY"
