@@ -1,4 +1,4 @@
-name = "steed-web"
+name = "steed"
 main = "worker/index.ts"
 compatibility_date = "2026-04-01"
 compatibility_flags = ["nodejs_compat"]
@@ -8,16 +8,52 @@ directory = "./dist"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
 
-[vars]
+# Secrets (set via `wrangler secret put --env <env>`):
+#   DASHBOARD_SERVICE_TOKEN — internal Bearer token for dashboard → API path
+
+# ── Production: steed.hexly.ai ────────────────────────────────────────
+[env.production]
+name = "steed"
+routes = [
+  { pattern = "steed.hexly.ai", custom_domain = true }
+]
+
+[env.production.vars]
 CF_ACCESS_TEAM = "nocoo"
-CF_ACCESS_AUD = "a920d3430b1e5a636590cd5d4f04dc657f89f9939c76a6870140015c0381d9b3"
+CF_ACCESS_AUD = "29357a96bddbff5c8063138868e4d55cca100df0e1c3856bf9a86fa3ec8319da"
 
-# Secrets (set via wrangler secret put):
-#   WORKER_API_URL
-#   DASHBOARD_SERVICE_TOKEN
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "steed"
+database_id = "8c69f63f-38a5-4ad4-9832-ee04e0b2237d"
 
-# Local development: bypass CF Access JWT check for localhost requests
+# ── Test (E2E target): steed-test.hexly.ai ────────────────────────────
+[env.test]
+name = "steed-test"
+routes = [
+  { pattern = "steed-test.hexly.ai", custom_domain = true }
+]
+
+[env.test.vars]
+CF_ACCESS_TEAM = "nocoo"
+CF_ACCESS_AUD = "29357a96bddbff5c8063138868e4d55cca100df0e1c3856bf9a86fa3ec8319da"
+
+[[env.test.d1_databases]]
+binding = "DB"
+database_name = "steed-test"
+database_id = "fba8a08e-264d-43ab-96db-5b9fcc29d051"
+
+# ── Local development: bypass CF Access JWT for localhost ─────────────
+[env.dev]
+name = "steed-dev"
+
 [env.dev.vars]
+CF_ACCESS_TEAM = "nocoo"
+CF_ACCESS_AUD = "29357a96bddbff5c8063138868e4d55cca100df0e1c3856bf9a86fa3ec8319da"
 CF_ACCESS_DEV_BYPASS = "true"
-WORKER_API_URL = "http://localhost:8788"
 DASHBOARD_SERVICE_TOKEN = "dev-token"
+
+[[env.dev.d1_databases]]
+binding = "DB"
+database_name = "steed-test"
+database_id = "fba8a08e-264d-43ab-96db-5b9fcc29d051"

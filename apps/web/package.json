@@ -17,6 +17,7 @@
     "@hookform/resolvers": "^5.1.0",
     "@steed/api": "workspace:*",
     "@steed/shared": "workspace:*",
+    "@steed/worker": "workspace:*",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "jose": "^6.2.2",

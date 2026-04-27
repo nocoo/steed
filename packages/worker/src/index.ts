@@ -33,4 +33,5 @@ app.route("/api/v1/bindings", bindings);
 app.route("/api/v1/lanes", lanes);
 app.route("/api/v1/auth", auth);
 
+export { app };
 export default app;
