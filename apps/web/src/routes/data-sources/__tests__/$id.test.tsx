@@ -188,7 +188,11 @@ describe("DataSourceDetailPage", () => {
     const lifeCheckbox = screen.getByRole("checkbox", { name: /Life/i });
     fireEvent.click(lifeCheckbox);
 
-    const saveButton = screen.getByRole("button", { name: "Save lanes" });
+    const saveButton = await waitFor(() => {
+      const btn = screen.getByRole("button", { name: "Save lanes" });
+      expect(btn).toBeEnabled();
+      return btn;
+    });
     fireEvent.click(saveButton);
 
     await waitFor(() => {
@@ -216,7 +220,11 @@ describe("DataSourceDetailPage", () => {
     const lifeCheckbox = screen.getByRole("checkbox", { name: /Life/i });
     fireEvent.click(lifeCheckbox);
 
-    const saveButton = screen.getByRole("button", { name: "Save lanes" });
+    const saveButton = await waitFor(() => {
+      const btn = screen.getByRole("button", { name: "Save lanes" });
+      expect(btn).toBeEnabled();
+      return btn;
+    });
     fireEvent.click(saveButton);
 
     await waitFor(() => {
