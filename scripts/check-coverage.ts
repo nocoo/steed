@@ -8,12 +8,13 @@
 import { existsSync, readFileSync } from "fs";
 import { join } from "path";
 
-// Thresholds - branches are lower due to hard-to-test edge cases
+// Thresholds: 95% for lines/statements/functions; branches at 90%
+// (v8 counts every TS optional-chain/nullish branch, undercounting reach).
 const THRESHOLDS = {
-  lines: 90,
-  statements: 90,
-  functions: 85,
-  branches: 85,
+  lines: 95,
+  statements: 95,
+  functions: 95,
+  branches: 90,
 };
 const coveragePath = join(import.meta.dirname, "..", "coverage", "coverage-summary.json");
 

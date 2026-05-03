@@ -84,4 +84,29 @@ describe("OverviewPage", () => {
       expect(screen.getByText("Network failure")).toBeInTheDocument();
     });
   });
+
+  it("falls back to zero when fields are missing", async () => {
+    vi.mocked(mockApiClient.overview.get).mockResolvedValueOnce({
+      hosts: { total: undefined as unknown as number, online: undefined as unknown as number, offline: undefined as unknown as number },
+      agents: {
+        total: undefined as unknown as number,
+        running: undefined as unknown as number,
+        by_lane: {
+          work: undefined as unknown as number,
+          life: undefined as unknown as number,
+          learning: undefined as unknown as number,
+          unassigned: undefined as unknown as number,
+        },
+      },
+      data_sources: { total: undefined as unknown as number, active: undefined as unknown as number },
+    });
+
+    render(<OverviewPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("0 running")).toBeInTheDocument();
+    });
+    expect(screen.getByText("0 active")).toBeInTheDocument();
+    expect(screen.getByText("0 offline")).toBeInTheDocument();
+  });
 });

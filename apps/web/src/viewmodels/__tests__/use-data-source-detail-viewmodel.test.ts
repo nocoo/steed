@@ -154,4 +154,46 @@ describe("useDataSourceDetailViewModel", () => {
 
     expect(mockApiClient.dataSources.get).toHaveBeenCalledTimes(2);
   });
+
+  it("falls back to ApiHttpError.message when body has no error string", async () => {
+    vi.mocked(mockApiClient.dataSources.get).mockRejectedValueOnce(
+      new ApiHttpError(500, {}, "Internal Server Error")
+    );
+
+    const { result } = renderHook(() => useDataSourceDetailViewModel("ds_1"));
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.error).toBe("Internal Server Error");
+  });
+
+  it("surfaces non-Error rejections as 'Unknown error'", async () => {
+    vi.mocked(mockApiClient.dataSources.get).mockRejectedValueOnce("nope");
+
+    const { result } = renderHook(() => useDataSourceDetailViewModel("ds_1"));
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.error).toBe("Unknown error");
+  });
+
+  it("saveLanes leaves dataSource null when no data was loaded", async () => {
+    vi.mocked(mockApiClient.dataSources.get).mockRejectedValueOnce(
+      new Error("boom")
+    );
+    vi.mocked(mockApiClient.dataSources.setLanes).mockResolvedValueOnce({
+      lane_ids: ["lane_life" as LaneId],
+    });
+
+    const { result } = renderHook(() => useDataSourceDetailViewModel("ds_1"));
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.dataSource).toBeNull();
+
+    let r: { ok: boolean; error?: string } = { ok: false };
+    await act(async () => {
+      r = await result.current.saveLanes(["lane_life" as LaneId]);
+    });
+
+    expect(r.ok).toBe(true);
+    expect(result.current.dataSource).toBeNull();
+  });
 });
