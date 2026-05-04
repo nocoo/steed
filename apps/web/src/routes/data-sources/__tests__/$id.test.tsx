@@ -182,7 +182,8 @@ describe("DataSourceDetailPage", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText("Claude Code")).toBeInTheDocument();
+      const cb = screen.getByRole("checkbox", { name: /Work/i });
+      expect(cb).toHaveAttribute("aria-checked", "true");
     });
 
     const lifeCheckbox = screen.getByRole("checkbox", { name: /Life/i });
@@ -214,7 +215,8 @@ describe("DataSourceDetailPage", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText("Claude Code")).toBeInTheDocument();
+      const cb = screen.getByRole("checkbox", { name: /Work/i });
+      expect(cb).toHaveAttribute("aria-checked", "true");
     });
 
     const lifeCheckbox = screen.getByRole("checkbox", { name: /Life/i });
