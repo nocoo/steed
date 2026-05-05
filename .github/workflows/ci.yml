@@ -11,7 +11,7 @@ jobs:
   quality:
     uses: nocoo/base-ci/.github/workflows/bun-quality.yml@v2026.1
     with:
-      test-command: "bun run test"
+      test-command: "bun run test && bun run check-coverage"
       typecheck-command: "bun run typecheck"
       lint-command: "bun run lint"
       enable-l2: "true"
