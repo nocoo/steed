@@ -27,23 +27,9 @@ binding = "DB"
 database_name = "steed"
 database_id = "8c69f63f-38a5-4ad4-9832-ee04e0b2237d"
 
-# ── Test (E2E target): steed-test.hexly.ai ────────────────────────────
-[env.test]
-name = "steed-test"
-routes = [
-  { pattern = "steed-test.hexly.ai", custom_domain = true }
-]
-
-[env.test.vars]
-CF_ACCESS_TEAM = "nocoo"
-CF_ACCESS_AUD = "29357a96bddbff5c8063138868e4d55cca100df0e1c3856bf9a86fa3ec8319da"
-
-[[env.test.d1_databases]]
-binding = "DB"
-database_name = "steed-test"
-database_id = "fba8a08e-264d-43ab-96db-5b9fcc29d051"
-
 # ── Local development: bypass CF Access JWT for localhost ─────────────
+# Always run with: wrangler dev --env dev --local --persist-to .wrangler/state/web
+# D1 is local SQLite — the database_id below is only for schema reference.
 [env.dev]
 name = "steed-dev"
 
@@ -55,5 +41,5 @@ DASHBOARD_SERVICE_TOKEN = "dev-token"
 
 [[env.dev.d1_databases]]
 binding = "DB"
-database_name = "steed-test"
-database_id = "fba8a08e-264d-43ab-96db-5b9fcc29d051"
+database_name = "steed"
+database_id = "8c69f63f-38a5-4ad4-9832-ee04e0b2237d"

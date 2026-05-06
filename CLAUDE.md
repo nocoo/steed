@@ -48,7 +48,7 @@ Six-dimension quality system: L1/L2/L3 + G1/G2 + D1.
 | L3 System | Playwright | on-demand | Dashboard core flows |
 | G1 Static | tsc strict + ESLint tseslint.configs.strict --max-warnings=0 | pre-commit | Zero warnings |
 | G2 Security | osv-scanner + gitleaks | pre-push | Dependency + secret scan |
-| D1 Isolation | steed-db-test D1 instance + _test_marker verification | pre-push (L2) | Test isolation |
+| D1 Isolation | Local D1 via `wrangler dev --local --persist-to` | pre-push (L2) | Test isolation |
 
 ## Tooling
 

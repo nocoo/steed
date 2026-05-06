@@ -552,6 +552,9 @@ packages/worker/src/routes/overview.ts
 
 ### L2 集成测试基础（Phase A 最小版）
 
+> **⚠️ Superseded (2026-05):** 实际实现使用 `scripts/run-e2e.ts` + `wrangler dev --local
+> --persist-to .wrangler/state/e2e`（全本地 D1），不需要远程 `steed-db-test` 或 `_test_marker`。
+
 **Commit 23a: L2 E2E 测试框架 + Husky pre-push hook（最小版）**
 
 ```

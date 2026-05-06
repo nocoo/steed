@@ -267,11 +267,11 @@ packages/shared/src/index.ts — barrel export
 | L3 | Playwright | 按需 | Dashboard 核心流程 |
 | G1 | tsc --noEmit (strict) + ESLint strict --max-warnings=0 | pre-commit | 静态分析 |
 | G2 | osv-scanner + gitleaks | pre-push | 安全扫描 |
-| D1 | steed-db-test 独立 D1 实例 + _test_marker 三重验证 | pre-push (L2) | 测试隔离 |
+| D1 | Local D1 via `wrangler dev --local --persist-to` | pre-push (L2) | 测试隔离 |
 
 Hooks 映射：
 - pre-commit (<30s): G1 ‖ L1
-- pre-push (<3min): L2 ‖ G2（L2 连接 steed-db-test 隔离实例）
+- pre-push (<3min): L2 ‖ G2（L2 使用本地 D1 隔离实例）
 - 按需: L3
 
 ## Phase A 验收标准
