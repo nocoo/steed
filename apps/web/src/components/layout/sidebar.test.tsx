@@ -45,7 +45,7 @@ describe("Sidebar", () => {
   describe("expanded view", () => {
     it("renders logo", () => {
       renderSidebar();
-      expect(screen.getAllByText("S").length).toBeGreaterThan(0);
+      expect(screen.getByAltText("Steed")).toBeInTheDocument();
     });
 
     it("renders app name", () => {
@@ -108,7 +108,7 @@ describe("Sidebar", () => {
   describe("collapsed view", () => {
     it("shows logo but not app name", () => {
       renderSidebar("/overview", false, false);
-      expect(screen.getAllByText("S").length).toBeGreaterThan(0);
+      expect(screen.getByAltText("Steed")).toBeInTheDocument();
       expect(screen.queryByText("Steed")).not.toBeInTheDocument();
     });
 

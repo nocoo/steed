@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="logo.png" alt="Steed" width="128" height="128" />
+</p>
+
 # steed
 
 > AI Hub — 多 Agent 时代的资产可见性与关系管理平台

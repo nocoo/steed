@@ -61,9 +61,7 @@ export function Sidebar() {
             <div className="flex h-14 items-center px-3">
               <div className="flex w-full items-center justify-between px-3">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                    <span className="text-sm font-bold">S</span>
-                  </div>
+                  <img src="/logo-24.png" alt="Steed" width={24} height={24} className="shrink-0" />
                   <span className="text-lg font-semibold text-foreground">
                     Steed
                   </span>
@@ -122,10 +120,8 @@ export function Sidebar() {
           </div>
         ) : (
           <div className="flex h-full w-[68px] flex-col items-center">
-            <div className="flex h-14 w-full items-center justify-start pl-5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                <span className="text-sm font-bold">S</span>
-              </div>
+            <div className="flex h-14 w-full items-center justify-start pl-6">
+              <img src="/logo-24.png" alt="Steed" width={24} height={24} className="shrink-0" />
             </div>
 
             <Tooltip>
