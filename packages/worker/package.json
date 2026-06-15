@@ -19,9 +19,9 @@
   },
   "dependencies": {
     "@steed/shared": "workspace:*",
-    "hono": "^4.12.18"
+    "hono": "^4.12.25"
   },
   "devDependencies": {
-    "wrangler": "^4.82.2"
+    "wrangler": "^4.100.0"
   }
 }

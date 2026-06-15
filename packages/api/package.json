@@ -25,12 +25,12 @@
   },
   "dependencies": {
     "@steed/shared": "workspace:*",
-    "zod": "^4.3.6"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^4.1.4",
-    "typescript": "^6.0.2",
+    "@vitest/coverage-v8": "^4.1.8",
+    "typescript": "^6.0.3",
     "urlpattern-polyfill": "^10.1.0",
-    "vitest": "^4.1.4"
+    "vitest": "^4.1.8"
   }
 }
