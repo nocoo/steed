@@ -153,7 +153,7 @@ export async function spawnCapture(
       stderr += data.toString();
     });
 
-    child.on("exit", (code: number | null) => {
+    child.on("close", (code: number | null) => {
       if (code === 0) {
         resolve({ success: true });
       } else {
