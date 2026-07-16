@@ -15,7 +15,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@nocoo/cli-base": "^0.2.4",
+    "@nocoo/base-cli": "^0.3.0",
     "@steed/shared": "workspace:*",
     "chalk": "^5.6.2",
     "cli-table3": "^0.6.5",

@@ -9,13 +9,13 @@ import type { HostConfig } from "../config/schema.js";
 // Store original fetch
 const originalFetch = globalThis.fetch;
 
-// Mock cli-base module
-vi.mock("@nocoo/cli-base", () => ({
+// Mock base-cli module
+vi.mock("@nocoo/base-cli", () => ({
   performLogin: vi.fn(),
   openBrowser: vi.fn(),
 }));
 
-import { performLogin } from "@nocoo/cli-base";
+import { performLogin } from "@nocoo/base-cli";
 const mockPerformLogin = performLogin as ReturnType<typeof vi.fn>;
 
 describe("login command", () => {

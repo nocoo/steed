@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import { hostname } from "node:os";
-import { performLogin, openBrowser } from "@nocoo/cli-base";
+import { performLogin, openBrowser } from "@nocoo/base-cli";
 import { ConfigManager } from "../config/index.js";
 import { DEFAULT_CLI_SCANNERS } from "../config/defaults.js";
 import { HttpClient, verifyApiKey, AuthError, NetworkError } from "../lib/http.js";
