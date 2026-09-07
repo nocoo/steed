@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="logo.png" alt="Steed" width="128" height="128" />
+  <img src="assets/brand/icon-rounded.png" alt="Steed" width="128" height="128" />
 </p>
 
 # steed

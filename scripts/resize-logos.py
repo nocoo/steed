@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate derived logo assets from root logo.png (Basalt B-3 spec).
+"""Generate logo assets from separate foreground and presentation masters.
 
 Vite SPA project — assets go to apps/web/public/.
 """
@@ -10,6 +10,8 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
 SOURCE = ROOT / "logo.png"
+SQUARE = ROOT / "assets" / "brand" / "icon.png"
+ROUNDED = ROOT / "assets" / "brand" / "icon-rounded.png"
 PUBLIC = ROOT / "apps" / "web" / "public"
 OG_BG = (15, 15, 15)
 
@@ -20,6 +22,8 @@ def resize(img: Image.Image, size: int) -> Image.Image:
 
 def main() -> None:
     img = Image.open(SOURCE).convert("RGBA")
+    square = Image.open(SQUARE).convert("RGB")
+    rounded = Image.open(ROUNDED).convert("RGBA")
 
     PUBLIC.mkdir(parents=True, exist_ok=True)
 
@@ -28,20 +32,18 @@ def main() -> None:
         resize(img, size).save(PUBLIC / f"logo-{size}.png", "PNG", optimize=True)
 
     # favicon.ico (replaces non-existent favicon.svg)
-    ico_16, ico_32 = resize(img, 16), resize(img, 32)
-    ico_16.save(
+    img.save(
         PUBLIC / "favicon.ico",
         format="ICO",
         sizes=[(16, 16), (32, 32)],
-        append_images=[ico_32],
     )
 
     # apple-touch-icon
-    resize(img, 180).save(PUBLIC / "apple-touch-icon.png", "PNG", optimize=True)
+    resize(square, 180).save(PUBLIC / "apple-touch-icon.png", "PNG", optimize=True)
 
     # OG image 1200x630
     canvas = Image.new("RGB", (1200, 630), OG_BG)
-    logo = resize(img, 252)
+    logo = resize(rounded, 252)
     canvas.paste(logo, (474, 189), logo)
     canvas.save(PUBLIC / "og-image.png", "PNG", optimize=True)
 

@@ -7,6 +7,7 @@
 | 01 | [项目概述](./01-overview.md) | 要解决的问题、核心概念、模块定义 |
 | 05 | [部署与本地 E2E 链路](./05-deployment.md) | Worker/D1 部署、Host 注册、Dashboard 本地运行 |
 | 05 | [Pilot Validation](./05-pilot-validation.md) | 真实环境验证清单、Host Service 24h 试运行记录 |
+| 06 | [Logo identity](./06-logo-identity.md) | Artwork direction, asset roles, source adoption, and verification |
 
 ## 架构
 
