@@ -9,6 +9,7 @@
 | 05 | [Pilot Validation](./05-pilot-validation.md) | 真实环境验证清单、Host Service 24h 试运行记录 |
 | 06 | [Logo identity](./06-logo-identity.md) | Artwork direction, asset roles, source adoption, and verification |
 | 07 | [Dependency security](./07-dependency-security.md) | Targeted advisory fixes required by the publication gate |
+| 08 | [README refresh and current entry points](./08-readme-refresh.md) | Current web / CLI entry points, behavior boundaries and README evidence |
 
 ## 架构
 
