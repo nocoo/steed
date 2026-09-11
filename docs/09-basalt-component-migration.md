@@ -1,6 +1,6 @@
 # 09 — Basalt public component migration
 
-> Status: 🔨 IMPLEMENTING — Root review corrections applied 2026-09-11
+> Status: ✅ COMPLETED — waiting Root P0–P3 review
 >
 > Package: `@nocoo/basalt@2.1.7` (exact). Active frontend: `apps/web` (Vite / React 19 / React Router 7).
 > Baseline HEAD: `107256b7104a067133029f7f4b5a60a86efd717b`. App version stays `0.0.1`. Root has no `version`; do not add one.
@@ -547,11 +547,11 @@ Root review: do not delete tokens in the providers commit; fewer complete commit
 | # | Subject | Files (intent) | Done |
 |---|---|---|---|
 | C0 | `docs: add basalt component migration plan` | plan + index | ✅ `0f851cb` |
-| C0b | `docs: apply basalt migration review fixes` | this file (logo slot, surfaces, commits, GitHub, forms, version) | |
-| C1 | `chore: add @nocoo/basalt 2.1.7 dependency` | `apps/web/package.json`, `bun.lock` | |
-| C2 | `feat: replace app shell with basalt chrome` | providers + CSS **keeping old tokens**, AppFrame/Sidebar, 68px logo slot, crumbs, version from `package.json`, GitHub `LinkButton` to nocoo/steed; delete old layout modules | |
-| C3 | `feat: migrate product pages to basalt` | all 7 pages, LaneChips, map filters/drawer/nodes; forms `type=submit` | |
-| C4 | `chore: drop local ui and leftover tokens` | delete leftover `components/ui` except `lane-chips`; remove old HSL tokens / unused deps; native-control scan | |
+| C0b | `docs: apply basalt migration review fixes` | this file (logo slot, surfaces, commits, GitHub, forms, version) | ✅ `690029c` |
+| C1 | `chore: add @nocoo/basalt 2.1.7 dependency` | `apps/web/package.json`, `bun.lock` | ✅ `aa16657` |
+| C2 | `feat: replace app shell with basalt chrome` | providers + CSS **keeping old tokens**, AppFrame/Sidebar, 68px logo slot, crumbs, version from `package.json`, GitHub `LinkButton` to nocoo/steed; delete old layout modules | ✅ `3f9bdb4` |
+| C3 | `feat: migrate product pages to basalt` | all 7 pages, LaneChips, map filters/drawer/nodes; forms `type=submit`; unused local ui removed with last consumers | ✅ `6ff691b` |
+| C4 | `chore: drop leftover tokens and unused ui deps` | old HSL tokens, `radix-ui`/`cva`/`sonner`/`tw-animate-css` | ✅ `9cafcd4` |
 | C5 | `docs: mark basalt migration complete` | status → ✅ | |
 
 ---
@@ -613,6 +613,7 @@ Root review: do not delete tokens in the providers commit; fewer complete commit
 |---|---|
 | 2026-09-11 | Inventory + numbered plan. |
 | 2026-09-11 | Root P1/P2: 68px logo slot, no forced L1 bg, runnable commits, LinkButton+nocoo/steed, submit types, package.json version. Implementing. |
+| 2026-09-11 | Implementation complete on `main`. Waiting Root P0–P3 review. |
 
 When C1–C5 land, flip the header status to ✅ COMPLETED and tick the commit table.
 
