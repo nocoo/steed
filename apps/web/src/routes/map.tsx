@@ -82,13 +82,17 @@ export function MapPage() {
       <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
         {loading ? (
           <LayerCard className="h-[640px]">
-            <SkeletonLine className="h-full" />
+            <SkeletonLine className="h-full" minWidth={100} maxWidth={100} />
           </LayerCard>
         ) : (
           <Suspense
             fallback={
               <LayerCard className="h-[640px]">
-                <SkeletonLine className="h-full" />
+                <SkeletonLine
+                  className="h-full"
+                  minWidth={100}
+                  maxWidth={100}
+                />
               </LayerCard>
             }
           >

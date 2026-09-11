@@ -90,8 +90,8 @@ export function DataSourceDetailPage() {
     return (
       <div className="space-y-8">
         <PageHeader title="Data Source" />
-        <SkeletonLine className="h-32" />
-        <SkeletonLine className="h-64" />
+        <SkeletonLine className="h-32" minWidth={100} maxWidth={100} />
+        <SkeletonLine className="h-64" minWidth={100} maxWidth={100} />
       </div>
     );
   }

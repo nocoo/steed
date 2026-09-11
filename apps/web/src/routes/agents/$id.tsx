@@ -79,8 +79,8 @@ export function AgentDetailPage() {
     return (
       <div className="space-y-8">
         <PageHeader title="Agent" />
-        <SkeletonLine className="h-32" />
-        <SkeletonLine className="h-64" />
+        <SkeletonLine className="h-32" minWidth={100} maxWidth={100} />
+        <SkeletonLine className="h-64" minWidth={100} maxWidth={100} />
       </div>
     );
   }
@@ -206,7 +206,7 @@ export function AgentDetailPage() {
         </LayerCard.Header>
         <LayerCard.Body>
           {bindings.loadingBindings ? (
-            <SkeletonLine className="h-16" />
+            <SkeletonLine className="h-16" minWidth={100} maxWidth={100} />
           ) : bindings.bindings.length === 0 ? (
             <p className="py-4 text-center text-sm text-basalt-muted-foreground">
               No data sources bound yet.
@@ -262,7 +262,7 @@ export function AgentDetailPage() {
             </DialogDescription>
           </DialogHeader>
           {bindings.loadingCandidates ? (
-            <SkeletonLine className="h-24" />
+            <SkeletonLine className="h-24" minWidth={100} maxWidth={100} />
           ) : bindings.candidateDataSources.length === 0 ? (
             <p className="py-4 text-center text-sm text-basalt-muted-foreground">
               No more data sources available.
