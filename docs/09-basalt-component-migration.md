@@ -300,7 +300,7 @@ Scan found none. Map `NodeDrawer` is an in-grid complementary column, not a FAB 
 | `viewmodels/*` | MVVM; no View imports today; keep that. |
 | `components/map/lane-map.tsx` | React Flow canvas. Basalt `flow` is a linear diagram. |
 | `components/map/layout.ts` | graph layout math. |
-| `components/map/nodes/*` | React Flow custom nodes. Restyle classes to `bg-basalt-card` / `text-basalt-muted-foreground`. Keep lane color constants. |
+| `components/map/nodes/*` | React Flow custom nodes. Nested `LayerCard` (L3 on canvas L2). Keep Handles, lane bars, `LANE_COLORS`. No `bg-basalt-card`. |
 | `components/map/map-legend.tsx` | domain legend. Restyle tokens. |
 | `components/map/map-filters.tsx` | compose `FilterBar` + `ToggleGroup` + `Select` + `Checkbox`. |
 | `components/map/node-drawer.tsx` | compose `LayerCard` + `DescriptionList` + `Button`. |
@@ -432,7 +432,7 @@ Same pattern as Agents list. Type icons stay lucide.
 | Legend | local spans | **K** restyle |
 | Canvas | React Flow in bordered `div.bg-background` | **K** wrap in unstructured `LayerCard` (L2 via `data-basalt-surface`). **Do not** add `bg-basalt-card` — that paints L1 on an L2 card. Canvas is transparent on the card. |
 | Node drawer | `aside` + native close | `LayerCard` + `DescriptionList` + `Button` close + `LinkButton`/`Button asChild` for detail |
-| Nodes | `bg-card` / `text-muted-foreground` / status dots | React Flow custom nodes (exception). No `bg-basalt-card`. Inherit L2; hairline ring + lane bar. Keep `LANE_COLORS` for graph identity. |
+| Nodes | `bg-card` / `text-muted-foreground` / status dots | Nested `LayerCard` (`data-basalt-surface` L3 on canvas L2). Keep Handles, lane bars, click/select, `LANE_COLORS`. No `bg-basalt-card` (that paints L1). |
 | Lazy + Suspense | keep | keep; fallback `SkeletonLine` |
 
 ### 5.10 LaneChips (kept composition)
@@ -552,7 +552,9 @@ Root review: do not delete tokens in the providers commit; fewer complete commit
 | C2 | `feat: replace app shell with basalt chrome` | providers + CSS **keeping old tokens**, AppFrame/Sidebar, 68px logo slot, crumbs, version from `package.json`, GitHub `LinkButton` to nocoo/steed; delete old layout modules | ✅ `3f9bdb4` |
 | C3 | `feat: migrate product pages to basalt` | all 7 pages, LaneChips, map filters/drawer/nodes; forms `type=submit`; unused local ui removed with last consumers | ✅ `6ff691b` |
 | C4 | `chore: drop leftover tokens and unused ui deps` | old HSL tokens, `radix-ui`/`cva`/`sonner`/`tw-animate-css` | ✅ `9cafcd4` |
-| C5 | `docs: mark basalt migration complete` | status → ✅ | |
+| C5 | `docs: mark basalt migration complete` | status → ✅ | ✅ `28aeb4d` |
+| S1/S2 | `fix: restore nav focus and drop body lock` | SheetTrigger asChild; no hand-written body overflow lock; close sheet on desktop | ✅ `3743d9f` |
+| S3 | `fix: restore map node l3 surfaces` | Host/Agent/DS nodes nested `LayerCard` L3; keep Handles and lane bars | ✅ `533ee9c` |
 
 ---
 
@@ -614,6 +616,8 @@ Root review: do not delete tokens in the providers commit; fewer complete commit
 | 2026-09-11 | Inventory + numbered plan. |
 | 2026-09-11 | Root P1/P2: 68px logo slot, no forced L1 bg, runnable commits, LinkButton+nocoo/steed, submit types, package.json version. Implementing. |
 | 2026-09-11 | Implementation complete on `main`. Waiting Root P0–P3 review. |
+| 2026-09-11 | Root S1/S2: Esc focus + desktop overflow unlock. `3743d9f`. |
+| 2026-09-11 | Root S3: map nodes were transparent after dropping `bg-card`. Nested `LayerCard` L3 on canvas L2. `533ee9c`. |
 
 When C1–C5 land, flip the header status to ✅ COMPLETED and tick the commit table.
 
