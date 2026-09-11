@@ -16,7 +16,9 @@ function renderApp(initialPath = "/") {
 describe("App", () => {
   it("renders with ApiClientProvider and router", () => {
     renderApp("/overview");
-    expect(screen.getByRole("heading", { name: "Overview" })).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("heading", { name: "Overview" }).length
+    ).toBeGreaterThan(0);
   });
 
   it("renders sidebar navigation", () => {

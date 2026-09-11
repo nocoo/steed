@@ -3,6 +3,7 @@ import {
   NAV_GROUPS,
   getAllNavItems,
   findNavItemByHref,
+  getHeaderTrail,
 } from "./navigation";
 
 describe("navigation", () => {
@@ -40,6 +41,49 @@ describe("navigation", () => {
     it("returns undefined for non-existent href", () => {
       const item = findNavItemByHref("/non-existent");
       expect(item).toBeUndefined();
+    });
+  });
+
+  describe("getHeaderTrail", () => {
+    it("treats empty path as Overview", () => {
+      expect(getHeaderTrail("/")).toEqual({
+        breadcrumbs: [],
+        title: "Overview",
+      });
+    });
+
+    it("uses Overview as title with no crumbs", () => {
+      expect(getHeaderTrail("/overview")).toEqual({
+        breadcrumbs: [],
+        title: "Overview",
+      });
+    });
+
+    it("puts Overview as a link on list pages", () => {
+      expect(getHeaderTrail("/hosts")).toEqual({
+        breadcrumbs: [{ href: "/overview", label: "Overview" }],
+        title: "Hosts",
+      });
+    });
+
+    it("keeps raw ids as title, not crumbs", () => {
+      expect(getHeaderTrail("/agents/abc-123")).toEqual({
+        breadcrumbs: [
+          { href: "/overview", label: "Overview" },
+          { href: "/agents", label: "Agents" },
+        ],
+        title: "abc-123",
+      });
+    });
+
+    it("does not invent hrefs for unknown ancestors", () => {
+      expect(getHeaderTrail("/unknown/leaf")).toEqual({
+        breadcrumbs: [
+          { href: "/overview", label: "Overview" },
+          { label: "unknown" },
+        ],
+        title: "leaf",
+      });
     });
   });
 });

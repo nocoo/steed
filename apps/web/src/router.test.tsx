@@ -39,14 +39,18 @@ describe("router", () => {
   it("redirects / to /overview", async () => {
     renderRoute("/");
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Overview" })).toBeInTheDocument();
+      expect(
+        screen.getAllByRole("heading", { name: "Overview" }).length
+      ).toBeGreaterThan(0);
     });
   });
 
   it("renders overview page", async () => {
     renderRoute("/overview");
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Overview" })).toBeInTheDocument();
+      expect(
+        screen.getAllByRole("heading", { name: "Overview" }).length
+      ).toBeGreaterThan(0);
     });
     expect(screen.getByText("AI asset visibility at a glance")).toBeInTheDocument();
   });
@@ -54,7 +58,9 @@ describe("router", () => {
   it("renders hosts page", async () => {
     renderRoute("/hosts");
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Hosts" })).toBeInTheDocument();
+      expect(
+        screen.getAllByRole("heading", { name: "Hosts" }).length
+      ).toBeGreaterThan(0);
     });
     expect(screen.getByText("Connected machines running the host service")).toBeInTheDocument();
   });
@@ -62,7 +68,9 @@ describe("router", () => {
   it("renders agents list page", async () => {
     renderRoute("/agents");
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Agents" })).toBeInTheDocument();
+      expect(
+        screen.getAllByRole("heading", { name: "Agents" }).length
+      ).toBeGreaterThan(0);
     });
     expect(screen.getByText("Autonomous agent entities across all hosts")).toBeInTheDocument();
   });
@@ -94,7 +102,9 @@ describe("router", () => {
   it("renders data sources list page", async () => {
     renderRoute("/data-sources");
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Data Sources" })).toBeInTheDocument();
+      expect(
+        screen.getAllByRole("heading", { name: "Data Sources" }).length
+      ).toBeGreaterThan(0);
     });
     expect(screen.getByText(/CLIs, MCP services, platforms/)).toBeInTheDocument();
   });
@@ -123,7 +133,9 @@ describe("router", () => {
 
   it("renders map page", () => {
     renderRoute("/map");
-    expect(screen.getByRole("heading", { name: "Map" })).toBeInTheDocument();
+    expect(screen.getAllByRole("heading", { name: "Map" }).length).toBeGreaterThan(
+      0
+    );
     expect(screen.getByText(/Relationship map/)).toBeInTheDocument();
   });
 });

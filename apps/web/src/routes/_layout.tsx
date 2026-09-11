@@ -1,15 +1,12 @@
-import { Outlet } from "react-router";
-import { SidebarProvider } from "@/components/layout/sidebar-context";
-import { AppShell } from "@/components/layout/app-shell";
+import { AppFrame } from "@/components/layout/app-frame";
+import { ShellProviders } from "@/components/layout/shell-providers";
 import { Toaster } from "@/components/ui/sonner";
 
 export function Layout() {
   return (
-    <SidebarProvider>
-      <AppShell>
-        <Outlet />
-      </AppShell>
+    <ShellProviders>
+      <AppFrame />
       <Toaster />
-    </SidebarProvider>
+    </ShellProviders>
   );
 }

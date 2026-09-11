@@ -34,7 +34,7 @@ describe("App", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByRole("heading", { name: "Overview" })
+        screen.getAllByRole("heading", { name: "Overview" })[0]
       ).toBeInTheDocument();
     });
   });

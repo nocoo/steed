@@ -8,7 +8,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Steed - AI Hub</title>
     <script>
-      (function(){try{var s=localStorage.getItem("theme");var d=window.matchMedia("(prefers-color-scheme:dark)").matches;if(s==="dark"||(s!=="light"&&d))document.documentElement.classList.add("dark")}catch(e){}})()
+      (function(){try{var s=localStorage.getItem("theme");var d=window.matchMedia("(prefers-color-scheme:dark)").matches;var isDark=s==="dark"||(s!=="light"&&d);var r=document.documentElement;r.classList.toggle("dark",isDark);r.classList.toggle("light",!isDark);r.dataset.mode=isDark?"dark":"light"}catch(e){}})()
     </script>
   </head>
   <body>

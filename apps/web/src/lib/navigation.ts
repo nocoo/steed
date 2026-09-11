@@ -63,3 +63,35 @@ export function getAllNavItems(): NavItem[] {
 export function findNavItemByHref(href: string): NavItem | undefined {
   return getAllNavItems().find((item) => item.href === href);
 }
+
+export interface HeaderTrail {
+  breadcrumbs: { href?: string; label: string }[];
+  title: string;
+}
+
+export function getHeaderTrail(pathname: string): HeaderTrail {
+  const segments = pathname.split("/").filter(Boolean);
+  if (segments.length === 0) {
+    return { breadcrumbs: [], title: "Overview" };
+  }
+
+  const crumbs: { href?: string; label: string }[] = [];
+  for (let i = 0; i < segments.length - 1; i += 1) {
+    const href = `/${segments.slice(0, i + 1).join("/")}`;
+    const nav = findNavItemByHref(href);
+    crumbs.push(nav ? { href, label: nav.title } : { label: href.slice(1) });
+  }
+
+  const lastHref = `/${segments.join("/")}`;
+  const lastNav = findNavItemByHref(lastHref);
+  const title = lastNav ? lastNav.title : String(segments.at(-1));
+
+  if (lastHref === "/overview") {
+    return { breadcrumbs: [], title: "Overview" };
+  }
+
+  return {
+    breadcrumbs: [{ href: "/overview", label: "Overview" }, ...crumbs],
+    title,
+  };
+}
