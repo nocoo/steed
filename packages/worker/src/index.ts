@@ -9,6 +9,7 @@ import { dataSources } from "./routes/data-sources";
 import { bindings } from "./routes/bindings";
 import { lanes } from "./routes/lanes";
 import { auth } from "./routes/auth";
+import pkg from "../../../package.json" with { type: "json" };
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -19,6 +20,7 @@ app.use("*", authMiddleware);
 app.get("/api/v1/health", (c) => {
   return c.json({
     status: "ok",
+    version: pkg.version,
     timestamp: new Date().toISOString(),
   });
 });

@@ -7,8 +7,9 @@ import { createRegisterCommand } from "./commands/register.js";
 import { createStatusCommand } from "./commands/status.js";
 import { createConfigCommand } from "./commands/config.js";
 import { createServiceCommand } from "./commands/service.js";
+import pkg from "../../../package.json" with { type: "json" };
 
-const VERSION = "0.1.0";
+const VERSION: string = pkg.version;
 
 function createProgram(): Command {
   const program = new Command();

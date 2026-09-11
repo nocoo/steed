@@ -1,6 +1,7 @@
 import app from "@steed/worker";
 import { createApiRouter } from "@steed/api/server";
 import { verifyAccessJwt, type VerifyResult } from "./access-jwt";
+import pkg from "../../../package.json" with { type: "json" };
 
 interface Env {
   ASSETS: { fetch(req: Request): Promise<Response> };
@@ -18,7 +19,7 @@ export default {
     const url = new URL(req.url);
 
     if (url.pathname === "/api/live") {
-      return new Response("ok", { status: 200 });
+      return Response.json({ status: "ok", version: pkg.version });
     }
 
     // /api/v1/* — Worker API. Auth handled by Hono Bearer middleware.

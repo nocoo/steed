@@ -4,6 +4,7 @@
   "workspaces": {
     "": {
       "name": "steed",
+      "version": "0.1.0",
       "devDependencies": {
         "@cloudflare/workers-types": "^4.20260616.1",
         "@types/node": "^25.9.3",
@@ -18,7 +19,7 @@
     },
     "apps/web": {
       "name": "@steed/web",
-      "version": "0.0.1",
+      "version": "0.1.0",
       "dependencies": {
         "@hookform/resolvers": "^5.4.0",
         "@nocoo/basalt": "2.1.7",
@@ -54,7 +55,7 @@
     },
     "apps/web_legacy": {
       "name": "@steed/web-legacy",
-      "version": "0.0.1",
+      "version": "0.1.0",
       "dependencies": {
         "@hookform/resolvers": "^5.4.0",
         "@steed/shared": "workspace:*",
@@ -91,7 +92,7 @@
     },
     "packages/api": {
       "name": "@steed/api",
-      "version": "0.0.1",
+      "version": "0.1.0",
       "dependencies": {
         "@steed/shared": "workspace:*",
         "zod": "^4.4.3",
@@ -125,11 +126,11 @@
     },
     "packages/shared": {
       "name": "@steed/shared",
-      "version": "0.0.1",
+      "version": "0.1.0",
     },
     "packages/worker": {
       "name": "@steed/worker",
-      "version": "0.0.1",
+      "version": "0.1.0",
       "dependencies": {
         "@steed/shared": "workspace:*",
         "hono": "^4.12.34",

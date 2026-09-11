@@ -11,6 +11,7 @@
 | 07 | [Dependency security](./07-dependency-security.md) | Targeted advisory fixes required by the publication gate |
 | 08 | [README refresh and current entry points](./08-readme-refresh.md) | Current web / CLI entry points, behavior boundaries and README evidence |
 | 09 | [Basalt component migration](./09-basalt-component-migration.md) | Replace local Basalt-styled chrome in `apps/web` with published `@nocoo/basalt@2.1.7` |
+| 10 | [Release v0.1.0](./10-release-0.1.0.md) | First tag: unify project version at root `0.1.0` |
 
 ## 架构
 

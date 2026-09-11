@@ -41,7 +41,7 @@ describe("worker", () => {
     const res = await worker.fetch(req, baseEnv, {} as ExecutionContext);
 
     expect(res.status).toBe(200);
-    expect(await res.text()).toBe("ok");
+    expect(await res.json()).toEqual({ status: "ok", version: "0.1.0" });
     expect(mocks.verifyAccessJwt).not.toHaveBeenCalled();
   });
 

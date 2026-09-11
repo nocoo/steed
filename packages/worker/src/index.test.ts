@@ -9,6 +9,7 @@ describe("Worker App", () => {
 
       const body = await res.json();
       expect(body).toHaveProperty("status", "ok");
+      expect(body).toHaveProperty("version", "0.1.0");
       expect(body).toHaveProperty("timestamp");
     });
 

@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath, URL } from "node:url";
 
 const { version } = JSON.parse(
-  readFileSync(new URL("./package.json", import.meta.url), "utf8")
+  readFileSync(new URL("../../package.json", import.meta.url), "utf8")
 ) as { version: string };
 
 export default defineConfig({
