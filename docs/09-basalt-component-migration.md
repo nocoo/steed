@@ -1,6 +1,6 @@
 # 09 — Basalt public component migration
 
-> Status: 📝 DESIGN — waiting for implementation go-ahead
+> Status: 🔨 IMPLEMENTING — Root review corrections applied 2026-09-11
 >
 > Package: `@nocoo/basalt@2.1.7` (exact). Active frontend: `apps/web` (Vite / React 19 / React Router 7).
 > Baseline HEAD: `107256b7104a067133029f7f4b5a60a86efd717b`. App version stays `0.0.1`. Root has no `version`; do not add one.
@@ -102,7 +102,7 @@ Library surfaces (background / card / secondary / bright) come from Basalt after
 
 Logo assets (keep, do not regenerate): `apps/web/public/logo-24.png`, `logo-80.png`, `favicon.ico`, `apple-touch-icon.png`, `og-image.png`; root `logo.png`; `assets/brand/icon-rounded.png`.
 
-Version string: `APP_VERSION` from `import.meta.env.VITE_APP_VERSION ?? "0.0.1"` (`apps/web/src/lib/version.ts`). Read at build time. Do not hardcode a new number.
+Version string: import `version` from `apps/web/package.json` at build time (`0.0.1`). Do not keep `VITE_APP_VERSION ?? "0.0.1"` as a hardcoded fallback. Do not change the number.
 
 ---
 
@@ -206,19 +206,22 @@ AppProviders
                 └── <Outlet/> pages
 ```
 
-### 3.1 Logo collapse contract (P0)
+### 3.1 Logo collapse contract (P1)
 
-Today the mark jumps: expanded header has **nested** `px-3` inside already-padded `SidebarHeader`; collapsed uses `pl-6`.
+Root review: `SidebarHeader` `px-3` (expanded) vs `justify-center px-0` on a 68px rail still moves a 24px mark (`x`: 12 → 22). Same `alt`/src is not enough.
 
-After:
+Contract: **one fixed-width leading slot in both states**.
 
-| State | Mark |
+| Rule | Value |
 |---|---|
-| Expanded | `img.logo-24` `h-6 w-6 shrink-0` in the brand row **directly** inside `SidebarHeader` (no extra horizontal padding). Name + version pill + collapse `Button` share that row. |
-| Collapsed | **Same** `img.logo-24` `h-6 w-6` in `SidebarHeader className="justify-center px-0"`. No `pl-6`. |
-| Mobile sheet | Always expanded tree. |
+| Slot | `h-14 w-[68px] shrink-0 flex items-center justify-center` |
+| Header | `SidebarHeader className="px-0"` always (override library `px-3`) |
+| Image | `logo-24.png` 24×24, identical element tree inside the slot |
+| Expanded | `[slot][name + version][collapse]` |
+| Collapsed | `[slot]` then expand control **below** the header |
+| Expected origin | `x = (68 - 24) / 2 = 22`, `y = (56 - 24) / 2 = 16` relative to the sidebar |
 
-One `Sidebar`. `collapsed` is the animation. Do not swap two different inner width wrappers (`w-[260px]` vs `w-[68px]`) — that is the current source of the jump.
+Measure with the browser (getBoundingClientRect of the img in both states). Do not treat “same alt” as pass.
 
 ### 3.2 Breadcrumbs (P0)
 
@@ -353,7 +356,7 @@ Legend: **R** replace with Basalt, **C** compose Basalt, **K** keep local (justi
 | Header | local `<header>` | `AppHeader` |
 | Breadcrumbs | local | `AppHeader.breadcrumbs` |
 | Theme | local | `ThemeToggle` |
-| GitHub | raw `<a>` | keep `<a>` in `actions` (external). Optional `Button variant="ghost" size="icon"` wrap. |
+| GitHub | raw `<a>` to niccokunzmann/steed | `LinkButton` (`@nocoo/basalt/components/button`) `variant="ghost" size="icon"` → `https://github.com/nocoo/steed` |
 | Island | rounded `div.bg-card` | `ContentIsland` |
 | Version | `APP_VERSION` pill + footer text | same slots in `SidebarHeader` / `SidebarFooter` |
 | Logo | `img /logo-24.png` | same, both states, see §3.1 |
@@ -401,7 +404,7 @@ Legend: **R** replace with Basalt, **C** compose Basalt, **K** keep local (justi
 | Edit form | `Input` `Textarea` `Label` `LaneChips` `Button` | `Field`+`Input` / `InputArea` / `LaneChips` / `Button`. `disabled={isSubmitting \|\| !isDirty}`. Copy “Saving…” |
 | Bindings list | `Card` + ghost destroy | `LayerCard` + `Button variant="ghost"` |
 | Add dialog | local `Dialog` + native row `<button>` | Basalt `Dialog` + Basalt `Button` rows. Cancel / Confirm / empty / loading candidates |
-| Unbind confirm | **none** (immediate) | **keep immediate** — do not add `ConfirmDialog` |
+| Unbind confirm | **none** (immediate) | **keep immediate**. If `ConfirmDialog` is ever used: it does **not** close itself; caller closes on success and keeps it open on failure. |
 | Toasts | `toast` from local sonner | `toast` from `@nocoo/basalt` |
 | Loading / error | skeletons / destructive card | `SkeletonLine` / `LayerCard` |
 
@@ -427,9 +430,9 @@ Same pattern as Agents list. Type icons stay lucide.
 | 4 KPIs | `Card` | `LayerCard` unstructured |
 | Filters | native select/input/button | `PageHeader.filters` → `FilterBar` + `ToggleGroup` + `Select` + `Checkbox` |
 | Legend | local spans | **K** restyle |
-| Canvas | React Flow in bordered `div.bg-background` | **K** wrap in `LayerCard` / `bg-basalt-card` so the island stays L1 and the canvas is L2 |
-| Node drawer | `aside` + native close | `LayerCard` + `DescriptionList` + `Button` |
-| Nodes | `bg-card` / `text-muted-foreground` / `bg-green-500` dots | restyle surfaces to basalt; keep status dots and `LANE_COLORS` |
+| Canvas | React Flow in bordered `div.bg-background` | **K** wrap in unstructured `LayerCard` (L2 via `data-basalt-surface`). **Do not** add `bg-basalt-card` — that paints L1 on an L2 card. Canvas is transparent on the card. |
+| Node drawer | `aside` + native close | `LayerCard` + `DescriptionList` + `Button` close + `LinkButton`/`Button asChild` for detail |
+| Nodes | `bg-card` / `text-muted-foreground` / status dots | React Flow custom nodes (exception). No `bg-basalt-card`. Inherit L2; hairline ring + lane bar. Keep `LANE_COLORS` for graph identity. |
 | Lazy + Suspense | keep | keep; fallback `SkeletonLine` |
 
 ### 5.10 LaneChips (kept composition)
@@ -537,29 +540,19 @@ Forms: do not hit production data. Tests use `createMockApiClient`. Manual verif
 
 ## 8. Atomic commit plan
 
-Every commit is on `main`, Conventional Commits, imperative, lowercase, ≤50 chars. Stage **named files only**. Each commit must pass pre-commit (typecheck, lint, test, coverage).
+Every commit is on `main`, Conventional Commits, imperative, lowercase, ≤50 chars. Stage **named files only**. Each commit must pass pre-commit and be **runnable** (old CSS tokens stay until the last consumer is gone).
+
+Root review: do not delete tokens in the providers commit; fewer complete commits beat twelve half-migrations.
 
 | # | Subject | Files (intent) | Done |
 |---|---|---|---|
-| C0 | `docs: add basalt component migration plan` | `docs/09-basalt-component-migration.md`, `docs/README.md` | 🔨 this commit |
+| C0 | `docs: add basalt component migration plan` | plan + index | ✅ `0f851cb` |
+| C0b | `docs: apply basalt migration review fixes` | this file (logo slot, surfaces, commits, GitHub, forms, version) | |
 | C1 | `chore: add @nocoo/basalt 2.1.7 dependency` | `apps/web/package.json`, `bun.lock` | |
-| C2 | `feat: mount basalt providers and tokens` | `index.css`, `index.html`, `main.tsx`/`App.tsx`, new `app-link.tsx` / providers wiring | |
-| C3 | `feat: replace app shell with basalt chrome` | `app-frame`, `app-sidebar`, `navigation` crumbs, `_layout.tsx`; delete old shell/sidebar/breadcrumbs/theme-toggle/sidebar-context; retarget their tests | |
-| C4 | `feat: migrate overview page to basalt` | `routes/overview.tsx` + test | |
-| C5 | `feat: migrate hosts page to basalt` | `routes/hosts.tsx` + test | |
-| C6 | `feat: migrate agents list to basalt` | `routes/agents/index.tsx` + test | |
-| C7 | `feat: migrate agent detail to basalt` | `routes/agents/$id.tsx` + test; LaneChips composition if first needed here | |
-| C8 | `feat: migrate data source list to basalt` | `routes/data-sources/index.tsx` + test | |
-| C9 | `feat: migrate data source detail to basalt` | `routes/data-sources/$id.tsx` + test | |
-| C10 | `feat: migrate map page to basalt controls` | `map.tsx`, `map-filters`, `node-drawer`, nodes, legend + tests | |
-| C11 | `chore: remove leftover local ui primitives` | delete leftover `components/ui/*` except `lane-chips`; drop unused deps; final native-control scan | |
-| C12 | `docs: mark basalt migration complete` | this file status → ✅; index | |
-
-C0 is documentation only. **C1–C12 wait for go-ahead.**
-
-If a page commit would be red without a shared helper (e.g. LaneChips), fold the helper into the first page that needs it (C7), not a speculative “ui kit” commit.
-
-Do not combine C3 with pages. Outside-in: providers → shell → pages → delete leftovers.
+| C2 | `feat: replace app shell with basalt chrome` | providers + CSS **keeping old tokens**, AppFrame/Sidebar, 68px logo slot, crumbs, version from `package.json`, GitHub `LinkButton` to nocoo/steed; delete old layout modules | |
+| C3 | `feat: migrate product pages to basalt` | all 7 pages, LaneChips, map filters/drawer/nodes; forms `type=submit` | |
+| C4 | `chore: drop local ui and leftover tokens` | delete leftover `components/ui` except `lane-chips`; remove old HSL tokens / unused deps; native-control scan | |
+| C5 | `docs: mark basalt migration complete` | status → ✅ | |
 
 ---
 
@@ -618,6 +611,9 @@ Do not combine C3 with pages. Outside-in: providers → shell → pages → dele
 
 | Date | Event |
 |---|---|
-| 2026-09-11 | Inventory + this numbered plan. Waiting for implementation go-ahead. |
+| 2026-09-11 | Inventory + numbered plan. |
+| 2026-09-11 | Root P1/P2: 68px logo slot, no forced L1 bg, runnable commits, LinkButton+nocoo/steed, submit types, package.json version. Implementing. |
 
-When C1–C12 land, flip the header status to ✅ COMPLETED and tick the commit table.
+When C1–C5 land, flip the header status to ✅ COMPLETED and tick the commit table.
+
+Basalt `Button` defaults to `type="button"`. Every real submit control inside a `<form>` must set `type="submit"`. Cancel, Add, row pickers, unbind, and dialog actions stay the default (non-submit).
