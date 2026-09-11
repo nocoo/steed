@@ -1,6 +1,6 @@
 # 09 — Basalt public component migration
 
-> Status: ✅ COMPLETED — Root Codex sign-off at `0aee3c0`; no open P0–P3
+> Status: ✅ COMPLETED — Root Codex sign-off at `0aee3c0` (S1–S6); S7 skeleton width pending Root recheck
 >
 > Package: `@nocoo/basalt@2.1.7` (exact). Active frontend: `apps/web` (Vite / React 19 / React Router 7).
 > Baseline HEAD: `107256b7104a067133029f7f4b5a60a86efd717b`. App version stays `0.0.1`. Root has no `version`; do not add one.
@@ -557,6 +557,7 @@ Root review: do not delete tokens in the providers commit; fewer complete commit
 | S3 | `fix: restore map node l3 surfaces` | Host/Agent/DS nodes nested `LayerCard` L3; keep Handles and lane bars | ✅ `533ee9c` Root ✅ (L3) |
 | S4 | `fix: unclip host node source handle` | HostNode public `overflow-visible`; Agent/DS unchanged | ✅ `8dd3af5` Root ✅ |
 | S6 | `fix: drop remove button sr-only span` | bindings Remove `aria-label`; delete absolutely positioned `sr-only` | ✅ `2a67590` Root ✅ |
+| S7 | `fix: restore full-width skeleton blocks` | map/agent/DS large `SkeletonLine` `minWidth={100} maxWidth={100}`; overview text lines unchanged | ✅ `f69960c` Root recheck |
 
 ---
 
@@ -624,5 +625,6 @@ Root review: do not delete tokens in the providers commit; fewer complete commit
 | 2026-09-11 | S4 HostNode `overflow-visible` `8dd3af5`. Sign-off waits Root recheck of that handle. |
 | 2026-09-11 | Root S6: mobile `/agents/agent_1` scrollHeight 1020 from Remove `sr-only` span. `aria-label` instead. `2a67590`. |
 | 2026-09-11 | Root Codex sign-off at `0aee3c0`. S4 Host overflow-visible light/dark; L0–L3 238/246/252/255 and 23/27/31/36; S6 mobile 390×844; mobile/map regression pass. 28 shots are the normal-state matrix, not empty/loading/error. No open P0–P3. Caddy after Wooly. |
+| 2026-09-11 | S7: large SkeletonLine blocks defaulted to 65%. Restored full width via `minWidth={100} maxWidth={100}` on map/agent/DS blocks. Overview text percentages kept. `f69960c`. S1–S6 sign-off unchanged. Root rechecks forced-loading sizes. |
 
 Basalt `Button` defaults to `type="button"`. Every real submit control inside a `<form>` must set `type="submit"`. Cancel, Add, row pickers, unbind, and dialog actions stay the default (non-submit).
