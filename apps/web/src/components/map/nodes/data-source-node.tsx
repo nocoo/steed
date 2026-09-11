@@ -1,5 +1,6 @@
 import { Handle, Position } from "reactflow";
 import { Database } from "lucide-react";
+import { LayerCard } from "@nocoo/basalt";
 import { cn } from "@/lib/utils";
 import type { DataSourceNodeData } from "@/lib/map-data";
 import { LANE_COLORS } from "@/lib/map-data";
@@ -10,11 +11,12 @@ interface Props {
 
 export function DataSourceNode({ data }: Props) {
   return (
-    <div
+    <LayerCard
       role="group"
       aria-label={`Data Source ${data.label}`}
+      padding="sm"
       className={cn(
-        "relative w-[220px] overflow-hidden rounded-lg py-3 pl-3 pr-3 ring-1 ring-basalt-border/40 transition-opacity",
+        "relative w-[220px] transition-opacity",
         data.orphan && "opacity-60"
       )}
     >
@@ -32,6 +34,6 @@ export function DataSourceNode({ data }: Props) {
         {data.raw.type} · {data.raw.auth_status}
         {data.orphan ? " · unbound" : ""}
       </p>
-    </div>
+    </LayerCard>
   );
 }

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { LayerCard } from "@nocoo/basalt";
 import { ReactFlowProvider } from "reactflow";
 import { HostNode } from "../host-node";
 import { AgentNode } from "../agent-node";
@@ -72,11 +73,18 @@ const baseSource: DataSourceNodeData = {
   },
 };
 
+function expectNodeSurface(name: string | RegExp) {
+  const group = screen.getByRole("group", { name });
+  expect(group).toHaveAttribute("data-basalt-surface", "");
+  expect(group.querySelector(".react-flow__handle")).not.toBeNull();
+}
+
 describe("HostNode", () => {
   it("renders online host", () => {
     wrap(<HostNode data={baseHost} />);
     expect(screen.getByText("Host A")).toBeInTheDocument();
     expect(screen.getByText(/online/)).toBeInTheDocument();
+    expectNodeSurface("Host Host A");
   });
 
   it("renders offline orphan host", () => {
@@ -98,6 +106,7 @@ describe("AgentNode", () => {
     wrap(<AgentNode data={baseAgent} />);
     expect(screen.getByText("Agent A")).toBeInTheDocument();
     expect(screen.getByText(/node/)).toBeInTheDocument();
+    expectNodeSurface("Agent Agent A");
   });
 
   it("renders orphan agent with no runtime", () => {
@@ -135,10 +144,36 @@ describe("DataSourceNode", () => {
     expect(
       screen.getByText(/personal_cli · authenticated/)
     ).toBeInTheDocument();
+    expectNodeSurface("Data Source Source A");
   });
 
   it("renders orphan data source", () => {
     wrap(<DataSourceNode data={{ ...baseSource, orphan: true }} />);
     expect(screen.getByText(/unbound/)).toBeInTheDocument();
+  });
+});
+
+describe("map node surfaces", () => {
+  it("nests L3 LayerCard under an L2 canvas card", () => {
+    wrap(
+      <div data-basalt-surface-root="">
+        <LayerCard padding="none" aria-label="Lane map canvas">
+          <HostNode data={baseHost} />
+          <AgentNode data={baseAgent} />
+          <DataSourceNode data={baseSource} />
+        </LayerCard>
+      </div>
+    );
+    const canvas = screen.getByLabelText("Lane map canvas");
+    expect(canvas).toHaveAttribute("data-basalt-surface", "");
+    const nodes = [
+      screen.getByRole("group", { name: "Host Host A" }),
+      screen.getByRole("group", { name: "Agent Agent A" }),
+      screen.getByRole("group", { name: "Data Source Source A" }),
+    ];
+    for (const node of nodes) {
+      expect(canvas.contains(node)).toBe(true);
+      expect(node).toHaveAttribute("data-basalt-surface", "");
+    }
   });
 });

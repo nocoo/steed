@@ -1,5 +1,6 @@
 import { Handle, Position } from "reactflow";
 import { Bot } from "lucide-react";
+import { LayerCard } from "@nocoo/basalt";
 import { cn } from "@/lib/utils";
 import type { AgentNodeData } from "@/lib/map-data";
 import { LANE_COLORS } from "@/lib/map-data";
@@ -18,11 +19,12 @@ export function AgentNode({ data }: Props) {
   const lane = data.laneKeys[0] ?? "unassigned";
   const colors = LANE_COLORS[lane];
   return (
-    <div
+    <LayerCard
       role="group"
       aria-label={`Agent ${data.label}`}
+      padding="sm"
       className={cn(
-        "relative w-[220px] overflow-hidden rounded-lg py-3 pl-3 pr-3 ring-1 ring-basalt-border/40 transition-opacity",
+        "relative w-[220px] transition-opacity",
         data.orphan && "opacity-60"
       )}
     >
@@ -47,6 +49,6 @@ export function AgentNode({ data }: Props) {
         {data.raw.runtime_app ?? "—"}
         {data.orphan ? " · unbound" : ""}
       </p>
-    </div>
+    </LayerCard>
   );
 }

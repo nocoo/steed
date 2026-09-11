@@ -1,5 +1,6 @@
 import { Handle, Position } from "reactflow";
 import { Server, ServerOff } from "lucide-react";
+import { LayerCard } from "@nocoo/basalt";
 import { cn } from "@/lib/utils";
 import type { HostNodeData } from "@/lib/map-data";
 
@@ -10,11 +11,12 @@ interface Props {
 export function HostNode({ data }: Props) {
   const online = data.raw.status === "online";
   return (
-    <div
+    <LayerCard
       role="group"
       aria-label={`Host ${data.label}`}
+      padding="sm"
       className={cn(
-        "w-[220px] rounded-lg p-3 ring-1 ring-basalt-border/40 transition-opacity",
+        "relative w-[220px] transition-opacity",
         data.orphan && "opacity-60"
       )}
     >
@@ -31,6 +33,6 @@ export function HostNode({ data }: Props) {
         {online ? "online" : "offline"}
         {data.orphan ? " · no agents" : ""}
       </p>
-    </div>
+    </LayerCard>
   );
 }
