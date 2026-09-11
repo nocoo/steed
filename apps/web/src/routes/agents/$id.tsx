@@ -236,6 +236,7 @@ export function AgentDetailPage() {
                       type="button"
                       variant="ghost"
                       size="sm"
+                      aria-label="Remove"
                       onClick={async () => {
                         const r = await bindings.removeBinding(b.data_source_id);
                         if (r.ok) toast.success("Binding removed");
@@ -243,7 +244,6 @@ export function AgentDetailPage() {
                       }}
                     >
                       <Trash2 className="h-4 w-4" />
-                      <span className="sr-only">Remove</span>
                     </Button>
                   </li>
                 );
