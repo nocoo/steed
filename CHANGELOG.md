@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.1] - 2026-09-11
+
+### Fixed
+
+- Add `Cache-Control: no-store` header to `GET /api/live` health endpoint
+
 ## [0.1.0] - 2026-09-11
 
 First tagged release. Root `package.json` is the version source of truth (`0.1.0`).

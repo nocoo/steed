@@ -19,7 +19,10 @@ export default {
     const url = new URL(req.url);
 
     if (url.pathname === "/api/live") {
-      return Response.json({ status: "ok", version: pkg.version });
+      return Response.json(
+        { status: "ok", version: pkg.version },
+        { headers: { "Cache-Control": "no-store" } }
+      );
     }
 
     // /api/v1/* — Worker API. Auth handled by Hono Bearer middleware.

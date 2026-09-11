@@ -41,7 +41,8 @@ describe("worker", () => {
     const res = await worker.fetch(req, baseEnv, {} as ExecutionContext);
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ status: "ok", version: "0.1.0" });
+    expect(res.headers.get("Cache-Control")).toBe("no-store");
+    expect(await res.json()).toEqual({ status: "ok", version: "0.1.1" });
     expect(mocks.verifyAccessJwt).not.toHaveBeenCalled();
   });
 

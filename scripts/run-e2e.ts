@@ -12,7 +12,7 @@
 import { spawn, type Subprocess } from "bun";
 import { rmSync, existsSync } from "fs";
 
-const TEST_PORT = 8787;
+const TEST_PORT = Number(process.env.TEST_PORT ?? 18787);
 const BASE_URL = `http://localhost:${TEST_PORT}`;
 const DASHBOARD_TOKEN = process.env.DASHBOARD_SERVICE_TOKEN ?? "test-dashboard-token";
 

@@ -4,6 +4,6 @@ import { APP_VERSION } from "./version";
 describe("version", () => {
   it("exports APP_VERSION", () => {
     expect(typeof APP_VERSION).toBe("string");
-    expect(APP_VERSION).toBe("0.1.0");
+    expect(APP_VERSION).toBe("0.1.1");
   });
 });
