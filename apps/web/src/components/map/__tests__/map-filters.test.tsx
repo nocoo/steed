@@ -33,17 +33,20 @@ const defaultFilters: MapFiltersType = {
   orphansOnly: false,
 };
 
+function laneControl(name: string) {
+  return screen.getByRole("button", { name });
+}
+
 describe("MapFilters", () => {
-  it("renders all lane checkboxes", () => {
-    const onChange = vi.fn();
+  it("renders all lane options", () => {
     render(
-      <MapFilters filters={defaultFilters} hosts={[]} onChange={onChange} />
+      <MapFilters filters={defaultFilters} hosts={[]} onChange={vi.fn()} />
     );
 
-    expect(screen.getByRole("checkbox", { name: "Work" })).toBeInTheDocument();
-    expect(screen.getByRole("checkbox", { name: "Life" })).toBeInTheDocument();
-    expect(screen.getByRole("checkbox", { name: "Learning" })).toBeInTheDocument();
-    expect(screen.getByRole("checkbox", { name: "Unassigned" })).toBeInTheDocument();
+    expect(laneControl("Work")).toBeInTheDocument();
+    expect(laneControl("Life")).toBeInTheDocument();
+    expect(laneControl("Learning")).toBeInTheDocument();
+    expect(laneControl("Unassigned")).toBeInTheDocument();
   });
 
   it("toggles lane off when clicked", () => {
@@ -52,7 +55,7 @@ describe("MapFilters", () => {
       <MapFilters filters={defaultFilters} hosts={[]} onChange={onChange} />
     );
 
-    fireEvent.click(screen.getByRole("checkbox", { name: "Work" }));
+    fireEvent.click(laneControl("Work"));
     expect(onChange).toHaveBeenCalledWith({
       ...defaultFilters,
       lanes: ["life", "learning", "unassigned"],
@@ -61,40 +64,49 @@ describe("MapFilters", () => {
 
   it("toggles lane on when clicked", () => {
     const onChange = vi.fn();
-    const filtersWithoutWork = { ...defaultFilters, lanes: ["life", "learning", "unassigned"] };
+    const filtersWithoutWork = {
+      ...defaultFilters,
+      lanes: ["life", "learning", "unassigned"] as MapFiltersType["lanes"],
+    };
     render(
-      <MapFilters filters={filtersWithoutWork} hosts={[]} onChange={onChange} />
+      <MapFilters
+        filters={filtersWithoutWork}
+        hosts={[]}
+        onChange={onChange}
+      />
     );
 
-    fireEvent.click(screen.getByRole("checkbox", { name: "Work" }));
+    fireEvent.click(laneControl("Work"));
     expect(onChange).toHaveBeenCalledWith({
       ...filtersWithoutWork,
       lanes: ["life", "learning", "unassigned", "work"],
     });
   });
 
-  it("renders host select with options", () => {
-    const onChange = vi.fn();
+  it("renders host select", () => {
     render(
-      <MapFilters filters={defaultFilters} hosts={mockHosts} onChange={onChange} />
+      <MapFilters
+        filters={defaultFilters}
+        hosts={mockHosts}
+        onChange={vi.fn()}
+      />
     );
 
-    const select = screen.getByRole("combobox", { name: "Host filter" });
-    expect(select).toBeInTheDocument();
-    expect(screen.getByText("All hosts")).toBeInTheDocument();
-    expect(screen.getByText("Host 1")).toBeInTheDocument();
-    expect(screen.getByText("Host 2")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Host filter" })).toBeInTheDocument();
   });
 
   it("calls onChange when host is selected", () => {
     const onChange = vi.fn();
     render(
-      <MapFilters filters={defaultFilters} hosts={mockHosts} onChange={onChange} />
+      <MapFilters
+        filters={defaultFilters}
+        hosts={mockHosts}
+        onChange={onChange}
+      />
     );
 
-    fireEvent.change(screen.getByRole("combobox", { name: "Host filter" }), {
-      target: { value: "h1" },
-    });
+    fireEvent.click(screen.getByRole("combobox", { name: "Host filter" }));
+    fireEvent.click(screen.getByRole("option", { name: "Host 1" }));
     expect(onChange).toHaveBeenCalledWith({
       ...defaultFilters,
       hostId: "h1",
@@ -105,12 +117,15 @@ describe("MapFilters", () => {
     const onChange = vi.fn();
     const filtersWithHost = { ...defaultFilters, hostId: "h1" };
     render(
-      <MapFilters filters={filtersWithHost} hosts={mockHosts} onChange={onChange} />
+      <MapFilters
+        filters={filtersWithHost}
+        hosts={mockHosts}
+        onChange={onChange}
+      />
     );
 
-    fireEvent.change(screen.getByRole("combobox", { name: "Host filter" }), {
-      target: { value: "" },
-    });
+    fireEvent.click(screen.getByRole("combobox", { name: "Host filter" }));
+    fireEvent.click(screen.getByRole("option", { name: "All hosts" }));
     expect(onChange).toHaveBeenCalledWith({
       ...filtersWithHost,
       hostId: null,
@@ -118,12 +133,13 @@ describe("MapFilters", () => {
   });
 
   it("renders orphans only checkbox", () => {
-    const onChange = vi.fn();
     render(
-      <MapFilters filters={defaultFilters} hosts={[]} onChange={onChange} />
+      <MapFilters filters={defaultFilters} hosts={[]} onChange={vi.fn()} />
     );
 
-    expect(screen.getByRole("checkbox", { name: "Orphans only" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", { name: "Orphans only" })
+    ).toBeInTheDocument();
   });
 
   it("toggles orphans only", () => {

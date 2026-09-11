@@ -2,6 +2,18 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { afterEach } from "vitest";
 
+class ResizeObserverStub {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
+Object.defineProperty(globalThis, "ResizeObserver", {
+  writable: true,
+  configurable: true,
+  value: ResizeObserverStub,
+});
+
 const storageBackingStores = new WeakMap<Storage, Map<string, string>>();
 
 function ensureStore(instance: Storage): Map<string, string> {

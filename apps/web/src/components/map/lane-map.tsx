@@ -13,6 +13,7 @@ import "reactflow/dist/style.css";
 import { HostNode } from "./nodes/host-node";
 import { AgentNode } from "./nodes/agent-node";
 import { DataSourceNode } from "./nodes/data-source-node";
+import { LayerCard } from "@nocoo/basalt";
 import { layoutThreeColumn } from "./layout";
 import {
   LANE_COLORS,
@@ -66,27 +67,25 @@ function LaneMapInner({ graph, onNodeClick }: LaneMapProps) {
   );
 
   return (
-    <div
-      role="region"
-      aria-label="Lane map"
-      className="h-[640px] w-full rounded-lg border bg-background"
-    >
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={nodeTypes}
-        nodesDraggable={false}
-        nodesConnectable={false}
-        elementsSelectable
-        proOptions={{ hideAttribution: true }}
-        fitView
-        onNodeClick={handleClick}
-      >
-        <Background gap={16} />
-        <Controls showInteractive={false} />
-        <MiniMap pannable zoomable />
-      </ReactFlow>
-    </div>
+    <LayerCard padding="none" className="h-[640px] w-full">
+      <div role="region" aria-label="Lane map" className="h-full w-full">
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          nodesDraggable={false}
+          nodesConnectable={false}
+          elementsSelectable
+          proOptions={{ hideAttribution: true }}
+          fitView
+          onNodeClick={handleClick}
+        >
+          <Background gap={16} />
+          <Controls showInteractive={false} />
+          <MiniMap pannable zoomable />
+        </ReactFlow>
+      </div>
+    </LayerCard>
   );
 }
 

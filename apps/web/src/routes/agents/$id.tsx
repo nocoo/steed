@@ -1,31 +1,27 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router";
+import { useParams } from "react-router";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, AlertCircle, Plus, Trash2 } from "lucide-react";
+import { AlertCircle, Plus, Trash2 } from "lucide-react";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
+  Badge,
+  Button,
+  DescriptionList,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+  Field,
+  Input,
+  LayerCard,
+  toast,
+} from "@nocoo/basalt";
+import { PageHeader } from "@nocoo/basalt/components/page-header";
+import { InputArea } from "@nocoo/basalt/components/input-area";
+import { SkeletonLine } from "@nocoo/basalt/components/skeleton-line";
 import { LaneChips } from "@/components/ui/lane-chips";
-import { toast } from "@/components/ui/sonner";
 import { useAgentDetailViewModel } from "@/viewmodels/use-agent-detail-viewmodel";
 import { useAgentBindingsViewModel } from "@/viewmodels/use-agent-bindings-viewmodel";
 import { agentUpdateSchema, emptyToNull } from "@/lib/schemas";
@@ -52,9 +48,7 @@ export function AgentDetailPage() {
     formState: { isSubmitting, isDirty },
   } = useForm<FormValues>({
     defaultValues: { nickname: "", role: "", lane_id: null },
-    resolver: zodResolver(
-      agentUpdateSchema.transform((v) => v)
-    ) as never,
+    resolver: zodResolver(agentUpdateSchema.transform((v) => v)) as never,
   });
 
   useEffect(() => {
@@ -83,24 +77,24 @@ export function AgentDetailPage() {
 
   if (loading && !agent) {
     return (
-      <div className="space-y-6">
-        <BackLink />
-        <Skeleton className="h-32 w-full" />
-        <Skeleton className="h-64 w-full" />
+      <div className="space-y-8">
+        <PageHeader title="Agent" />
+        <SkeletonLine className="h-32" />
+        <SkeletonLine className="h-64" />
       </div>
     );
   }
 
   if (error && !agent) {
     return (
-      <div className="space-y-6">
-        <BackLink />
-        <Card className="border-destructive">
-          <CardContent className="flex items-center gap-3 pt-6">
-            <AlertCircle className="h-5 w-5 text-destructive" />
-            <p className="text-sm text-destructive">{error}</p>
-          </CardContent>
-        </Card>
+      <div className="space-y-8">
+        <PageHeader title="Agent" />
+        <LayerCard>
+          <div className="flex items-center gap-3">
+            <AlertCircle className="h-5 w-5 text-basalt-destructive" />
+            <p className="text-sm text-basalt-destructive">{error}</p>
+          </div>
+        </LayerCard>
       </div>
     );
   }
@@ -108,65 +102,64 @@ export function AgentDetailPage() {
   if (!agent) return null;
 
   return (
-    <div className="space-y-6">
-      <BackLink />
+    <div className="space-y-8">
+      <PageHeader
+        title={agent.nickname ?? agent.match_key}
+        description={agent.match_key}
+      />
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>{agent.nickname ?? agent.match_key}</CardTitle>
-              <CardDescription>{agent.match_key}</CardDescription>
-            </div>
+      <LayerCard>
+        <LayerCard.Header>
+          <div className="flex w-full items-center justify-between">
+            <span>Identity</span>
             <StatusBadge status={agent.status} />
           </div>
-        </CardHeader>
-        <CardContent className="grid gap-3 text-sm sm:grid-cols-2">
-          <Field label="Host">{agent.host_id}</Field>
-          <Field label="Runtime">
-            {agent.runtime_app
-              ? `${agent.runtime_app}${agent.runtime_version ? ` v${agent.runtime_version}` : ""}`
-              : "Unknown"}
-          </Field>
-          <Field label="Created">
-            {new Date(agent.created_at).toLocaleString()}
-          </Field>
-          <Field label="Last seen">
-            {agent.last_seen_at
-              ? new Date(agent.last_seen_at).toLocaleString()
-              : "Never"}
-          </Field>
-        </CardContent>
-      </Card>
+        </LayerCard.Header>
+        <LayerCard.Body>
+          <DescriptionList columns={2}>
+            <DescriptionList.Item term="Host">{agent.host_id}</DescriptionList.Item>
+            <DescriptionList.Item term="Runtime">
+              {agent.runtime_app
+                ? `${agent.runtime_app}${agent.runtime_version ? ` v${agent.runtime_version}` : ""}`
+                : "Unknown"}
+            </DescriptionList.Item>
+            <DescriptionList.Item term="Created">
+              {new Date(agent.created_at).toLocaleString()}
+            </DescriptionList.Item>
+            <DescriptionList.Item term="Last seen">
+              {agent.last_seen_at
+                ? new Date(agent.last_seen_at).toLocaleString()
+                : "Never"}
+            </DescriptionList.Item>
+          </DescriptionList>
+        </LayerCard.Body>
+      </LayerCard>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Edit</CardTitle>
-          <CardDescription>
-            Update nickname, role, and lane assignment.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+      <LayerCard>
+        <LayerCard.Header>
+          <div>
+            <p className="font-semibold text-basalt-foreground">Edit</p>
+            <p className="text-sm">Update nickname, role, and lane assignment.</p>
+          </div>
+        </LayerCard.Header>
+        <LayerCard.Body>
           <form onSubmit={onSubmit} className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="nickname">Nickname</Label>
+            <Field label="Nickname" htmlFor="nickname">
               <Input
                 id="nickname"
                 placeholder="e.g. Hermes Main"
                 {...register("nickname")}
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="role">Role</Label>
-              <Textarea
+            </Field>
+            <Field label="Role" htmlFor="role">
+              <InputArea
                 id="role"
                 rows={3}
                 placeholder="What is this agent responsible for?"
                 {...register("role")}
               />
-            </div>
-            <div className="space-y-2">
-              <Label>Lane</Label>
+            </Field>
+            <Field label="Lane">
               <Controller
                 control={control}
                 name="lane_id"
@@ -179,24 +172,22 @@ export function AgentDetailPage() {
                   />
                 )}
               />
-            </div>
+            </Field>
             <div className="flex justify-end">
               <Button type="submit" disabled={isSubmitting || !isDirty}>
                 {isSubmitting ? "Saving..." : "Save"}
               </Button>
             </div>
           </form>
-        </CardContent>
-      </Card>
+        </LayerCard.Body>
+      </LayerCard>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
+      <LayerCard>
+        <LayerCard.Header>
+          <div className="flex w-full items-center justify-between">
             <div>
-              <CardTitle>Data Sources</CardTitle>
-              <CardDescription>
-                Bindings to data sources on this host.
-              </CardDescription>
+              <p className="font-semibold text-basalt-foreground">Data Sources</p>
+              <p className="text-sm">Bindings to data sources on this host.</p>
             </div>
             <Button
               type="button"
@@ -212,12 +203,12 @@ export function AgentDetailPage() {
               Add
             </Button>
           </div>
-        </CardHeader>
-        <CardContent>
+        </LayerCard.Header>
+        <LayerCard.Body>
           {bindings.loadingBindings ? (
-            <Skeleton className="h-16 w-full" />
+            <SkeletonLine className="h-16" />
           ) : bindings.bindings.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4 text-center">
+            <p className="py-4 text-center text-sm text-basalt-muted-foreground">
               No data sources bound yet.
             </p>
           ) : (
@@ -229,17 +220,17 @@ export function AgentDetailPage() {
                 return (
                   <li
                     key={b.data_source_id}
-                    className="flex items-center justify-between rounded-md border p-3 text-sm"
+                    className="flex items-center justify-between rounded-md p-3 text-sm ring-1 ring-basalt-border/40"
                   >
                     <span>
                       <span className="font-medium">
                         {ds?.name ?? b.data_source_id}
                       </span>
-                      {ds && (
-                        <span className="ml-2 text-muted-foreground">
+                      {ds ? (
+                        <span className="ml-2 text-basalt-muted-foreground">
                           ({ds.type})
                         </span>
-                      )}
+                      ) : null}
                     </span>
                     <Button
                       type="button"
@@ -259,8 +250,8 @@ export function AgentDetailPage() {
               })}
             </ul>
           )}
-        </CardContent>
-      </Card>
+        </LayerCard.Body>
+      </LayerCard>
 
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <DialogContent>
@@ -271,38 +262,30 @@ export function AgentDetailPage() {
             </DialogDescription>
           </DialogHeader>
           {bindings.loadingCandidates ? (
-            <Skeleton className="h-24 w-full" />
+            <SkeletonLine className="h-24" />
           ) : bindings.candidateDataSources.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4 text-center">
+            <p className="py-4 text-center text-sm text-basalt-muted-foreground">
               No more data sources available.
             </p>
           ) : (
-            <ul className="space-y-1 max-h-64 overflow-auto">
+            <ul className="max-h-64 space-y-1 overflow-auto">
               {bindings.candidateDataSources.map((ds) => (
                 <li key={ds.id}>
-                  <button
+                  <Button
                     type="button"
+                    variant={selectedDsId === ds.id ? "secondary" : "outline"}
+                    className="h-auto w-full flex-col items-start py-2"
                     onClick={() => setSelectedDsId(ds.id)}
-                    className={
-                      "w-full rounded-md border px-3 py-2 text-left text-sm transition-colors " +
-                      (selectedDsId === ds.id
-                        ? "border-primary bg-accent"
-                        : "border-input hover:bg-accent")
-                    }
                   >
                     <p className="font-medium">{ds.name}</p>
-                    <p className="text-xs text-muted-foreground">{ds.type}</p>
-                  </button>
+                    <p className="text-xs text-basalt-muted-foreground">{ds.type}</p>
+                  </Button>
                 </li>
               ))}
             </ul>
           )}
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setAddOpen(false)}
-            >
+            <Button type="button" variant="outline" onClick={() => setAddOpen(false)}>
               Cancel
             </Button>
             <Button
@@ -324,33 +307,6 @@ export function AgentDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
-  );
-}
-
-function BackLink() {
-  return (
-    <Link
-      to="/agents"
-      className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-    >
-      <ArrowLeft className="h-4 w-4" />
-      Back to agents
-    </Link>
-  );
-}
-
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <p className="text-xs uppercase text-muted-foreground">{label}</p>
-      <p className="font-medium">{children}</p>
     </div>
   );
 }

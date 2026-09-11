@@ -96,7 +96,7 @@ describe("router", () => {
     await waitFor(() => {
       expect(screen.getByText("Test Agent Nickname")).toBeInTheDocument();
     });
-    expect(screen.getByText("Back to agents")).toBeInTheDocument();
+    expect(screen.getByText("abc-123")).toBeInTheDocument();
   });
 
   it("renders data sources list page", async () => {
@@ -128,7 +128,7 @@ describe("router", () => {
     await waitFor(() => {
       expect(screen.getByText("Test Data Source")).toBeInTheDocument();
     });
-    expect(screen.getByText("Back to data sources")).toBeInTheDocument();
+    expect(screen.getByText("ds-456")).toBeInTheDocument();
   });
 
   it("renders map page", () => {

@@ -1,22 +1,20 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router";
+import { useParams } from "react-router";
 import { useForm } from "react-hook-form";
-import { ArrowLeft, AlertCircle, Database, Terminal, Plug } from "lucide-react";
+import { AlertCircle, Database, Terminal, Plug } from "lucide-react";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
+  Badge,
+  Button,
+  DescriptionList,
+  Field,
+  Input,
+  LayerCard,
+  toast,
+} from "@nocoo/basalt";
+import { PageHeader } from "@nocoo/basalt/components/page-header";
+import { InputArea } from "@nocoo/basalt/components/input-area";
+import { SkeletonLine } from "@nocoo/basalt/components/skeleton-line";
 import { LaneChips } from "@/components/ui/lane-chips";
-import { toast } from "@/components/ui/sonner";
 import { useDataSourceDetailViewModel } from "@/viewmodels/use-data-source-detail-viewmodel";
 import { parseTagsInput } from "@/lib/schemas";
 import type {
@@ -90,24 +88,24 @@ export function DataSourceDetailPage() {
 
   if (loading && !dataSource) {
     return (
-      <div className="space-y-6">
-        <BackLink />
-        <Skeleton className="h-32 w-full" />
-        <Skeleton className="h-64 w-full" />
+      <div className="space-y-8">
+        <PageHeader title="Data Source" />
+        <SkeletonLine className="h-32" />
+        <SkeletonLine className="h-64" />
       </div>
     );
   }
 
   if (error && !dataSource) {
     return (
-      <div className="space-y-6">
-        <BackLink />
-        <Card className="border-destructive">
-          <CardContent className="flex items-center gap-3 pt-6">
-            <AlertCircle className="h-5 w-5 text-destructive" />
-            <p className="text-sm text-destructive">{error}</p>
-          </CardContent>
-        </Card>
+      <div className="space-y-8">
+        <PageHeader title="Data Source" />
+        <LayerCard>
+          <div className="flex items-center gap-3">
+            <AlertCircle className="h-5 w-5 text-basalt-destructive" />
+            <p className="text-sm text-basalt-destructive">{error}</p>
+          </div>
+        </LayerCard>
       </div>
     );
   }
@@ -120,47 +118,55 @@ export function DataSourceDetailPage() {
   );
 
   return (
-    <div className="space-y-6">
-      <BackLink />
+    <div className="space-y-8">
+      <PageHeader
+        title={dataSource.name}
+        description={formatType(dataSource.type)}
+      />
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
+      <LayerCard>
+        <LayerCard.Header>
+          <div className="flex w-full items-center justify-between">
             <div className="flex items-center gap-3">
               <TypeIcon type={dataSource.type} />
-              <div>
-                <CardTitle>{dataSource.name}</CardTitle>
-                <CardDescription>{formatType(dataSource.type)}</CardDescription>
-              </div>
+              <span>Identity</span>
             </div>
             <div className="flex items-center gap-2">
               <AuthStatusBadge status={dataSource.auth_status} />
               <StatusBadge status={dataSource.status} />
             </div>
           </div>
-        </CardHeader>
-        <CardContent className="grid gap-3 text-sm sm:grid-cols-2">
-          <Field label="Host">{dataSource.host_id}</Field>
-          <Field label="Version">{dataSource.version ?? "—"}</Field>
-          <Field label="Created">
-            {new Date(dataSource.created_at).toLocaleString()}
-          </Field>
-          <Field label="Last seen">
-            {dataSource.last_seen_at
-              ? new Date(dataSource.last_seen_at).toLocaleString()
-              : "Never"}
-          </Field>
-        </CardContent>
-      </Card>
+        </LayerCard.Header>
+        <LayerCard.Body>
+          <DescriptionList columns={2}>
+            <DescriptionList.Item term="Host">
+              {dataSource.host_id}
+            </DescriptionList.Item>
+            <DescriptionList.Item term="Version">
+              {dataSource.version ?? "—"}
+            </DescriptionList.Item>
+            <DescriptionList.Item term="Created">
+              {new Date(dataSource.created_at).toLocaleString()}
+            </DescriptionList.Item>
+            <DescriptionList.Item term="Last seen">
+              {dataSource.last_seen_at
+                ? new Date(dataSource.last_seen_at).toLocaleString()
+                : "Never"}
+            </DescriptionList.Item>
+          </DescriptionList>
+        </LayerCard.Body>
+      </LayerCard>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Lanes</CardTitle>
-          <CardDescription>
-            Pick all business lines this data source belongs to.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <LayerCard>
+        <LayerCard.Header>
+          <div>
+            <p className="font-semibold text-basalt-foreground">Lanes</p>
+            <p className="text-sm">
+              Pick all business lines this data source belongs to.
+            </p>
+          </div>
+        </LayerCard.Header>
+        <LayerCard.Body className="space-y-4">
           <LaneChips
             mode="multi"
             value={laneSelection}
@@ -176,43 +182,41 @@ export function DataSourceDetailPage() {
               {laneSubmitting ? "Saving..." : "Save lanes"}
             </Button>
           </div>
-        </CardContent>
-      </Card>
+        </LayerCard.Body>
+      </LayerCard>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Metadata</CardTitle>
-          <CardDescription>
-            Notes and tags. Tags are comma-separated.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+      <LayerCard>
+        <LayerCard.Header>
+          <div>
+            <p className="font-semibold text-basalt-foreground">Metadata</p>
+            <p className="text-sm">Notes and tags. Tags are comma-separated.</p>
+          </div>
+        </LayerCard.Header>
+        <LayerCard.Body>
           <form onSubmit={onSubmitMeta} className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="notes">Notes</Label>
-              <Textarea
+            <Field label="Notes" htmlFor="notes">
+              <InputArea
                 id="notes"
                 rows={4}
                 placeholder="Free-form notes about this data source"
                 {...register("notes")}
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="tags">Tags</Label>
+            </Field>
+            <Field label="Tags" htmlFor="tags">
               <Input
                 id="tags"
                 placeholder="primary, internal, staging"
                 {...register("tags")}
               />
-            </div>
+            </Field>
             <div className="flex justify-end">
               <Button type="submit" disabled={metaSubmitting || !metaDirty}>
                 {metaSubmitting ? "Saving..." : "Save metadata"}
               </Button>
             </div>
           </form>
-        </CardContent>
-      </Card>
+        </LayerCard.Body>
+      </LayerCard>
     </div>
   );
 }
@@ -224,43 +228,16 @@ function arraysEqual(a: LaneId[], b: LaneId[]): boolean {
   return sa.every((v, i) => v === sb[i]);
 }
 
-function BackLink() {
-  return (
-    <Link
-      to="/data-sources"
-      className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-    >
-      <ArrowLeft className="h-4 w-4" />
-      Back to data sources
-    </Link>
-  );
-}
-
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <p className="text-xs uppercase text-muted-foreground">{label}</p>
-      <p className="font-medium">{children}</p>
-    </div>
-  );
-}
-
 function TypeIcon({ type }: { type: DataSourceType }) {
   switch (type) {
     case "personal_cli":
-      return <Terminal className="h-5 w-5 text-muted-foreground" />;
+      return <Terminal className="h-5 w-5 text-basalt-muted-foreground" />;
     case "third_party_cli":
-      return <Database className="h-5 w-5 text-muted-foreground" />;
+      return <Database className="h-5 w-5 text-basalt-muted-foreground" />;
     case "mcp":
-      return <Plug className="h-5 w-5 text-muted-foreground" />;
+      return <Plug className="h-5 w-5 text-basalt-muted-foreground" />;
     default:
-      return <Database className="h-5 w-5 text-muted-foreground" />;
+      return <Database className="h-5 w-5 text-basalt-muted-foreground" />;
   }
 }
 

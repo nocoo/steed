@@ -14,7 +14,7 @@ export function DataSourceNode({ data }: Props) {
       role="group"
       aria-label={`Data Source ${data.label}`}
       className={cn(
-        "relative w-[220px] overflow-hidden rounded-lg border bg-card py-3 pl-3 pr-3 shadow-sm transition-opacity",
+        "relative w-[220px] overflow-hidden rounded-lg py-3 pl-3 pr-3 ring-1 ring-basalt-border/40 transition-opacity",
         data.orphan && "opacity-60"
       )}
     >
@@ -25,10 +25,10 @@ export function DataSourceNode({ data }: Props) {
         ))}
       </span>
       <div className="flex items-center gap-2 pl-1">
-        <Database className="h-4 w-4 text-muted-foreground" />
+        <Database className="h-4 w-4 text-basalt-muted-foreground" />
         <span className="truncate text-sm font-medium">{data.label}</span>
       </div>
-      <p className="mt-1 truncate pl-1 text-xs text-muted-foreground">
+      <p className="mt-1 truncate pl-1 text-xs text-basalt-muted-foreground">
         {data.raw.type} · {data.raw.auth_status}
         {data.orphan ? " · unbound" : ""}
       </p>

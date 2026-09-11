@@ -22,7 +22,7 @@ export function AgentNode({ data }: Props) {
       role="group"
       aria-label={`Agent ${data.label}`}
       className={cn(
-        "relative w-[220px] overflow-hidden rounded-lg border bg-card pl-3 pr-3 py-3 shadow-sm transition-opacity",
+        "relative w-[220px] overflow-hidden rounded-lg py-3 pl-3 pr-3 ring-1 ring-basalt-border/40 transition-opacity",
         data.orphan && "opacity-60"
       )}
     >
@@ -43,7 +43,7 @@ export function AgentNode({ data }: Props) {
           )}
         />
       </div>
-      <p className="mt-1 truncate pl-1 text-xs text-muted-foreground">
+      <p className="mt-1 truncate pl-1 text-xs text-basalt-muted-foreground">
         {data.raw.runtime_app ?? "—"}
         {data.orphan ? " · unbound" : ""}
       </p>

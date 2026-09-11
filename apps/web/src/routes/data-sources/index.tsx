@@ -1,15 +1,7 @@
 import { Link } from "react-router";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 import { AlertCircle, Database, Terminal, Plug } from "lucide-react";
+import { Badge, Button, LayerCard } from "@nocoo/basalt";
+import { PageHeader } from "@nocoo/basalt/components/page-header";
 import { useDataSourcesViewModel } from "@/viewmodels/use-data-sources-viewmodel";
 import type {
   DataSourceListItem,
@@ -24,49 +16,55 @@ export function DataSourcesPage() {
 
   if (error) {
     return (
-      <div className="space-y-6">
-        <PageHeader />
-        <Card className="border-destructive">
-          <CardContent className="flex items-center gap-3 pt-6">
-            <AlertCircle className="h-5 w-5 text-destructive" />
-            <p className="text-sm text-destructive">{error}</p>
-          </CardContent>
-        </Card>
+      <div className="space-y-8">
+        <PageHeader
+          title="Data Sources"
+          description="Discovered external resources (CLIs, MCP services, platforms)"
+        />
+        <LayerCard>
+          <div className="flex items-center gap-3">
+            <AlertCircle className="h-5 w-5 text-basalt-destructive" />
+            <p className="text-sm text-basalt-destructive">{error}</p>
+          </div>
+        </LayerCard>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <PageHeader />
+    <div className="space-y-8">
+      <PageHeader
+        title="Data Sources"
+        description="Discovered external resources (CLIs, MCP services, platforms)"
+      />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>All Data Sources</CardTitle>
-          <CardDescription>
-            {loading && dataSources.length === 0
-              ? "Loading data sources..."
-              : `${dataSources.length} data source${dataSources.length === 1 ? "" : "s"} discovered`}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {loading && dataSources.length === 0 ? (
-            <div className="space-y-4">
-              {[1, 2, 3].map((i) => (
-                <DataSourceRowSkeleton key={i} />
-              ))}
-            </div>
-          ) : dataSources.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-8 text-center">
-              No data sources discovered yet. Make sure hosts are scanning for
-              resources.
+      <LayerCard>
+        <LayerCard.Header>
+          <div>
+            <p className="font-semibold text-basalt-foreground">
+              All Data Sources
             </p>
-          ) : (
+            <p className="text-sm text-basalt-muted-foreground">
+              {loading && dataSources.length === 0
+                ? "Loading data sources..."
+                : `${dataSources.length} data source${dataSources.length === 1 ? "" : "s"} discovered`}
+            </p>
+          </div>
+        </LayerCard.Header>
+        {loading && dataSources.length === 0 ? (
+          <LayerCard.Loading label="Loading data sources" />
+        ) : dataSources.length === 0 ? (
+          <LayerCard.Empty
+            title="No data sources discovered yet"
+            description="Make sure hosts are scanning for resources."
+          />
+        ) : (
+          <LayerCard.Well>
             <div className="space-y-4">
               {dataSources.map((ds) => (
                 <DataSourceRow key={ds.id} dataSource={ds} />
               ))}
-              {hasMore && (
+              {hasMore ? (
                 <div className="pt-4 text-center">
                   <Button
                     variant="outline"
@@ -76,31 +74,16 @@ export function DataSourcesPage() {
                     {loading ? "Loading..." : "Load More"}
                   </Button>
                 </div>
-              )}
+              ) : null}
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </LayerCard.Well>
+        )}
+      </LayerCard>
     </div>
   );
 }
 
-function PageHeader() {
-  return (
-    <div>
-      <h1 className="text-2xl font-semibold text-foreground">Data Sources</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Discovered external resources (CLIs, MCP services, platforms)
-      </p>
-    </div>
-  );
-}
-
-interface DataSourceRowProps {
-  dataSource: DataSourceListItem;
-}
-
-function DataSourceRow({ dataSource }: DataSourceRowProps) {
+function DataSourceRow({ dataSource }: { dataSource: DataSourceListItem }) {
   const lastSeen = dataSource.last_seen_at
     ? new Date(dataSource.last_seen_at).toLocaleString()
     : "Never";
@@ -108,15 +91,15 @@ function DataSourceRow({ dataSource }: DataSourceRowProps) {
   return (
     <Link
       to={`/data-sources/${dataSource.id}`}
-      className="flex items-center justify-between rounded-lg border p-4 transition-colors hover:bg-accent"
+      className="flex items-center justify-between rounded-lg p-4 ring-1 ring-basalt-border/40 transition-colors hover:bg-basalt-accent"
     >
       <div className="flex items-center gap-4">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
+        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-basalt-muted">
           <TypeIcon type={dataSource.type} />
         </div>
         <div>
           <p className="font-medium">{dataSource.name}</p>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-basalt-muted-foreground">
             {formatType(dataSource.type)}
             {dataSource.version ? ` v${dataSource.version}` : ""} &middot; Last
             seen: {lastSeen}
@@ -134,13 +117,13 @@ function DataSourceRow({ dataSource }: DataSourceRowProps) {
 function TypeIcon({ type }: { type: DataSourceType }) {
   switch (type) {
     case "personal_cli":
-      return <Terminal className="h-5 w-5 text-muted-foreground" />;
+      return <Terminal className="h-5 w-5 text-basalt-muted-foreground" />;
     case "third_party_cli":
-      return <Database className="h-5 w-5 text-muted-foreground" />;
+      return <Database className="h-5 w-5 text-basalt-muted-foreground" />;
     case "mcp":
-      return <Plug className="h-5 w-5 text-muted-foreground" />;
+      return <Plug className="h-5 w-5 text-basalt-muted-foreground" />;
     default:
-      return <Database className="h-5 w-5 text-muted-foreground" />;
+      return <Database className="h-5 w-5 text-basalt-muted-foreground" />;
   }
 }
 
@@ -154,7 +137,10 @@ function formatType(type: DataSourceType): string {
 }
 
 function AuthStatusBadge({ status }: { status: DataSourceAuthStatus }) {
-  const variants: Record<DataSourceAuthStatus, "success" | "secondary" | "outline"> = {
+  const variants: Record<
+    DataSourceAuthStatus,
+    "success" | "secondary" | "outline"
+  > = {
     authenticated: "success",
     unauthenticated: "secondary",
     unknown: "outline",
@@ -173,22 +159,4 @@ function StatusBadge({ status }: { status: DataSourceStatus }) {
     missing: "warning",
   };
   return <Badge variant={variants[status]}>{status}</Badge>;
-}
-
-function DataSourceRowSkeleton() {
-  return (
-    <div className="flex items-center justify-between rounded-lg border p-4">
-      <div className="flex items-center gap-4">
-        <Skeleton className="h-10 w-10 rounded-lg" />
-        <div className="space-y-2">
-          <Skeleton className="h-4 w-32" />
-          <Skeleton className="h-3 w-56" />
-        </div>
-      </div>
-      <div className="flex gap-2">
-        <Skeleton className="h-6 w-16" />
-        <Skeleton className="h-6 w-16" />
-      </div>
-    </div>
-  );
 }

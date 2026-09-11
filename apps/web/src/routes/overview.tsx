@@ -1,6 +1,8 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Server, Bot, Database, Activity, AlertCircle } from "lucide-react";
+import { AlertCircle, Server, Bot, Database, Activity } from "lucide-react";
+import { LayerCard } from "@nocoo/basalt";
+import { PageHeader } from "@nocoo/basalt/components/page-header";
+import { SectionRule } from "@nocoo/basalt/components/section-rule";
+import { SkeletonLine } from "@nocoo/basalt/components/skeleton-line";
 import { useOverviewViewModel } from "@/viewmodels/use-overview-viewmodel";
 
 export function OverviewPage() {
@@ -8,21 +10,27 @@ export function OverviewPage() {
 
   if (error) {
     return (
-      <div className="space-y-6">
-        <PageHeader />
-        <Card className="border-destructive">
-          <CardContent className="flex items-center gap-3 pt-6">
-            <AlertCircle className="h-5 w-5 text-destructive" />
-            <p className="text-sm text-destructive">{error}</p>
-          </CardContent>
-        </Card>
+      <div className="space-y-8">
+        <PageHeader
+          title="Overview"
+          description="AI asset visibility at a glance"
+        />
+        <LayerCard>
+          <div className="flex items-center gap-3">
+            <AlertCircle className="h-5 w-5 text-basalt-destructive" />
+            <p className="text-sm text-basalt-destructive">{error}</p>
+          </div>
+        </LayerCard>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <PageHeader />
+    <div className="space-y-8">
+      <PageHeader
+        title="Overview"
+        description="AI asset visibility at a glance"
+      />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
@@ -63,16 +71,13 @@ export function OverviewPage() {
         />
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Agents by Lane</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <SectionRule title="Agents by Lane">
+        <LayerCard>
           {loading ? (
             <div className="space-y-2">
-              <Skeleton className="h-4 w-32" />
-              <Skeleton className="h-4 w-24" />
-              <Skeleton className="h-4 w-28" />
+              <SkeletonLine />
+              <SkeletonLine minWidth={40} maxWidth={60} />
+              <SkeletonLine minWidth={50} maxWidth={70} />
             </div>
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -88,19 +93,8 @@ export function OverviewPage() {
               />
             </div>
           )}
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-function PageHeader() {
-  return (
-    <div>
-      <h1 className="text-2xl font-semibold text-foreground">Overview</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        AI asset visibility at a glance
-      </p>
+        </LayerCard>
+      </SectionRule>
     </div>
   );
 }
@@ -121,34 +115,27 @@ function StatCard({
   loading,
 }: StatCardProps) {
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        <Icon className="h-4 w-4 text-muted-foreground" />
-      </CardHeader>
-      <CardContent>
-        {loading ? (
-          <>
-            <Skeleton className="h-8 w-16 mb-1" />
-            <Skeleton className="h-3 w-24" />
-          </>
-        ) : (
-          <>
-            <div className="text-2xl font-bold">{value}</div>
-            <p className="text-xs text-muted-foreground">{description}</p>
-          </>
-        )}
-      </CardContent>
-    </Card>
+    <LayerCard>
+      <div className="flex flex-row items-center justify-between pb-2">
+        <p className="text-sm font-medium">{title}</p>
+        <Icon className="h-4 w-4 text-basalt-muted-foreground" />
+      </div>
+      {loading ? (
+        <>
+          <SkeletonLine className="mb-1 h-8" minWidth={20} maxWidth={30} />
+          <SkeletonLine minWidth={30} maxWidth={40} />
+        </>
+      ) : (
+        <>
+          <div className="text-2xl font-bold">{value}</div>
+          <p className="text-xs text-basalt-muted-foreground">{description}</p>
+        </>
+      )}
+    </LayerCard>
   );
 }
 
-interface LaneStatProps {
-  label: string;
-  count: number;
-}
-
-function LaneStat({ label, count }: LaneStatProps) {
+function LaneStat({ label, count }: { label: string; count: number }) {
   return (
     <div>
       <p className="text-sm font-medium">{label}</p>

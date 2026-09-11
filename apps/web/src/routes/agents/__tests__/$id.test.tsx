@@ -18,15 +18,21 @@ vi.mock("react-router", async () => {
   };
 });
 
-vi.mock("@/components/ui/sonner", () => ({
-  toast: {
-    success: vi.fn(),
-    error: vi.fn(),
-  },
-}));
+vi.mock("@nocoo/basalt", async () => {
+  const actual = await vi.importActual<typeof import("@nocoo/basalt")>(
+    "@nocoo/basalt"
+  );
+  return {
+    ...actual,
+    toast: {
+      success: vi.fn(),
+      error: vi.fn(),
+    },
+  };
+});
 
 import { AgentDetailPage } from "../$id";
-import { toast } from "@/components/ui/sonner";
+import { toast } from "@nocoo/basalt";
 
 const mockAgent: Agent = {
   id: "agent-123",
@@ -105,7 +111,7 @@ describe("AgentDetailPage", () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText("Back to agents")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Agent" })).toBeInTheDocument();
   });
 
   it("renders agent details", async () => {

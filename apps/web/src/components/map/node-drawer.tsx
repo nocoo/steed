@@ -1,7 +1,7 @@
 import { Link } from "react-router";
 import { X } from "lucide-react";
+import { Button, DescriptionList, LayerCard } from "@nocoo/basalt";
 import type { MapNode } from "@/lib/map-data";
-import { Button } from "@/components/ui/button";
 
 interface Props {
   node: MapNode;
@@ -17,67 +17,84 @@ const ROUTE: Record<MapNode["kind"], (id: string) => string | null> = {
 export function NodeDrawer({ node, onClose }: Props) {
   const detailHref = ROUTE[node.kind](node.id);
   return (
-    <aside
+    <LayerCard
       role="complementary"
       aria-label={`Details: ${node.data.label}`}
-      className="rounded-lg border bg-card p-4 shadow-sm"
     >
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-xs uppercase text-muted-foreground">{node.kind}</p>
-          <h3 className="mt-0.5 text-base font-semibold">{node.data.label}</h3>
-        </div>
-        <button
-          type="button"
-          aria-label="Close drawer"
-          onClick={onClose}
-          className="text-muted-foreground hover:text-foreground"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      </div>
-
-      <dl className="mt-3 space-y-1 text-xs">
-        {node.kind === "agent" && node.data.kind === "agent" ? (
-          <>
-            <Row k="match_key" v={node.data.raw.match_key} />
-            <Row k="status" v={node.data.raw.status} />
-            <Row k="runtime" v={node.data.raw.runtime_app ?? "—"} />
-            <Row k="lane" v={node.data.raw.lane_id ?? "unassigned"} />
-          </>
-        ) : null}
-        {node.kind === "data_source" && node.data.kind === "data_source" ? (
-          <>
-            <Row k="type" v={node.data.raw.type} />
-            <Row k="auth" v={node.data.raw.auth_status} />
-            <Row k="status" v={node.data.raw.status} />
-            <Row k="lanes" v={node.data.raw.lane_ids.join(", ") || "—"} />
-          </>
-        ) : null}
-        {node.kind === "host" && node.data.kind === "host" ? (
-          <>
-            <Row k="status" v={node.data.raw.status} />
-            <Row k="last_seen" v={node.data.raw.last_seen_at ?? "—"} />
-          </>
-        ) : null}
-      </dl>
-
-      {detailHref ? (
-        <div className="mt-4">
-          <Button asChild variant="outline" size="sm">
-            <Link to={detailHref}>Open detail →</Link>
+      <LayerCard.Header>
+        <div className="flex w-full items-start justify-between">
+          <div>
+            <p className="text-xs uppercase text-basalt-muted-foreground">
+              {node.kind}
+            </p>
+            <h3 className="mt-0.5 text-base font-semibold">{node.data.label}</h3>
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            aria-label="Close drawer"
+            onClick={onClose}
+          >
+            <X className="h-4 w-4" />
           </Button>
         </div>
-      ) : null}
-    </aside>
-  );
-}
+      </LayerCard.Header>
+      <LayerCard.Body>
+        <DescriptionList columns={1}>
+          {node.kind === "agent" && node.data.kind === "agent" ? (
+            <>
+              <DescriptionList.Item term="match_key">
+                {node.data.raw.match_key}
+              </DescriptionList.Item>
+              <DescriptionList.Item term="status">
+                {node.data.raw.status}
+              </DescriptionList.Item>
+              <DescriptionList.Item term="runtime">
+                {node.data.raw.runtime_app ?? "—"}
+              </DescriptionList.Item>
+              <DescriptionList.Item term="lane">
+                {node.data.raw.lane_id ?? "unassigned"}
+              </DescriptionList.Item>
+            </>
+          ) : null}
+          {node.kind === "data_source" && node.data.kind === "data_source" ? (
+            <>
+              <DescriptionList.Item term="type">
+                {node.data.raw.type}
+              </DescriptionList.Item>
+              <DescriptionList.Item term="auth">
+                {node.data.raw.auth_status}
+              </DescriptionList.Item>
+              <DescriptionList.Item term="status">
+                {node.data.raw.status}
+              </DescriptionList.Item>
+              <DescriptionList.Item term="lanes">
+                {node.data.raw.lane_ids.join(", ") || "—"}
+              </DescriptionList.Item>
+            </>
+          ) : null}
+          {node.kind === "host" && node.data.kind === "host" ? (
+            <>
+              <DescriptionList.Item term="status">
+                {node.data.raw.status}
+              </DescriptionList.Item>
+              <DescriptionList.Item term="last_seen">
+                {node.data.raw.last_seen_at ?? "—"}
+              </DescriptionList.Item>
+            </>
+          ) : null}
+        </DescriptionList>
 
-function Row({ k, v }: { k: string; v: string }) {
-  return (
-    <div className="flex gap-2">
-      <dt className="w-20 text-muted-foreground">{k}</dt>
-      <dd className="truncate font-mono">{v}</dd>
-    </div>
+        {detailHref ? (
+          <div className="mt-4">
+            <Button asChild variant="outline" size="sm">
+              <Link to={detailHref}>Open detail →</Link>
+            </Button>
+          </div>
+        ) : null}
+      </LayerCard.Body>
+    </LayerCard>
   );
 }

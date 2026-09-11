@@ -5,39 +5,27 @@ import { LaneChips } from "./lane-chips";
 describe("LaneChips", () => {
   describe("single mode", () => {
     it("renders all lane options", () => {
-      const onChange = vi.fn();
-      render(
-        <LaneChips mode="single" value={null} onChange={onChange} />
-      );
+      render(<LaneChips mode="single" value={null} onChange={vi.fn()} />);
 
-      expect(screen.getByRole("radio", { name: "Work" })).toBeInTheDocument();
-      expect(screen.getByRole("radio", { name: "Life" })).toBeInTheDocument();
-      expect(screen.getByRole("radio", { name: "Learning" })).toBeInTheDocument();
+      expect(screen.getByLabelText("Work")).toBeInTheDocument();
+      expect(screen.getByLabelText("Life")).toBeInTheDocument();
+      expect(screen.getByLabelText("Learning")).toBeInTheDocument();
     });
 
     it("shows selected lane as active", () => {
-      const onChange = vi.fn();
       render(
-        <LaneChips mode="single" value="lane_work" onChange={onChange} />
+        <LaneChips mode="single" value="lane_work" onChange={vi.fn()} />
       );
 
-      expect(screen.getByRole("radio", { name: "Work" })).toHaveAttribute(
-        "aria-checked",
-        "true"
-      );
-      expect(screen.getByRole("radio", { name: "Life" })).toHaveAttribute(
-        "aria-checked",
-        "false"
-      );
+      expect(screen.getByLabelText("Work")).toHaveAttribute("data-state", "on");
+      expect(screen.getByLabelText("Life")).toHaveAttribute("data-state", "off");
     });
 
     it("calls onChange with lane id when clicked", () => {
       const onChange = vi.fn();
-      render(
-        <LaneChips mode="single" value={null} onChange={onChange} />
-      );
+      render(<LaneChips mode="single" value={null} onChange={onChange} />);
 
-      fireEvent.click(screen.getByRole("radio", { name: "Life" }));
+      fireEvent.click(screen.getByLabelText("Life"));
       expect(onChange).toHaveBeenCalledWith("lane_life");
     });
 
@@ -47,7 +35,7 @@ describe("LaneChips", () => {
         <LaneChips mode="single" value="lane_work" onChange={onChange} />
       );
 
-      fireEvent.click(screen.getByRole("radio", { name: "Work" }));
+      fireEvent.click(screen.getByLabelText("Work"));
       expect(onChange).toHaveBeenCalledWith(null);
     });
 
@@ -57,43 +45,33 @@ describe("LaneChips", () => {
         <LaneChips mode="single" value={null} onChange={onChange} disabled />
       );
 
-      fireEvent.click(screen.getByRole("radio", { name: "Work" }));
+      fireEvent.click(screen.getByLabelText("Work"));
       expect(onChange).not.toHaveBeenCalled();
     });
   });
 
   describe("multi mode", () => {
-    it("renders checkboxes for multi mode", () => {
-      const onChange = vi.fn();
-      render(
-        <LaneChips mode="multi" value={[]} onChange={onChange} />
-      );
+    it("renders all lane options", () => {
+      render(<LaneChips mode="multi" value={[]} onChange={vi.fn()} />);
 
-      expect(screen.getByRole("checkbox", { name: "Work" })).toBeInTheDocument();
-      expect(screen.getByRole("checkbox", { name: "Life" })).toBeInTheDocument();
+      expect(screen.getByLabelText("Work")).toBeInTheDocument();
+      expect(screen.getByLabelText("Life")).toBeInTheDocument();
     });
 
     it("shows multiple selected lanes as active", () => {
-      const onChange = vi.fn();
       render(
         <LaneChips
           mode="multi"
           value={["lane_work", "lane_life"]}
-          onChange={onChange}
+          onChange={vi.fn()}
         />
       );
 
-      expect(screen.getByRole("checkbox", { name: "Work" })).toHaveAttribute(
-        "aria-checked",
-        "true"
-      );
-      expect(screen.getByRole("checkbox", { name: "Life" })).toHaveAttribute(
-        "aria-checked",
-        "true"
-      );
-      expect(screen.getByRole("checkbox", { name: "Learning" })).toHaveAttribute(
-        "aria-checked",
-        "false"
+      expect(screen.getByLabelText("Work")).toHaveAttribute("data-state", "on");
+      expect(screen.getByLabelText("Life")).toHaveAttribute("data-state", "on");
+      expect(screen.getByLabelText("Learning")).toHaveAttribute(
+        "data-state",
+        "off"
       );
     });
 
@@ -103,7 +81,7 @@ describe("LaneChips", () => {
         <LaneChips mode="multi" value={["lane_work"]} onChange={onChange} />
       );
 
-      fireEvent.click(screen.getByRole("checkbox", { name: "Life" }));
+      fireEvent.click(screen.getByLabelText("Life"));
       expect(onChange).toHaveBeenCalledWith(["lane_work", "lane_life"]);
     });
 
@@ -117,7 +95,7 @@ describe("LaneChips", () => {
         />
       );
 
-      fireEvent.click(screen.getByRole("checkbox", { name: "Work" }));
+      fireEvent.click(screen.getByLabelText("Work"));
       expect(onChange).toHaveBeenCalledWith(["lane_life"]);
     });
   });

@@ -1,6 +1,5 @@
+import { ToggleGroup, ToggleGroupItem } from "@nocoo/basalt/components/toggle-group";
 import { LANE_IDS, type LaneId } from "@steed/shared";
-
-import { cn } from "@/lib/utils";
 
 const LANE_OPTIONS: { id: LaneId; label: string }[] = [
   { id: LANE_IDS.work, label: "Work" },
@@ -29,52 +28,53 @@ export type LaneChipsProps = LaneChipsSingleProps | LaneChipsMultiProps;
 export function LaneChips(props: LaneChipsProps) {
   const { disabled, className } = props;
 
-  const isActive = (id: LaneId): boolean => {
-    if (props.mode === "single") return props.value === id;
-    return props.value.includes(id);
-  };
-
-  const handleToggle = (id: LaneId) => {
-    if (disabled) return;
-    if (props.mode === "single") {
-      props.onChange(props.value === id ? null : id);
-      return;
-    }
-    if (props.value.includes(id)) {
-      props.onChange(props.value.filter((v) => v !== id));
-    } else {
-      props.onChange([...props.value, id]);
-    }
-  };
-
-  return (
-    <div
-      className={cn("flex flex-wrap gap-2", className)}
-      role={props.mode === "multi" ? "group" : "radiogroup"}
-      aria-disabled={disabled || undefined}
-    >
-      {LANE_OPTIONS.map((opt) => {
-        const active = isActive(opt.id);
-        return (
-          <button
+  if (props.mode === "single") {
+    return (
+      <ToggleGroup
+        type="single"
+        value={props.value ?? ""}
+        onValueChange={(next) => {
+          props.onChange(next === "" ? null : (next as LaneId));
+        }}
+        disabled={disabled}
+        className={className}
+        aria-label="Lane"
+      >
+        {LANE_OPTIONS.map((opt) => (
+          <ToggleGroupItem
             key={opt.id}
-            type="button"
-            role={props.mode === "multi" ? "checkbox" : "radio"}
-            aria-checked={active}
+            value={opt.id}
             aria-label={opt.label}
             disabled={disabled}
-            onClick={() => handleToggle(opt.id)}
-            className={cn(
-              "inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
-              active
-                ? "border-primary bg-primary text-primary-foreground hover:bg-primary/90"
-                : "border-input bg-background text-foreground hover:bg-accent"
-            )}
           >
             {opt.label}
-          </button>
-        );
-      })}
-    </div>
+          </ToggleGroupItem>
+        ))}
+      </ToggleGroup>
+    );
+  }
+
+  return (
+    <ToggleGroup
+      type="multiple"
+      value={props.value}
+      onValueChange={(next) => {
+        props.onChange(next as LaneId[]);
+      }}
+      disabled={disabled}
+      className={className}
+      aria-label="Lanes"
+    >
+      {LANE_OPTIONS.map((opt) => (
+        <ToggleGroupItem
+          key={opt.id}
+          value={opt.id}
+          aria-label={opt.label}
+          disabled={disabled}
+        >
+          {opt.label}
+        </ToggleGroupItem>
+      ))}
+    </ToggleGroup>
   );
 }

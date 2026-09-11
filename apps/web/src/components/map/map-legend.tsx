@@ -13,7 +13,7 @@ export function MapLegend() {
     <div
       role="list"
       aria-label="Lane color legend"
-      className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground"
+      className="flex flex-wrap items-center gap-3 text-xs text-basalt-muted-foreground"
     >
       {LANE_ORDER.map((lane) => (
         <span key={lane} role="listitem" className="flex items-center gap-1.5">

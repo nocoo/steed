@@ -18,15 +18,21 @@ vi.mock("react-router", async () => {
   };
 });
 
-vi.mock("@/components/ui/sonner", () => ({
-  toast: {
-    success: vi.fn(),
-    error: vi.fn(),
-  },
-}));
+vi.mock("@nocoo/basalt", async () => {
+  const actual = await vi.importActual<typeof import("@nocoo/basalt")>(
+    "@nocoo/basalt"
+  );
+  return {
+    ...actual,
+    toast: {
+      success: vi.fn(),
+      error: vi.fn(),
+    },
+  };
+});
 
 import { DataSourceDetailPage } from "../$id";
-import { toast } from "@/components/ui/sonner";
+import { toast } from "@nocoo/basalt";
 
 const mockDataSource: DataSourceWithLanes = {
   id: "ds-123",
@@ -63,7 +69,9 @@ describe("DataSourceDetailPage", () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText("Back to data sources")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Data Source" })
+    ).toBeInTheDocument();
   });
 
   it("renders data source details", async () => {
@@ -182,12 +190,11 @@ describe("DataSourceDetailPage", () => {
     );
 
     await waitFor(() => {
-      const cb = screen.getByRole("checkbox", { name: /Work/i });
-      expect(cb).toHaveAttribute("aria-checked", "true");
+      const work = screen.getByLabelText("Work");
+      expect(work).toHaveAttribute("data-state", "on");
     });
 
-    const lifeCheckbox = screen.getByRole("checkbox", { name: /Life/i });
-    fireEvent.click(lifeCheckbox);
+    fireEvent.click(screen.getByLabelText("Life"));
 
     const saveButton = await waitFor(() => {
       const btn = screen.getByRole("button", { name: "Save lanes" });
@@ -215,12 +222,11 @@ describe("DataSourceDetailPage", () => {
     );
 
     await waitFor(() => {
-      const cb = screen.getByRole("checkbox", { name: /Work/i });
-      expect(cb).toHaveAttribute("aria-checked", "true");
+      const work = screen.getByLabelText("Work");
+      expect(work).toHaveAttribute("data-state", "on");
     });
 
-    const lifeCheckbox = screen.getByRole("checkbox", { name: /Life/i });
-    fireEvent.click(lifeCheckbox);
+    fireEvent.click(screen.getByLabelText("Life"));
 
     const saveButton = await waitFor(() => {
       const btn = screen.getByRole("button", { name: "Save lanes" });

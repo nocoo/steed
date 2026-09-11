@@ -14,7 +14,7 @@ export function HostNode({ data }: Props) {
       role="group"
       aria-label={`Host ${data.label}`}
       className={cn(
-        "w-[220px] rounded-lg border bg-card p-3 shadow-sm transition-opacity",
+        "w-[220px] rounded-lg p-3 ring-1 ring-basalt-border/40 transition-opacity",
         data.orphan && "opacity-60"
       )}
     >
@@ -27,7 +27,7 @@ export function HostNode({ data }: Props) {
         )}
         <span className="truncate text-sm font-medium">{data.label}</span>
       </div>
-      <p className="mt-1 text-xs text-muted-foreground">
+      <p className="mt-1 text-xs text-basalt-muted-foreground">
         {online ? "online" : "offline"}
         {data.orphan ? " · no agents" : ""}
       </p>
