@@ -1,6 +1,6 @@
 # 09 — Basalt public component migration
 
-> Status: ✅ COMPLETED — waiting Root P0–P3 review
+> Status: ✅ COMPLETED — Root browser passed; HostNode handle P3 landed; sign-off waits Root
 >
 > Package: `@nocoo/basalt@2.1.7` (exact). Active frontend: `apps/web` (Vite / React 19 / React Router 7).
 > Baseline HEAD: `107256b7104a067133029f7f4b5a60a86efd717b`. App version stays `0.0.1`. Root has no `version`; do not add one.
@@ -432,7 +432,7 @@ Same pattern as Agents list. Type icons stay lucide.
 | Legend | local spans | **K** restyle |
 | Canvas | React Flow in bordered `div.bg-background` | **K** wrap in unstructured `LayerCard` (L2 via `data-basalt-surface`). **Do not** add `bg-basalt-card` — that paints L1 on an L2 card. Canvas is transparent on the card. |
 | Node drawer | `aside` + native close | `LayerCard` + `DescriptionList` + `Button` close + `LinkButton`/`Button asChild` for detail |
-| Nodes | `bg-card` / `text-muted-foreground` / status dots | Nested `LayerCard` (`data-basalt-surface` L3 on canvas L2). Keep Handles, lane bars, click/select, `LANE_COLORS`. No `bg-basalt-card` (that paints L1). |
+| Nodes | `bg-card` / `text-muted-foreground` / status dots | Nested `LayerCard` (`data-basalt-surface` L3 on canvas L2). HostNode `overflow-visible` so the source Handle is not clipped. Agent/DS keep LayerCard `overflow-hidden` (lane bars). Keep Handles, lane bars, click/select, `LANE_COLORS`. No `bg-basalt-card` (that paints L1). |
 | Lazy + Suspense | keep | keep; fallback `SkeletonLine` |
 
 ### 5.10 LaneChips (kept composition)
@@ -552,9 +552,10 @@ Root review: do not delete tokens in the providers commit; fewer complete commit
 | C2 | `feat: replace app shell with basalt chrome` | providers + CSS **keeping old tokens**, AppFrame/Sidebar, 68px logo slot, crumbs, version from `package.json`, GitHub `LinkButton` to nocoo/steed; delete old layout modules | ✅ `3f9bdb4` |
 | C3 | `feat: migrate product pages to basalt` | all 7 pages, LaneChips, map filters/drawer/nodes; forms `type=submit`; unused local ui removed with last consumers | ✅ `6ff691b` |
 | C4 | `chore: drop leftover tokens and unused ui deps` | old HSL tokens, `radix-ui`/`cva`/`sonner`/`tw-animate-css` | ✅ `9cafcd4` |
-| C5 | `docs: mark basalt migration complete` | status → ✅ | ✅ `28aeb4d` |
-| S1/S2 | `fix: restore nav focus and drop body lock` | SheetTrigger asChild; no hand-written body overflow lock; close sheet on desktop | ✅ `3743d9f` |
-| S3 | `fix: restore map node l3 surfaces` | Host/Agent/DS nodes nested `LayerCard` L3; keep Handles and lane bars | ✅ `533ee9c` |
+| C5 | `docs: mark basalt migration complete` | status → ✅ | ✅ `28aeb4d` Root ✅ |
+| S1/S2 | `fix: restore nav focus and drop body lock` | SheetTrigger asChild; no hand-written body overflow lock; close sheet on desktop | ✅ `3743d9f` Root ✅ |
+| S3 | `fix: restore map node l3 surfaces` | Host/Agent/DS nodes nested `LayerCard` L3; keep Handles and lane bars | ✅ `533ee9c` Root ✅ (L3) |
+| S4 | `fix: unclip host node source handle` | HostNode public `overflow-visible`; Agent/DS unchanged | ✅ `8dd3af5` Root recheck |
 
 ---
 
@@ -562,27 +563,27 @@ Root review: do not delete tokens in the providers commit; fewer complete commit
 
 | ID | Check | How | Status |
 |---|---|---|---|
-| A1 | No in-app login invented; Access still gates `/api/*` | code review of router + worker | |
-| A2 | Logo does not move while collapsing | desktop 260↔68, 300ms; same 24px asset, centered collapsed | |
-| A3 | Every crumb with a target is a link; no href if none | matrix in §3.2 | |
-| A4 | `PageHeader` title `text-2xl`, description `text-sm`, actions row aligned | Overview + details | |
-| A5 | Map filters on their own row; other pages have none | | |
-| A6 | Surfaces brighten inward: L0 shell → L1 island → L2 cards → L3 wells | no `bg-card` wells inside island | |
-| A7 | Zero leftover native `select/button/input/textarea` on product pages | rg scan §4.4 | |
-| A8 | No leftover local `components/ui` except `lane-chips` | | |
-| A9 | Mobile drawer, desktop rail | 768px | |
-| A10 | Light and dark | ThemeToggle + prehydrate | |
-| A11 | Keyboard: skip link, menu, dialog focus, form submit | | |
-| A12 | Real form states: dirty, disabled, saving, cancel, error toast | agent + DS detail tests | |
-| A13 | Empty / loading / error on list pages | existing tests retargeted | |
-| A14 | Brand teal via `paletteOverrides`, not a global token override | | |
-| A15 | Original logo files unchanged | git | |
-| A16 | Versions unchanged except the new exact Basalt dep | | |
-| A17 | Coverage and lint not lowered | pre-commit | |
-| A18 | No push / publish / deploy / Caddy edit / port 7035 | | |
-| A19 | Isolated verify on **17035** if this agent serves | tell Root | |
-| A20 | No durable extra auth bypass | | |
-| A21 | P0–P3 from `/su-review-fix` all fixed before sign-off | Root Codex `w2F:p1` | |
+| A1 | No in-app login invented; Access still gates `/api/*` | code review of router + worker | ✅ |
+| A2 | Logo does not move while collapsing | desktop 260↔68, 300ms; same 24px asset, centered collapsed | ✅ Root browser |
+| A3 | Every crumb with a target is a link; no href if none | matrix in §3.2 | ✅ Root browser |
+| A4 | `PageHeader` title `text-2xl`, description `text-sm`, actions row aligned | Overview + details | ✅ Root browser |
+| A5 | Map filters on their own row; other pages have none | | ✅ Root browser |
+| A6 | Surfaces brighten inward: L0 shell → L1 island → L2 cards → L3 wells | no `bg-card` wells inside island | ✅ Root browser (S3 L3) |
+| A7 | Zero leftover native `select/button/input/textarea` on product pages | rg scan §4.4 | ✅ |
+| A8 | No leftover local `components/ui` except `lane-chips` | | ✅ |
+| A9 | Mobile drawer, desktop rail | 768px | ✅ Root browser (S1/S2) |
+| A10 | Light and dark | ThemeToggle + prehydrate | ✅ Root 28 shots |
+| A11 | Keyboard: skip link, menu, dialog focus, form submit | | ✅ Root 6 interaction groups |
+| A12 | Real form states: dirty, disabled, saving, cancel, error toast | agent + DS detail tests | ✅ Root browser |
+| A13 | Empty / loading / error on list pages | existing tests retargeted | ✅ Root browser |
+| A14 | Brand teal via `paletteOverrides`, not a global token override | | ✅ Root browser |
+| A15 | Original logo files unchanged | git | ✅ |
+| A16 | Versions unchanged except the new exact Basalt dep | | ✅ |
+| A17 | Coverage and lint not lowered | pre-commit | ✅ 97.23 / 97.00 / 96.21 / 90.04 |
+| A18 | No push / publish / deploy / Caddy edit / port 7035 | | ✅ |
+| A19 | Isolated verify on **17035** if this agent serves | tell Root | ✅ Root served; this agent did not bind |
+| A20 | No durable extra auth bypass | | ✅ |
+| A21 | P0–P3 from `/su-review-fix` all fixed before sign-off | Root Codex `w2F:p1` | HostNode handle P3 `8dd3af5`; sign-off waits Root |
 
 ---
 
@@ -618,7 +619,7 @@ Root review: do not delete tokens in the providers commit; fewer complete commit
 | 2026-09-11 | Implementation complete on `main`. Waiting Root P0–P3 review. |
 | 2026-09-11 | Root S1/S2: Esc focus + desktop overflow unlock. `3743d9f`. |
 | 2026-09-11 | Root S3: map nodes were transparent after dropping `bg-card`. Nested `LayerCard` L3 on canvas L2. `533ee9c`. |
-
-When C1–C5 land, flip the header status to ✅ COMPLETED and tick the commit table.
+| 2026-09-11 | Root final browser: 6 interaction groups pass; 28 light/dark × desktop/mobile shots; Vite build pass; S3 L3 correct. Remaining P3: HostNode Handle clipped by LayerCard `overflow-hidden`. |
+| 2026-09-11 | S4 HostNode `overflow-visible` `8dd3af5`. Sign-off waits Root recheck of that handle. |
 
 Basalt `Button` defaults to `type="button"`. Every real submit control inside a `<form>` must set `type="submit"`. Cancel, Add, row pickers, unbind, and dialog actions stay the default (non-submit).
