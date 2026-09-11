@@ -7,6 +7,7 @@ import {
   Sheet,
   SheetContent,
   SheetTitle,
+  SheetTrigger,
   ThemeToggle,
 } from "@nocoo/basalt";
 import { LinkButton } from "@nocoo/basalt/components/button";
@@ -39,11 +40,10 @@ export function AppFrame() {
   }, [location.pathname]);
 
   useEffect(() => {
-    document.body.style.overflow = mobileOpen ? "hidden" : "";
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [mobileOpen]);
+    if (!isMobile) {
+      setMobileOpen(false);
+    }
+  }, [isMobile]);
 
   const onToggleCollapsed = () => {
     setCollapsed((prev) => {
@@ -56,8 +56,14 @@ export function AppFrame() {
   return (
     <AppShell>
       <AppSkipLink>Skip to main content</AppSkipLink>
-      {isMobile ? (
-        <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+      {isMobile ? null : (
+        <AppSidebar collapsed={collapsed} onToggle={onToggleCollapsed} />
+      )}
+      <Sheet
+        open={isMobile ? mobileOpen : false}
+        onOpenChange={setMobileOpen}
+      >
+        {isMobile ? (
           <SheetContent
             side="left"
             className="w-[260px] max-w-[260px] border-0 bg-basalt-background p-0"
@@ -69,23 +75,21 @@ export function AppFrame() {
               hideCollapse
             />
           </SheetContent>
-        </Sheet>
-      ) : (
-        <AppSidebar collapsed={collapsed} onToggle={onToggleCollapsed} />
-      )}
+        ) : null}
       <AppMain>
         <AppHeader
           leading={
             isMobile ? (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => setMobileOpen(true)}
-                aria-label="Open navigation"
-              >
-                <Menu aria-hidden="true" />
-              </Button>
+              <SheetTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  aria-label="Open navigation"
+                >
+                  <Menu aria-hidden="true" />
+                </Button>
+              </SheetTrigger>
             ) : null
           }
           breadcrumbs={breadcrumbs}
@@ -120,6 +124,7 @@ export function AppFrame() {
           </ContentIsland>
         </div>
       </AppMain>
+      </Sheet>
     </AppShell>
   );
 }

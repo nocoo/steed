@@ -6,12 +6,39 @@ import { ShellProviders } from "./shell-providers";
 
 const originalMatchMedia = window.matchMedia;
 
-function renderFrame(path = "/overview", isMobile = false) {
-  window.matchMedia = vi.fn().mockReturnValue({
+function mockViewport(isMobile: boolean) {
+  let listener: ((event: { matches: boolean }) => void) | undefined;
+  const mobileMql = {
     matches: isMobile,
-    addEventListener: vi.fn(),
+    addEventListener: vi.fn(
+      (_event: string, handler: (event: { matches: boolean }) => void) => {
+        listener = handler;
+      }
+    ),
     removeEventListener: vi.fn(),
+  };
+  window.matchMedia = vi.fn((query: string) => {
+    if (query.includes("max-width")) {
+      return mobileMql;
+    }
+    return {
+      matches: false,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    };
   });
+  return {
+    setMobile(next: boolean) {
+      mobileMql.matches = next;
+      act(() => {
+        listener?.({ matches: next });
+      });
+    },
+  };
+}
+
+function renderFrame(path = "/overview", isMobile = false) {
+  const viewport = mockViewport(isMobile);
 
   const router = createMemoryRouter(
     [
@@ -32,7 +59,7 @@ function renderFrame(path = "/overview", isMobile = false) {
     { initialEntries: [path] }
   );
 
-  return render(<RouterProvider router={router} />);
+  return { ...render(<RouterProvider router={router} />), viewport };
 }
 
 describe("AppFrame", () => {
@@ -106,14 +133,51 @@ describe("AppFrame", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("clicking mobile menu button sets body overflow hidden", () => {
+  it("returns focus to the menu button after Escape", async () => {
     renderFrame("/overview", true);
+    const menu = screen.getByRole("button", { name: "Open navigation" });
+
+    act(() => {
+      fireEvent.click(menu);
+    });
+
+    const dialog = await screen.findByRole("dialog");
+    act(() => {
+      fireEvent.keyDown(dialog, { key: "Escape" });
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole("button", { name: "Open navigation" })).toHaveFocus();
+  });
+
+  it("clears the sheet and overflow after leaving the mobile breakpoint", async () => {
+    const { viewport } = renderFrame("/overview", true);
 
     act(() => {
       fireEvent.click(screen.getByRole("button", { name: "Open navigation" }));
     });
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
 
-    expect(document.body.style.overflow).toBe("hidden");
+    viewport.setMobile(false);
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+    expect(
+      screen.queryByRole("button", { name: "Open navigation" })
+    ).not.toBeInTheDocument();
+    expect(document.body.style.overflow).not.toBe("hidden");
+
+    viewport.setMobile(true);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Open navigation" })
+      ).toBeInTheDocument();
+    });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("persists collapse in localStorage", () => {
