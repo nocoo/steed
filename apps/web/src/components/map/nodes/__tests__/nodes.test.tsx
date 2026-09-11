@@ -85,6 +85,9 @@ describe("HostNode", () => {
     expect(screen.getByText("Host A")).toBeInTheDocument();
     expect(screen.getByText(/online/)).toBeInTheDocument();
     expectNodeSurface("Host Host A");
+    expect(screen.getByRole("group", { name: "Host Host A" })).toHaveClass(
+      "overflow-visible"
+    );
   });
 
   it("renders offline orphan host", () => {
@@ -107,6 +110,12 @@ describe("AgentNode", () => {
     expect(screen.getByText("Agent A")).toBeInTheDocument();
     expect(screen.getByText(/node/)).toBeInTheDocument();
     expectNodeSurface("Agent Agent A");
+    expect(screen.getByRole("group", { name: "Agent Agent A" })).toHaveClass(
+      "overflow-hidden"
+    );
+    expect(
+      screen.getByRole("group", { name: "Agent Agent A" })
+    ).not.toHaveClass("overflow-visible");
   });
 
   it("renders orphan agent with no runtime", () => {

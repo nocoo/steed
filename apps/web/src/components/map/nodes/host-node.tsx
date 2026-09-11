@@ -16,7 +16,7 @@ export function HostNode({ data }: Props) {
       aria-label={`Host ${data.label}`}
       padding="sm"
       className={cn(
-        "relative w-[220px] transition-opacity",
+        "relative w-[220px] overflow-visible transition-opacity",
         data.orphan && "opacity-60"
       )}
     >
