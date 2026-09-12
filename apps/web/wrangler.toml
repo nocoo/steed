@@ -3,6 +3,12 @@ main = "worker/index.ts"
 compatibility_date = "2026-04-01"
 compatibility_flags = ["nodejs_compat"]
 
+[dev]
+ip = "127.0.0.1"
+port = 37035
+inspector_port = 38035
+upstream_protocol = "https"
+
 [assets]
 directory = "./dist"
 binding = "ASSETS"
@@ -35,7 +41,7 @@ database_name = "steed"
 database_id = "8c69f63f-38a5-4ad4-9832-ee04e0b2237d"
 migrations_dir = "../../packages/worker/migrations"
 
-# ── Local development: bypass CF Access JWT for localhost ─────────────
+# ── Local development: Caddy HTTPS with explicit local auth bypass ────
 # Always run with: wrangler dev --env dev --local --persist-to .wrangler/state/web
 # D1 is local SQLite — the database_id below is only for schema reference.
 [env.dev]

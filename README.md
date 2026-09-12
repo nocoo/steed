@@ -81,16 +81,23 @@ cd ../..
 在两个终端分别运行：
 
 ```bash
-# 终端一：完整 Web Worker，默认端口 8787
+# Terminal one: full Web Worker on loopback port 37035
 bun run --cwd apps/web dev:worker
 ```
 
 ```bash
-# 终端二：Vite 前端，默认 http://localhost:5173
+# Terminal two: Vite on port 7035, through https://steed.dev.hexly.ai
 bun run dev
 ```
 
-Vite 将 `/api` 转发给本地 Web Worker。`dev` 环境已配置仅对 localhost 生效的 Access 开发模式和本地服务 token。根目录的 `bun run dev:worker` 只启动底层 API Worker；完整控制台使用上面的 `apps/web` 命令。
+Vite proxies `/api` to the local Web Worker. Use `https://steed.dev.hexly.ai`
+through the existing Caddy proxy. Query nmem and check the current Caddy mapping
+and listeners before starting; the Worker inspector uses 38035. The explicit
+Access dev bypass permits loopback and this exact HTTPS origin. The root
+`dev:worker` script starts the historical API Worker; use `apps/web` for the full UI.
+For the existing architecture dataset and Connect keyring, use
+[the local workspace commands](docs/13-architecture-diagrams-and-connect.md#local-configuration-and-future-enablement)
+instead of initializing a fresh database.
 
 `bun run build` 构建 Web 静态资源；`bun run --cwd packages/cli build` 构建 CLI；`bun run typecheck` 和 `bun run lint` 检查类型与代码风格。
 

@@ -9,5 +9,5 @@
     "types": ["vite/client", "@cloudflare/workers-types"]
   },
   "include": ["src/**/*", "worker/**/*"],
-  "exclude": ["**/*.test.*"]
+  "exclude": ["**/*.test.*", "worker/__tests__/**"]
 }

@@ -49,6 +49,18 @@ const writeHeaders = (key = "intent-0001", revision = 1) => ({ "If-Match": `"exa
 const stored = () => getDiagram(database.db, "example");
 
 describe("Connect credentials and authorization", () => {
+  it.each([
+    ["https://steed.dev.hexly.ai", "true", "steed-development", 200],
+    ["https://steed.dev.hexly.ai", undefined, "steed-development", 403],
+    ["https://steed.dev.hexly.ai", "true", "steed-production", 403],
+    ["https://steed.hexly.ai", "true", "steed-development", 403],
+  ] as const)("guards the local manager at %s (bypass %s, deployment %s)", async (origin, bypass, deployment, status) => {
+    const response = await connectManagementApi(new Request(`${origin}/api/connect`, { headers: { Origin: origin } }), {
+      ...env, CF_ACCESS_DEV_BYPASS: bypass, CONNECT_DEPLOYMENT_ID: deployment, CONNECT_MANAGERS: "local:developer",
+    }, { email: "dev@local", sub: "dev" });
+    expect(response.status).toBe(status);
+  });
+
   it("creates metadata, encrypts repeat-reveal credentials, and enforces read scope", async () => {
     const { token, credential } = await credentials("read");
     expect(credential).toMatch(/^steedc_[A-Za-z0-9_-]{43}$/);

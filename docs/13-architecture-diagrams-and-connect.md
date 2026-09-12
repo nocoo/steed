@@ -16,7 +16,7 @@ the reference repositories. This work does not bump the version or push a releas
 ## References
 
 - `apps/web/src/components/layout/app-sidebar.tsx`: Basalt sidebar and footer.
-- `apps/web/worker/access-jwt.ts`: verified Access identity and loopback-only dev
+- `apps/web/worker/access-jwt.ts`: verified Access identity and explicit local dev
   bypass. New browser routes reuse this verification.
 - `../surety/apps/worker/src/lib/author-profile.ts` and its `/api/me` route:
   normalize the verified email, SHA-256 it, and query
@@ -137,7 +137,7 @@ but its enumerated groups contain 67 targets; the seven unspecified targets are
 not fabricated. Public status contains the source's 28 checks.
 
 The local diagram is available at
-`http://127.0.0.1:24680/diagrams/cloud-services-20260912`, using an isolated local
+`https://steed.dev.hexly.ai/diagrams/cloud-services-20260912`, using an isolated local
 D1 database at `apps/web/.wrangler/state/architecture`. The private source-derived
 JSON, generator and browser evidence stay in ignored
 `.wrangler/architecture-proof-5nn5vq9g/`. No acceptance data was sent to production.
@@ -194,7 +194,7 @@ needed because every graph mutation is a single D1 transaction.
 Management uses verified `email:{address}` or `subject:{sub}` principals explicitly
 listed in `CONNECT_MANAGERS`; an Access login alone grants nothing. This personal
 deployment has global managers and diagram-scoped credentials, without an extra
-membership product. Only the existing loopback dev bypass can use
+membership product. Only the explicit local dev bypass can use
 `local:developer`. Removing a manager invalidates its issued tokens on the next
 request. A token bound to a deleted diagram can still inspect its own retry receipt
 but cannot recreate the tombstoned ID. Management target discovery retains deleted
@@ -237,16 +237,19 @@ credential cannot read its receipts; managers can inspect activity separately.
 
 ## Local configuration and future enablement
 
-The current local proof uses ports 24680 (Vite) and 24681 (the active SPA Worker),
-with inspector port 24682. Its persistent D1 directory is
+The local entry point is `https://steed.dev.hexly.ai` through Caddy. Query nmem
+and inspect the active Caddyfile/listeners before starting. The coordinated ports
+are 7035 (Vite), 37035 (the active SPA Worker), and 38035 (inspector), as recorded
+in [document 15](15-local-dev-domain.md). Its persistent D1 directory is
 `apps/web/.wrangler/state/architecture`. Local Connect configuration lives in
 `.wrangler/architecture-proof-5nn5vq9g/connect-dev.env`, is ignored and mode 0600,
 and is passed through Wrangler's `--env-file` option. It contains an explicitly
 local manager and a randomly generated keyring. Preserve that file across restarts.
 
 For another local instance, create a fresh ignored env file without overwriting an
-existing one. `CONNECT_MANAGERS=local:developer` applies only to the loopback dev
-identity. `CONNECT_TOKEN_KEYS` must have this shape, with a newly generated
+existing one. `CONNECT_MANAGERS=local:developer` applies only to the local dev
+identity on loopback or the exact HTTPS dev origin. `CONNECT_TOKEN_KEYS` must
+have this shape, with a newly generated
 32-byte, unpadded base64url value replacing the placeholder:
 
 ```json
@@ -262,15 +265,13 @@ bun x --no-install wrangler d1 migrations apply DB --env dev --local \
   --persist-to .wrangler/state/architecture
 bun x --no-install wrangler dev --env dev --local \
   --env-file ../../.wrangler/architecture-proof-5nn5vq9g/connect-dev.env \
-  --persist-to .wrangler/state/architecture \
-  --ip 127.0.0.1 --port 24681 --inspector-port 24682
+  --persist-to .wrangler/state/architecture
 ```
 
 Use a second terminal in `apps/web` for Vite:
 
 ```sh
-STEED_API_PROXY=http://127.0.0.1:24681 bun run dev \
-  --host 127.0.0.1 --port 24680 --strictPort
+bun run dev
 ```
 
 Production enablement is a separate release. It needs migration `0005` and `0006`

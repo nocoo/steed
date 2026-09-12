@@ -11,12 +11,14 @@ agent maintain them through scoped Bearer credentials. Inventory pages remain
 available. The application version remains 0.2.0 with Basalt 2.1.7; this feature
 work has not been pushed or deployed to production.
 
-- [Actual network diagram](http://127.0.0.1:24680/diagrams/cloud-services-20260912)
-- [Diagram workspace](http://127.0.0.1:24680/diagrams)
-- [Connect management](http://127.0.0.1:24680/connect)
-- Machine API base: `http://127.0.0.1:24680/api/v1`
+- [Actual network diagram](https://steed.dev.hexly.ai/diagrams/cloud-services-20260912)
+- [Diagram workspace](https://steed.dev.hexly.ai/diagrams)
+- [Connect management](https://steed.dev.hexly.ai/connect)
+- Machine API base: `https://steed.dev.hexly.ai/api/v1`
 
-The Vite process proxies the active SPA Worker on port 24681. Data persists in
+The Caddy domain proxies Vite on 7035, which proxies the active SPA Worker on
+37035. [Document 15](15-local-dev-domain.md) records the correction from the
+temporary proof ports and its separate domain verification. Data persists in
 `apps/web/.wrangler/state/architecture`. The existing local servers are left
 available for review. Test credentials were revoked; create a new token in Connect
 for ongoing use.

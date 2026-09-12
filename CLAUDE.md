@@ -56,6 +56,31 @@ Six-dimension quality system: L1/L2/L3 + G1/G2 + D1.
 - **Monorepo**: Bun workspaces
 - **Language**: TypeScript throughout
 
+## Local Development
+
+- The browser entry point MUST be **https://steed.dev.hexly.ai**, served through
+  the existing Caddy HTTPS proxy to Vite on **7035**. A loopback URL alone does
+  not complete a request to start dev.
+- Before starting or allocating ports, query
+  `nmem memories search "Steed local development ports" -n 5`
+  and the latest port reservations. Inspect
+  `/opt/homebrew/etc/Caddyfile`, current listeners, and candidate port bindability.
+  Record new reservations in nmem; never assume an unused listener is unreserved.
+- Coordinated ports: Vite **7035**, `apps/web` Worker **37035** (dev + 30000),
+  inspector **38035**. Bind application servers to loopback; keep Vite's strict
+  port and exact hostname allowlist. Preserve Host and HTTPS origin through the
+  API proxy so same-origin writes and Connect work through Caddy.
+- Reuse healthy services. Restart only identified Steed processes; preserve
+  unknown changes/processes and other repositories. Existing wildcard DNS,
+  certificates, and the Caddy mapping already cover this domain.
+- Use [document 13's startup commands](docs/13-architecture-diagrams-and-connect.md#local-configuration-and-future-enablement)
+  for the current architecture workspace. Preserve its local D1 directory and
+  ignored Connect env/keyring file across restarts. The full web backend is in
+  `apps/web`; the root `dev:worker` script targets the historical API Worker.
+- Verify trusted HTTPS, `/api/live`, actual diagram rendering, and Connect at
+  the dev domain before reporting it ready. The port decision and verification
+  record are in [document 15](docs/15-local-dev-domain.md).
+
 ## Architecture
 
 ```

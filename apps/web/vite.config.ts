@@ -23,9 +23,13 @@ export default defineConfig({
     sourcemap: true,
   },
   server: {
+    host: "127.0.0.1",
+    port: 7035,
+    strictPort: true,
+    allowedHosts: ["steed.dev.hexly.ai"],
     proxy: {
       "/api": {
-        target: process.env.STEED_API_PROXY ?? "http://localhost:8787",
+        target: process.env.STEED_API_PROXY ?? "http://127.0.0.1:37035",
         changeOrigin: false,
       },
     },

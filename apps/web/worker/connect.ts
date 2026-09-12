@@ -1,6 +1,7 @@
 import { CONNECT_LIMITS, type ConnectScope, type ConnectToken } from "@steed/api/shared";
 import { apiResponse, errorResponse, HttpError, requireSameOrigin } from "./http";
 import { fingerprint } from "./connect-crypto";
+import { isLocalRequest } from "./access-jwt";
 
 export type ConnectEnv = Pick<Cloudflare.ProductionEnv, "DB"> & Pick<WorkerBindings, "CONNECT_DEPLOYMENT_ID" | "CONNECT_TOKEN_KEYS" | "CONNECT_MANAGERS" | "CF_ACCESS_DEV_BYPASS">;
 export interface TokenRow {
@@ -28,7 +29,7 @@ export function deployment(env: ConnectEnv): string {
   return env.CONNECT_DEPLOYMENT_ID;
 }
 export const tokenContext = (env: ConnectEnv, row: TokenRow) => JSON.stringify(["token", deployment(env), row.id, row.diagram_id, row.scope, row.owner, row.expires_at]);
-const local = (request: Request, env: ConnectEnv) => env.CF_ACCESS_DEV_BYPASS === "true" && env.CONNECT_DEPLOYMENT_ID === "steed-development" && ["127.0.0.1", "localhost", "[::1]"].includes(new URL(request.url).hostname);
+const local = (request: Request, env: ConnectEnv) => env.CF_ACCESS_DEV_BYPASS === "true" && env.CONNECT_DEPLOYMENT_ID === "steed-development" && isLocalRequest(request);
 export function isManager(request: Request, env: ConnectEnv, principal: string) {
   if (principal === "local:developer") return local(request, env);
   return (env.CONNECT_MANAGERS ?? "").split(",").map((entry) => entry.trim()).filter(Boolean).includes(principal);

@@ -18,10 +18,11 @@ interface CfAccessCertResponse {
 const certsCache = new Map<string, { jwks: jose.JSONWebKeySet; expiresAt: number }>();
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
-function isLocalRequest(req: Request): boolean {
+export function isLocalRequest(req: Request): boolean {
   const url = new URL(req.url);
   const host = url.hostname;
-  return host === "localhost" || host === "127.0.0.1" || host === "[::1]";
+  return host === "localhost" || host === "127.0.0.1" || host === "[::1]"
+    || url.origin === "https://steed.dev.hexly.ai";
 }
 
 async function getCerts(team: string): Promise<jose.JSONWebKeySet> {

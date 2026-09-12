@@ -12,8 +12,13 @@ describe("verifyAccessJwt", () => {
     globalThis.fetch = originalFetch;
   });
 
-  it("returns dev user when devBypass is true and request is from localhost", async () => {
-    const req = new Request("http://localhost:5173/api/test");
+  it.each([
+    "http://localhost:7035",
+    "http://127.0.0.1:37035",
+    "http://[::1]:37035",
+    "https://steed.dev.hexly.ai",
+  ])("returns the explicit dev identity for %s", async (origin) => {
+    const req = new Request(`${origin}/api/test`);
     const result = await verifyAccessJwt(req, {
       team: "test",
       aud: "test-aud",
@@ -26,8 +31,14 @@ describe("verifyAccessJwt", () => {
     });
   });
 
-  it("ignores devBypass when request is not from localhost", async () => {
-    const req = new Request("https://example.com/api/test");
+  it.each([
+    "https://example.com",
+    "https://steed.hexly.ai",
+    "http://steed.dev.hexly.ai",
+    "https://steed.dev.hexly.ai:7035",
+    "https://steed.dev.hexly.ai.attacker.example",
+  ])("rejects devBypass for %s", async (origin) => {
+    const req = new Request(`${origin}/api/test`);
     const result = await verifyAccessJwt(req, {
       team: "test",
       aud: "test-aud",
@@ -38,6 +49,13 @@ describe("verifyAccessJwt", () => {
       ok: false,
       reason: "Missing Cf-Access-Jwt-Assertion header",
     });
+  });
+
+  it("requires Access on the dev domain without an explicit bypass", async () => {
+    const result = await verifyAccessJwt(new Request("https://steed.dev.hexly.ai/api/test"), {
+      team: "test", aud: "test-aud",
+    });
+    expect(result.ok).toBe(false);
   });
 
   it("returns error when JWT header is missing", async () => {
