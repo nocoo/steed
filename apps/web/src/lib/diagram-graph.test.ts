@@ -25,6 +25,23 @@ describe("architecture projection", () => {
     expect(projectDiagram(source, { viewId: "storage" }).edges.every((edge) => edge.data?.relationships[0]?.kind === "binding")).toBe(true);
   });
 
+  it("treats Object prototype names as ordinary authored IDs", () => {
+    const source = diagramSchema.parse({ schemaVersion: 1, title: "Authored IDs", nodes: [
+      { id: "constructor", kind: "service", label: "Constructor", position: { x: 20, y: 30 } },
+      { id: "toString", kind: "service", label: "Serializer", position: { x: 400, y: 30 } },
+    ], edges: [{ id: "valueOf", source: "constructor", target: "toString", route: { sourceSide: "bottom" } }],
+    views: [{ id: "overview", label: "Overview", nodeIds: ["constructor", "toString"] }] });
+    const graph = projectDiagram(source, { viewId: "overview" });
+    expect(graph.nodes[0]?.position).toEqual({ x: 20, y: 30 });
+    expect(graph.nodes[1]?.position).toEqual({ x: 400, y: 30 });
+    expect(graph.edges[0]?.sourceHandle).toBe("s-bottom");
+    const moved = moveDiagramNode(source, "constructor", { x: 10, y: 10 }, "overview");
+    moved.views[0]!.routes = { valueOf: { sourceSide: "top" } };
+    const overridden = projectDiagram(moved, { viewId: "overview" });
+    expect(overridden.nodes[0]?.position).toEqual({ x: 10, y: 10 });
+    expect(overridden.edges[0]?.sourceHandle).toBe("s-top");
+  });
+
   it("collapses a boundary and aggregates only matching authored edges", () => {
     const graph = projectDiagram(sample(), { collapsed: ["compute"] });
     expect(graph.nodes.find((node) => node.id === "g:compute")?.data.count).toBe(2);

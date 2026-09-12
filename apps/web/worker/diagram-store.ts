@@ -42,23 +42,33 @@ export function readRevision(request: Request, id: string): number | null {
   return revision;
 }
 
-export async function putDiagram(db: D1Database, id: string, document: Diagram, revision: number | null): Promise<DiagramRecord> {
-  const now = new Date().toISOString();
+interface WriteGuard { clause: string; values: (string | number | null)[] }
+const noGuard: WriteGuard = { clause: "1", values: [] };
+
+export function diagramPutStatement(db: D1Database, id: string, document: Diagram, revision: number | null, now: string, guard = noGuard) {
   const json = JSON.stringify(document);
   const columns = " RETURNING id, document, revision, created_at, updated_at";
-  const row = revision === null
-    ? await db.prepare("INSERT INTO diagrams (id, title, description, document, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING" + columns)
-      .bind(id, document.title, document.description, json, now, now).first<DiagramRow>()
-    : await db.prepare("UPDATE diagrams SET title = ?, description = ?, document = ?, revision = revision + 1, updated_at = ? WHERE id = ? AND revision = ? AND deleted_at IS NULL" + columns)
-      .bind(document.title, document.description, json, now, id, revision).first<DiagramRow>();
+  return revision === null
+    ? db.prepare(`INSERT INTO diagrams (id, title, description, document, created_at, updated_at) SELECT ?, ?, ?, ?, ?, ? WHERE ${guard.clause} ON CONFLICT(id) DO NOTHING` + columns)
+      .bind(id, document.title, document.description, json, now, now, ...guard.values)
+    : db.prepare(`UPDATE diagrams SET title = ?, description = ?, document = ?, revision = revision + 1, updated_at = ? WHERE id = ? AND revision = ? AND deleted_at IS NULL AND (${guard.clause})` + columns)
+      .bind(document.title, document.description, json, now, id, revision, ...guard.values);
+}
+
+export async function putDiagram(db: D1Database, id: string, document: Diagram, revision: number | null): Promise<DiagramRecord> {
+  const row = await diagramPutStatement(db, id, document, revision, new Date().toISOString()).first<DiagramRow>();
   if (!row) throw new HttpError(412, "version_conflict", "The diagram changed. Reload before editing.");
   return fromRow(row);
+}
+
+export function diagramDeleteStatement(db: D1Database, id: string, revision: number, now: string, guard = noGuard) {
+  return db.prepare(`UPDATE diagrams SET deleted_at = ?, updated_at = ?, revision = revision + 1 WHERE id = ? AND revision = ? AND deleted_at IS NULL AND (${guard.clause})`)
+    .bind(now, now, id, revision, ...guard.values);
 }
 
 export async function deleteDiagram(db: D1Database, id: string, revision: number | null): Promise<void> {
   if (revision === null) throw new HttpError(428, "precondition_required", "Deleting requires If-Match.");
   const now = new Date().toISOString();
-  const result = await db.prepare("UPDATE diagrams SET deleted_at = ?, updated_at = ?, revision = revision + 1 WHERE id = ? AND revision = ? AND deleted_at IS NULL")
-    .bind(now, now, id, revision).run();
+  const result = await diagramDeleteStatement(db, id, revision, now).run();
   if (result.meta.changes !== 1) throw new HttpError(412, "version_conflict", "The diagram changed. Reload before deleting.");
 }

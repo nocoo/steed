@@ -49,6 +49,8 @@ export function graphBounds(nodes: { position: DiagramPoint; width?: number | nu
 
 export function projectDiagram(document: Diagram, filter: DiagramFilter = {}) {
   const view = document.views.find((candidate) => candidate.id === filter.viewId);
+  const positions = new Map(Object.entries(view?.positions ?? {}));
+  const routes = new Map(Object.entries(view?.routes ?? {}));
   const viewIds = view ? new Set(view.nodeIds) : null;
   const edges = document.edges.filter((edge) => !view?.edgeKinds || view.edgeKinds.includes(edge.kind));
   const reach = filter.focus ? reachableNodes(edges, filter.focus.id, filter.focus.direction) : null;
@@ -58,7 +60,7 @@ export function projectDiagram(document: Diagram, filter: DiagramFilter = {}) {
   const displayIds = new Map<string, string>();
   const nodes: Node<DiagramCanvasNode>[] = [];
   const members = new Map<string, DiagramNode[]>();
-  const position = (node: DiagramNode) => view?.positions[node.id] ?? node.position;
+  const position = (node: DiagramNode) => positions.get(node.id) ?? node.position;
 
   for (const node of visible) {
     const collapsed = ancestry(node.id).filter((id) => filter.collapsed?.includes(id)).at(-1);
@@ -116,7 +118,7 @@ export function projectDiagram(document: Diagram, filter: DiagramFilter = {}) {
     const from = sourceNode.position;
     const to = targetNode.position;
     const horizontal = Math.abs(to.x - from.x) >= Math.abs(to.y - from.y);
-    const route = isAggregated ? undefined : view?.routes[edge.id] ?? edge.route;
+    const route = isAggregated ? undefined : routes.get(edge.id) ?? edge.route;
     const sourceSide = route?.sourceSide ?? (horizontal ? (to.x >= from.x ? "right" : "left") : to.y >= from.y ? "bottom" : "top");
     const targetSide = route?.targetSide ?? (source === target ? "top" : { left: "right", right: "left", top: "bottom", bottom: "top" }[sourceSide]);
     aggregated.set(key, { id: `e:${edge.id}`, source, target, type: "architecture",

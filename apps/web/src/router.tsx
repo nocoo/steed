@@ -12,6 +12,7 @@ import { DataSourcesPage } from "./routes/data-sources/index";
 import { DataSourceDetailPage } from "./routes/data-sources/$id";
 import { MapPage } from "./routes/map";
 import { DiagramsPage } from "./routes/diagrams";
+import { ConnectPage } from "./routes/connect";
 
 const routes: RouteObject[] = [
   {
@@ -21,6 +22,7 @@ const routes: RouteObject[] = [
       { index: true, element: <Navigate to="/diagrams" replace /> },
       { path: "diagrams", element: <DiagramsPage /> },
       { path: "diagrams/:id", element: <DiagramsPage /> },
+      { path: "connect", element: <ConnectPage /> },
       { path: "overview", element: <OverviewPage /> },
       { path: "hosts", element: <HostsPage /> },
       { path: "agents", element: <AgentsPage /> },

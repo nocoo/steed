@@ -7,9 +7,12 @@ compatibility_flags = ["nodejs_compat"]
 directory = "./dist"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
 
 # Secrets (set via `wrangler secret put --env <env>`):
 #   DASHBOARD_SERVICE_TOKEN — internal Bearer token for dashboard → API path
+#   CONNECT_MANAGERS — explicitly authorized Access principals
+#   CONNECT_TOKEN_KEYS — versioned AES keyring for recoverable credentials
 
 # ── Production: steed.hexly.ai ────────────────────────────────────────
 [env.production]
@@ -21,6 +24,10 @@ routes = [
 [env.production.vars]
 CF_ACCESS_TEAM = "nocoo"
 CF_ACCESS_AUD = "29357a96bddbff5c8063138868e4d55cca100df0e1c3856bf9a86fa3ec8319da"
+CONNECT_DEPLOYMENT_ID = "steed-production"
+
+[env.production.secrets]
+required = ["DASHBOARD_SERVICE_TOKEN", "CONNECT_MANAGERS", "CONNECT_TOKEN_KEYS"]
 
 [[env.production.d1_databases]]
 binding = "DB"
@@ -39,6 +46,10 @@ CF_ACCESS_TEAM = "nocoo"
 CF_ACCESS_AUD = "29357a96bddbff5c8063138868e4d55cca100df0e1c3856bf9a86fa3ec8319da"
 CF_ACCESS_DEV_BYPASS = "true"
 DASHBOARD_SERVICE_TOKEN = "dev-token"
+CONNECT_DEPLOYMENT_ID = "steed-development"
+
+[env.dev.secrets]
+required = ["CONNECT_MANAGERS", "CONNECT_TOKEN_KEYS"]
 
 [[env.dev.d1_databases]]
 binding = "DB"

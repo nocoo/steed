@@ -4,15 +4,12 @@ import { verifyAccessJwt, type VerifyResult } from "./access-jwt";
 import pkg from "../../../package.json" with { type: "json" };
 import { getUserProfile } from "./author-profile";
 import { diagramBrowserApi } from "./diagram-api";
+import { connectMachineApi, isDiagramApiPath } from "./connect-api";
+import { connectManagementApi } from "./connect-management";
 
-interface Env {
-  ASSETS: { fetch(req: Request): Promise<Response> };
-  DB: D1Database;
-  CF_ACCESS_TEAM: string;
-  CF_ACCESS_AUD: string;
-  CF_ACCESS_DEV_BYPASS?: string;
-  DASHBOARD_SERVICE_TOKEN: string;
-}
+type Env = Pick<Cloudflare.ProductionEnv, "DB" | "CF_ACCESS_TEAM" | "CF_ACCESS_AUD" | "DASHBOARD_SERVICE_TOKEN">
+  & Pick<WorkerBindings, "CF_ACCESS_DEV_BYPASS" | "CONNECT_DEPLOYMENT_ID" | "CONNECT_MANAGERS" | "CONNECT_TOKEN_KEYS">
+  & { ASSETS: Pick<WorkerBindings["ASSETS"], "fetch"> };
 
 const dashboardRouter = createApiRouter();
 
@@ -26,6 +23,8 @@ export default {
         { headers: { "Cache-Control": "no-store" } }
       );
     }
+
+    if (isDiagramApiPath(url.pathname)) return connectMachineApi(req, env);
 
     // /api/v1/* — Worker API. Auth handled by Hono Bearer middleware.
     // Used by Host Service / CLI directly, and by the dashboard router via
@@ -41,6 +40,9 @@ export default {
         aud: env.CF_ACCESS_AUD,
         devBypass: env.CF_ACCESS_DEV_BYPASS === "true",
       });
+      if (url.pathname === "/api/connect" || url.pathname.startsWith("/api/connect/")) {
+        return connectManagementApi(req, env, verifyResult.ok ? verifyResult.user : undefined);
+      }
       if (!verifyResult.ok) {
         return new Response("Unauthorized", { status: 401 });
       }

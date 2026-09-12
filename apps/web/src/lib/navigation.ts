@@ -5,6 +5,7 @@ import {
   Database,
   Network,
   Shapes,
+  Plug,
   type LucideIcon,
 } from "lucide-react";
 
@@ -22,7 +23,7 @@ export interface NavGroup {
 export const NAV_GROUPS: NavGroup[] = [
   {
     title: "Workspace",
-    items: [{ title: "Diagrams", href: "/diagrams", icon: Shapes }],
+    items: [{ title: "Diagrams", href: "/diagrams", icon: Shapes }, { title: "Connect", href: "/connect", icon: Plug }],
   },
   {
     title: "Dashboard",
