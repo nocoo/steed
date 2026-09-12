@@ -9,11 +9,13 @@ on:
 
 jobs:
   quality:
-    uses: nocoo/base-ci/.github/workflows/bun-quality.yml@aec4adc1a817c56790d1698329ef9398a15a754a  # v2026.5
+    uses: nocoo/base-ci/.github/workflows/quality.yml@3d2e9e55fdd60aa756df454ded53ef6d06d6653f
     with:
+      runtime-version: "1.4.2"
+      install-policy: "project"
       test-command: "bun run test && bun run check-coverage"
       typecheck-command: "bun run typecheck"
       lint-command: "bun run lint"
-      enable-l2: "true"
+      l2: true
       l2-command: "bun run test:e2e"
     secrets: inherit
