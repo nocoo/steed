@@ -1,6 +1,7 @@
 # 11 — Basalt upgrade verification
 
-Status: In progress. Baseline: `fb48cff` on `main`.
+Status: Complete; implementation verified and independently signed off at `204f926`.
+Baseline: `fb48cff` on `main`.
 
 ## Published version and safe synchronization
 
@@ -95,4 +96,65 @@ Stage named files only. Never skip hooks or lower test thresholds.
 
 ## Results
 
-Pending implementation, verification, and review.
+| Check | Result |
+|---|---|
+| Dependency | Exact published 2.1.7 retained; frozen install checked 531 installs across 630 packages with no changes. No manifest or lockfile diff. |
+| G1 | Root strict TypeScript, web TypeScript, and zero-warning ESLint passed. |
+| L1 | 89 files / 957 tests passed. Coverage: lines 97.23%, statements 97.00%, functions 96.21%, branches 90.02%. |
+| Web package | 38 files / 268 tests passed. Coverage: lines 98.00%, statements 97.13%, functions 98.90%, branches 89.82%. |
+| Production build | Passed. Vite retains its existing advisory for a main chunk above 500 kB. |
+| L2 / D1 | 59 HTTP E2E cases passed against local port 18787 and isolated `.wrangler/state/e2e`; the runner stopped its server afterward. |
+| G2 | OSV scanned 965 lockfile packages with no issues; Gitleaks scanned the working directory with no leaks. No exclusions were added. |
+| Source audit | No native `button`, `select`, `input`, `textarea`, or `dialog`, obsolete UI imports, or duplicate color-token declarations remain in active product source. |
+| L3 views | 28 captures: seven routes × desktop/mobile × light/dark; no browser exceptions. |
+| L3 interactions | Six groups passed: shell/logo/theme, mobile drawer, agent editing, metadata/lanes, bindings, and map filters/drawer. All writes used browser fixtures. |
+| L3 shell regressions | Six cases passed: pre-React theme under denied storage in both modes, plus desktop/mobile × light/dark with denied storage, skip-link focus, navigation, and nested surfaces. |
+| Codex review | Explicit Sign Off for `204f926`; no actionable P0/P1/P2/P3 findings in `fb48cff..204f926`. |
+
+The new regression checks first failed against the prior implementation:
+mobile state was `undefined` on its first render, storage errors replaced the
+shell with React Router's error boundary, and the bootstrap omitted the theme
+when storage reads failed. The targeted 25 checks passed after C1. Browser
+validation then reproduced the missing main-content focus target; adding the
+native `tabIndex` fixed it in all four viewport/theme cases.
+
+Computed L0/L1/L2/L3 background values were `238/246/252/255` (red channels in
+light mode) and `23/27/31/36` (dark mode). Raw accent swatches remained the
+configured Steed HSL values in both modes. Logo motion samples remained within
+0.5px through collapse and expansion.
+
+Browser scripts, fixture responses, captures, and JSON results are preserved at:
+
+```text
+/private/tmp/steed-basalt-upgrade-20260912.mxg6b48e/
+```
+
+The independent Codex reviewer, Herdr agent `steed-basalt-review` in pane
+`w33:p4`, reported:
+
+> Sign Off for 204f926. No actionable P0/P1/P2/P3 findings in fb48cff..204f926,
+> covering 8da4157, 22e007d, and 204f926.
+
+The reviewer independently passed both TypeScript checks, strict lint, 957 root
+tests with coverage gates, 268 web tests with coverage gates, and a production
+build. Its additional checks passed 22 browser scenarios, all six core
+interaction groups, and 12 JWT/authentication cases. It also confirmed that
+Basalt 2.1.7 is still latest and that the public integration contracts are met.
+The review changed no tracked files. This final documentation update records
+the result of the review of the committed implementation.
+
+Independent browser and authentication results, scripts, and screenshots are at:
+
+```text
+/private/tmp/steed-codex-review-204f926.z6l3e2/
+```
+
+Only this repository's web shell, regression checks, and numbered documentation
+changed. Every commit passed the mandatory pre-commit hook. No push, publication,
+deployment, or other repository modification was performed.
+
+| Commit | Change |
+|---|---|
+| `8da4157` | Numbered plan and documentation index. |
+| `22e007d` | Initialize mobile/sidebar preferences and retain theme/navigation when storage is denied; regression checks. |
+| `204f926` | Make the main-content skip target focusable. |
