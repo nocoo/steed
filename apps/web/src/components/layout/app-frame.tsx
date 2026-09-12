@@ -77,7 +77,7 @@ export function AppFrame() {
             />
           </SheetContent>
         ) : null}
-      <AppMain>
+      <AppMain tabIndex={-1}>
         <AppHeader
           leading={
             isMobile ? (

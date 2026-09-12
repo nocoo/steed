@@ -45,7 +45,7 @@ and completes the integration checks and repairs below.
 | Product widgets | Keep the componentized React Flow graph/nodes/drawer/legend and `LaneChips`; these represent domain behavior rather than another primitive library. |
 | Surfaces | Check L0 shell → L1 island → L2 card → L3 nested content in both themes, with no native common controls or obsolete color tokens in product source. |
 
-Two shell integration gaps need regression checks and repair:
+Shell integration gaps found during verification:
 
 1. `hooks/use-mobile.ts` begins with `undefined`, causing the first mobile render
    to reserve a desktop rail. Initialize from the same media query used by its
@@ -54,6 +54,10 @@ Two shell integration gaps need regression checks and repair:
    failures, while `index.html` abandons theme initialization when storage reads
    fail. Resolve the initial sidebar preference in its state initializer and
    retain working navigation and system theme when browser storage is denied.
+3. The browser keyboard check found that `AppSkipLink` changes the URL fragment
+   without focusing `AppMain`. Add `tabIndex={-1}` as in the installed AppFrame
+   recipe so the existing fragment target accepts focus without entering the
+   normal Tab sequence.
 
 Application versions remain root 0.1.1 and web 0.1.0. `apps/web_legacy`, backend
 code, authentication, D1 data, and other repositories are outside this change.
@@ -66,7 +70,7 @@ publication, or deployment. No Worker implementation change is planned.
 |---|---|---|
 | C0 | `docs: plan basalt upgrade verification` | Review this plan against current code and published contracts; mandatory pre-commit gates. |
 | C1 | `fix: initialize basalt shell preferences safely` | Reproduce first-render and denied-storage failures, repair the shell, run mandatory gates and production build. |
-| C2 | Atomic fixes for any P0/P1/P2/P3 review findings | Repeat relevant regression checks and mandatory hooks for each logical fix. |
+| C2 | Atomic fixes for browser or P0/P1/P2/P3 review findings | Repeat relevant regression checks and mandatory hooks for each logical fix. |
 | C3 | `docs: record basalt upgrade sign-off` | Record final verification evidence and independent Codex sign-off through `su-review-fix`. |
 
 Stage named files only. Never skip hooks or lower test thresholds.
