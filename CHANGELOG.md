@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.3.0] - 2026-09-12
+
+### Added
+
+- Architecture diagram workspace with interactive canvas, nodes, edges, boundaries, layout, and export (`/diagrams`)
+- Scoped diagram connection management (`/connect`) with cryptographic token issuance, validation, and revocation
+- Signed-in user profile display in sidebar footer with Cloudflare Access JWT resolution
+- Dedicated database migrations for architecture diagrams (`0005`) and Connect access tokens (`0006`)
+- Automated integration test suites for diagrams (`run-diagram-e2e.ts`) and Connect (`run-connect-e2e.ts`)
+
+### Changed
+
+- Coordinated local development domain routing through Caddy
+
 ## [0.2.0] - 2026-09-12
 
 ### Changed

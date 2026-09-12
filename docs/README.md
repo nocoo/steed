@@ -17,6 +17,7 @@
 | 13 | [Architecture diagrams and Connect](./13-architecture-diagrams-and-connect.md) | Sidebar identity, complex local architecture proof, and scoped agent access |
 | 14 | [Local architecture and Connect verification](./14-local-architecture-verification.md) | Actual-network acceptance, authenticated HTTP/browser evidence, and validation results |
 | 15 | [Local development through Caddy](./15-local-dev-domain.md) | Coordinated nmem ports, HTTPS dev-domain startup, and verification |
+| 16 | [Release v0.3.0](./16-release-0.3.0.md) | Architecture diagrams, Scoped Connect, sidebar profile, unified v0.3.0 release |
 
 ## 架构
 
