@@ -14,6 +14,7 @@
 | 10 | [Release v0.1.0](./10-release-0.1.0.md) | First tag: unify project version at root `0.1.0` |
 | 11 | [Basalt upgrade verification](./11-basalt-upgrade-verification.md) | Verify latest published Basalt, complete shell integration, and record regression checks and Codex sign-off |
 | 12 | [Release v0.2.0](./12-release-0.2.0.md) | Minor release, synchronized workspace versions, production deployment and smoke verification |
+| 13 | [Architecture diagrams and Connect](./13-architecture-diagrams-and-connect.md) | Sidebar identity, complex local architecture proof, and scoped agent access |
 
 ## 架构
 
