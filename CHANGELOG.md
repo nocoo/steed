@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.2.0] - 2026-09-12
+
+### Changed
+
+- Synchronize all workspace package versions with the root release version.
+- Display the sidebar version badge in a monospace font.
+- Use pinned shared CI and production deployment workflows with deployment provenance checks.
+
+### Fixed
+
+- Render mobile navigation and the saved sidebar preference correctly on the first render.
+- Keep theme initialization and sidebar controls usable when browser storage is unavailable.
+- Move keyboard focus to main content when activating the skip link.
+
 ## [0.1.1] - 2026-09-11
 
 ### Fixed

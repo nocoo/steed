@@ -67,7 +67,7 @@ export function AppSidebar({
                 <span className="truncate text-lg font-semibold text-basalt-foreground md:text-xl">
                   Steed
                 </span>
-                <span className="shrink-0 rounded-md bg-basalt-secondary px-1.5 py-0.5 text-[10px] leading-none font-medium text-basalt-muted-foreground">
+                <span className="shrink-0 rounded-md bg-basalt-secondary px-1.5 py-0.5 font-mono text-[10px] leading-none font-medium text-basalt-muted-foreground">
                   v{APP_VERSION}
                 </span>
               </div>
