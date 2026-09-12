@@ -9,7 +9,7 @@ describe("useMobile", () => {
     window.matchMedia = originalMatchMedia;
   });
 
-  it("returns undefined initially before effect runs", () => {
+  it("returns false for a desktop viewport", () => {
     const mockMql = {
       matches: false,
       addEventListener: vi.fn(),
@@ -21,7 +21,7 @@ describe("useMobile", () => {
     expect(result.current).toBe(false);
   });
 
-  it("returns true when viewport is mobile", () => {
+  it("uses the mobile breakpoint on the first render", () => {
     const mockMql = {
       matches: true,
       addEventListener: vi.fn(),
@@ -29,7 +29,13 @@ describe("useMobile", () => {
     };
     window.matchMedia = vi.fn().mockReturnValue(mockMql);
 
-    const { result } = renderHook(() => useMobile());
+    const renders: (boolean | undefined)[] = [];
+    const { result } = renderHook(() => {
+      const isMobile = useMobile();
+      renders.push(isMobile);
+      return isMobile;
+    });
+    expect(renders[0]).toBe(true);
     expect(result.current).toBe(true);
   });
 

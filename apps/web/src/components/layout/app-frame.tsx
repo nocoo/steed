@@ -21,19 +21,18 @@ import { AppSidebar } from "./app-sidebar";
 const STORAGE_KEY = "sidebar-expanded";
 
 export function AppFrame() {
-  const [collapsed, setCollapsed] = useState(false);
-  const isMobile = Boolean(useMobile());
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem(STORAGE_KEY) === "false";
+    } catch {
+      return false;
+    }
+  });
+  const isMobile = useMobile();
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
   const { theme } = useTheme();
   const { breadcrumbs, title } = getHeaderTrail(location.pathname);
-
-  useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored !== null) {
-      setCollapsed(stored !== "true");
-    }
-  }, []);
 
   useEffect(() => {
     setMobileOpen(false);
@@ -46,11 +45,13 @@ export function AppFrame() {
   }, [isMobile]);
 
   const onToggleCollapsed = () => {
-    setCollapsed((prev) => {
-      const next = !prev;
+    const next = !collapsed;
+    setCollapsed(next);
+    try {
       localStorage.setItem(STORAGE_KEY, String(!next));
-      return next;
-    });
+    } catch {
+      // Navigation must remain usable when browser storage is unavailable.
+    }
   };
 
   return (

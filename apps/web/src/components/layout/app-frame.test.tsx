@@ -69,6 +69,7 @@ describe("AppFrame", () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     window.matchMedia = originalMatchMedia;
     document.body.style.overflow = "";
   });
@@ -196,5 +197,28 @@ describe("AppFrame", () => {
         screen.getByRole("button", { name: "Expand sidebar" })
       ).toBeInTheDocument();
     });
+  });
+
+  it("keeps the page and sidebar usable when storage reads fail", () => {
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new DOMException("Storage denied", "SecurityError");
+    });
+
+    renderFrame();
+    expect(screen.getByTestId("child-content")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
+    expect(screen.getByRole("button", { name: "Expand sidebar" })).toBeInTheDocument();
+  });
+
+  it("can collapse and expand when the preference cannot be saved", () => {
+    renderFrame();
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("Storage full", "QuotaExceededError");
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Expand sidebar" }));
+    expect(screen.getByRole("button", { name: "Collapse sidebar" })).toBeInTheDocument();
+    expect(screen.getByTestId("child-content")).toBeInTheDocument();
   });
 });
