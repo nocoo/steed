@@ -2,6 +2,7 @@ import app from "@steed/worker";
 import { createApiRouter } from "@steed/api/server";
 import { verifyAccessJwt, type VerifyResult } from "./access-jwt";
 import pkg from "../../../package.json" with { type: "json" };
+import { getUserProfile } from "./author-profile";
 
 interface Env {
   ASSETS: { fetch(req: Request): Promise<Response> };
@@ -41,6 +42,17 @@ export default {
       });
       if (!verifyResult.ok) {
         return new Response("Unauthorized", { status: 401 });
+      }
+
+      if (url.pathname === "/api/me") {
+        if (req.method !== "GET" && req.method !== "HEAD") {
+          return new Response(null, { status: 405, headers: { Allow: "GET, HEAD" } });
+        }
+        const profile = await getUserProfile(verifyResult.user.email);
+        const headers = { "Cache-Control": "no-store" };
+        return req.method === "HEAD"
+          ? new Response(null, { headers })
+          : Response.json(profile, { headers });
       }
 
       return dashboardRouter.fetch(

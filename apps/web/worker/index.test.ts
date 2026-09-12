@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   routerFetch: vi.fn(),
   honoFetch: vi.fn(),
   verifyAccessJwt: vi.fn(),
+  getUserProfile: vi.fn(),
 }));
 
 vi.mock("@steed/api/server", () => ({
@@ -20,6 +21,8 @@ vi.mock("@steed/worker", () => ({
 vi.mock("./access-jwt", () => ({
   verifyAccessJwt: (...args: unknown[]) => mocks.verifyAccessJwt(...args),
 }));
+
+vi.mock("./author-profile", () => ({ getUserProfile: mocks.getUserProfile }));
 
 import worker from "./index";
 
@@ -71,6 +74,35 @@ describe("worker", () => {
 
     expect(res.status).toBe(401);
     expect(await res.text()).toBe("Unauthorized");
+  });
+
+  it.each(["GET", "HEAD"])("serves %s /api/me using only the verified identity", async (method) => {
+    mocks.verifyAccessJwt.mockResolvedValue({ ok: true, user: { email: "verified@example.com", sub: "123" } });
+    const profile = { name: "Verified", email: "verified@example.com", avatar: null };
+    mocks.getUserProfile.mockResolvedValue(profile);
+    const response = await worker.fetch(
+      new Request("https://example.com/api/me?email=attacker@example.com", { method }),
+      baseEnv, {} as ExecutionContext
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    expect(mocks.getUserProfile).toHaveBeenCalledWith("verified@example.com");
+    if (method === "GET") expect(await response.json()).toEqual(profile);
+    else expect(await response.text()).toBe("");
+  });
+
+  it("rejects mutations to /api/me", async () => {
+    mocks.verifyAccessJwt.mockResolvedValue({ ok: true, user: { email: "user@example.com", sub: "123" } });
+    const response = await worker.fetch(new Request("https://example.com/api/me", { method: "POST" }), baseEnv, {} as ExecutionContext);
+    expect(response.status).toBe(405);
+    expect(mocks.getUserProfile).not.toHaveBeenCalled();
+  });
+
+  it("does not query profiles without Access authentication", async () => {
+    mocks.verifyAccessJwt.mockResolvedValue({ ok: false, reason: "Missing JWT" });
+    const response = await worker.fetch(new Request("https://example.com/api/me"), baseEnv, {} as ExecutionContext);
+    expect(response.status).toBe(401);
+    expect(mocks.getUserProfile).not.toHaveBeenCalled();
   });
 
   it("routes /api/* to dashboard router with same-origin WORKER_API_URL when auth succeeds", async () => {

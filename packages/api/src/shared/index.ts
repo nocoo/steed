@@ -28,3 +28,5 @@ export {
   type MapGraph,
   type MapInput,
 } from "./lane-map";
+
+export { userProfileSchema, type UserProfile } from "./profile";

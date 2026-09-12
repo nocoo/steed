@@ -1,6 +1,9 @@
 import { useLocation, useNavigate } from "react-router";
 import { PanelLeft } from "lucide-react";
 import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
   Button,
   Sidebar,
   SidebarFooter,
@@ -15,6 +18,7 @@ import {
 } from "@nocoo/basalt";
 import { APP_VERSION } from "@/lib/version";
 import { NAV_GROUPS, getAllNavItems } from "@/lib/navigation";
+import { useProfile } from "@/hooks/use-profile";
 
 const LOGO_SLOT_CLASS =
   "flex h-14 w-[68px] shrink-0 items-center justify-center";
@@ -48,6 +52,16 @@ export function AppSidebar({
   const navigate = useNavigate();
   const pathname = location.pathname;
   const items = getAllNavItems();
+  const profile = useProfile();
+  const name = profile?.name ?? "User";
+  const avatar = (
+    <Avatar className="h-9 w-9 shrink-0" aria-label={name} title={name}>
+      {profile?.avatar ? <AvatarImage src={profile.avatar} alt={name} referrerPolicy="no-referrer" /> : null}
+      <AvatarFallback className="bg-basalt-primary/10 text-xs text-basalt-primary">
+        {name.slice(0, 1).toUpperCase()}
+      </AvatarFallback>
+    </Avatar>
+  );
 
   const go = (href: string) => {
     navigate(href);
@@ -120,7 +134,9 @@ export function AppSidebar({
               );
             })}
           </SidebarNav>
-          <SidebarFooter className="flex w-full justify-center px-0" />
+          <SidebarFooter className="flex w-full justify-center px-0">
+            {avatar}
+          </SidebarFooter>
         </>
       ) : (
         <>
@@ -149,8 +165,14 @@ export function AppSidebar({
             ))}
           </SidebarNav>
           <SidebarFooter>
-            <div className="text-center text-xs text-basalt-muted-foreground">
-              Steed v{APP_VERSION}
+            <div className="flex min-w-0 items-center gap-3">
+              {avatar}
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-basalt-foreground">{name}</p>
+                {profile?.email ? (
+                  <p className="truncate text-xs text-basalt-muted-foreground">{profile.email}</p>
+                ) : null}
+              </div>
             </div>
           </SidebarFooter>
         </>

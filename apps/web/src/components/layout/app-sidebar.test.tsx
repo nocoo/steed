@@ -4,6 +4,9 @@ import { MemoryRouter } from "react-router";
 import { AppSidebar } from "./app-sidebar";
 import { ShellProviders } from "./shell-providers";
 
+const profile = vi.hoisted(() => vi.fn());
+vi.mock("@/hooks/use-profile", () => ({ useProfile: profile }));
+
 const originalMatchMedia = window.matchMedia;
 
 function renderSidebar(path = "/overview", collapsed = false) {
@@ -31,6 +34,22 @@ function logoSlot() {
 describe("AppSidebar", () => {
   beforeEach(() => {
     localStorage.clear();
+    profile.mockReturnValue(null);
+  });
+
+  it("shows the signed-in name, email, and avatar in the expanded footer", () => {
+    profile.mockReturnValue({ name: "Example User", email: "user@example.com", avatar: "https://example.com/a.png" });
+    renderSidebar();
+    expect(screen.getByText("Example User")).toBeInTheDocument();
+    expect(screen.getByText("user@example.com")).toBeInTheDocument();
+    expect(screen.getByLabelText("Example User")).toBeInTheDocument();
+  });
+
+  it("keeps the profile avatar in the collapsed footer", () => {
+    profile.mockReturnValue({ name: "Example User", email: "user@example.com", avatar: null });
+    renderSidebar("/overview", true);
+    expect(screen.getByLabelText("Example User")).toBeInTheDocument();
+    expect(screen.queryByText("user@example.com")).not.toBeInTheDocument();
   });
 
   afterEach(() => {
