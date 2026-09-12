@@ -4,6 +4,7 @@ import {
   Bot,
   Database,
   Network,
+  Shapes,
   type LucideIcon,
 } from "lucide-react";
 
@@ -19,6 +20,10 @@ export interface NavGroup {
 }
 
 export const NAV_GROUPS: NavGroup[] = [
+  {
+    title: "Workspace",
+    items: [{ title: "Diagrams", href: "/diagrams", icon: Shapes }],
+  },
   {
     title: "Dashboard",
     items: [
@@ -70,6 +75,7 @@ export interface HeaderTrail {
 }
 
 export function getHeaderTrail(pathname: string): HeaderTrail {
+  if (pathname.startsWith("/diagrams/")) return { breadcrumbs: [{ href: "/diagrams", label: "Diagrams" }], title: "Architecture diagram" };
   const segments = pathname.split("/").filter(Boolean);
   if (segments.length === 0) {
     return { breadcrumbs: [], title: "Overview" };

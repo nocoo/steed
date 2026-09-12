@@ -28,7 +28,7 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text", "json-summary"],
       include: ["src/**/*.{ts,tsx}", "worker/**/*.ts"],
-      exclude: ["**/*.test.{ts,tsx}", "**/index.ts", "**/test-setup.ts", "**/main.tsx"],
+      exclude: ["**/*.test.{ts,tsx}", "**/index.ts", "**/test-setup.ts", "**/main.tsx", "worker/__tests__/**"],
       thresholds: {
         statements: 90,
         branches: 85,

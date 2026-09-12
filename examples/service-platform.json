@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "title": "Service platform",
+  "description": "A small editable example with nested boundaries, shared storage, monitoring, and explicit inference.",
+  "groups": [
+    { "id": "cloud", "label": "Cloud" },
+    { "id": "compute", "label": "Application services", "parentId": "cloud" },
+    { "id": "data", "label": "Private data", "parentId": "cloud" },
+    { "id": "unused", "label": "Reserved boundary" }
+  ],
+  "nodes": [
+    { "id": "client", "label": "Browser", "kind": "client", "position": { "x": 0, "y": 150 } },
+    { "id": "api", "label": "Application API", "kind": "worker", "groupId": "compute", "position": { "x": 360, "y": 100 }, "tags": ["primary"], "url": "https://api.example.com", "description": "Public application API." },
+    { "id": "jobs", "label": "Background jobs", "kind": "service", "groupId": "compute", "position": { "x": 360, "y": 360 } },
+    { "id": "db", "label": "Application database", "kind": "database", "groupId": "data", "position": { "x": 760, "y": 100 } },
+    { "id": "cache", "label": "Cache", "kind": "cache", "groupId": "data", "position": { "x": 760, "y": 360 } },
+    { "id": "monitor", "label": "Health checks", "kind": "monitor", "position": { "x": 0, "y": 600 } }
+  ],
+  "edges": [
+    { "id": "request", "source": "client", "target": "api", "label": "HTTPS", "kind": "traffic" },
+    { "id": "enqueue", "source": "client", "target": "jobs", "label": "Submit job", "kind": "traffic" },
+    { "id": "query", "source": "api", "target": "db", "label": "SQL", "kind": "binding", "evidence": "inferred", "description": "Inferred from matching resource names." },
+    { "id": "job-query", "source": "jobs", "target": "db", "label": "SQL", "kind": "binding", "evidence": "inferred" },
+    { "id": "cached", "source": "api", "target": "cache", "kind": "binding" },
+    { "id": "health", "source": "monitor", "target": "client", "label": "GET /health", "kind": "monitoring" }
+  ],
+  "views": [
+    { "id": "request-path", "label": "Request path", "description": "One request from the browser to storage.", "nodeIds": ["client", "api", "db"], "positions": { "client": { "x": 0, "y": 80 }, "api": { "x": 360, "y": 80 }, "db": { "x": 760, "y": 80 } } },
+    { "id": "storage", "label": "Storage", "nodeIds": ["api", "db", "cache"], "edgeKinds": ["binding"] }
+  ]
+}

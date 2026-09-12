@@ -9,13 +9,14 @@ import {
 describe("navigation", () => {
   describe("NAV_GROUPS", () => {
     it("has expected structure", () => {
-      expect(NAV_GROUPS).toHaveLength(2);
-      expect(NAV_GROUPS[0]!.title).toBe("Dashboard");
-      expect(NAV_GROUPS[1]!.title).toBe("Infrastructure");
+      expect(NAV_GROUPS).toHaveLength(3);
+      expect(NAV_GROUPS[0]!.title).toBe("Workspace");
+      expect(NAV_GROUPS[1]!.title).toBe("Dashboard");
+      expect(NAV_GROUPS[2]!.title).toBe("Infrastructure");
     });
 
     it("contains overview in dashboard group", () => {
-      const dashboardItems = NAV_GROUPS[0]!.items;
+      const dashboardItems = NAV_GROUPS[1]!.items;
       const overview = dashboardItems.find((item) => item.href === "/overview");
       expect(overview).toBeDefined();
       expect(overview!.title).toBe("Overview");
@@ -45,6 +46,9 @@ describe("navigation", () => {
   });
 
   describe("getHeaderTrail", () => {
+    it("links diagram details back to the workspace", () => {
+      expect(getHeaderTrail("/diagrams/example")).toEqual({ breadcrumbs: [{ href: "/diagrams", label: "Diagrams" }], title: "Architecture diagram" });
+    });
     it("treats empty path as Overview", () => {
       expect(getHeaderTrail("/")).toEqual({
         breadcrumbs: [],

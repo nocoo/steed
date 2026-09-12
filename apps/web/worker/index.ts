@@ -3,6 +3,7 @@ import { createApiRouter } from "@steed/api/server";
 import { verifyAccessJwt, type VerifyResult } from "./access-jwt";
 import pkg from "../../../package.json" with { type: "json" };
 import { getUserProfile } from "./author-profile";
+import { diagramBrowserApi } from "./diagram-api";
 
 interface Env {
   ASSETS: { fetch(req: Request): Promise<Response> };
@@ -42,6 +43,10 @@ export default {
       });
       if (!verifyResult.ok) {
         return new Response("Unauthorized", { status: 401 });
+      }
+
+      if (url.pathname === "/api/diagrams" || url.pathname.startsWith("/api/diagrams/")) {
+        return diagramBrowserApi(req, env.DB);
       }
 
       if (url.pathname === "/api/me") {

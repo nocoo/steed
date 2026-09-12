@@ -124,3 +124,46 @@ Only proceed to Connect after the complex-network browser proof succeeds.
 - Reference repositories and the Downloads source are read-only inputs.
 - A new local server must use an available port and a dedicated D1 persistence
   directory; never reset existing local databases or stop unknown processes.
+
+## Diagram acceptance, 2026-09-12
+
+The local reconstruction contains 279 components, 377 connections, 18 nested
+boundaries and 14 named views. It accounts for all 41 Workers, 27 D1 databases,
+11 KV namespaces, 10 R2 buckets, seven Railway projects and five VPS entries in
+the source, alongside the named Docker, Vercel, home and monitoring inventory.
+Fifty connections retain explicit inferred evidence. Source overview aggregates
+are labeled separately from the individual resources. Kuma's headline says 74,
+but its enumerated groups contain 67 targets; the seven unspecified targets are
+not fabricated. Public status contains the source's 28 checks.
+
+The local diagram is available at
+`http://127.0.0.1:24680/diagrams/cloud-services-20260912`, using an isolated local
+D1 database at `apps/web/.wrangler/state/architecture`. The private source-derived
+JSON, generator and browser evidence stay in ignored
+`.wrangler/architecture-proof-5nn5vq9g/`. No acceptance data was sent to production.
+The committed `examples/service-platform.json` is a separate generic example.
+
+Real Chrome checks exercised overview and service/monitoring views, the full
+279-component graph, search, upstream/downstream traversal, collapsed boundaries,
+mouse dragging, form edits, save/reload, invalid-source preservation, unsaved
+navigation, and a complete export/import round trip. Mutating checks used a
+separate imported copy and removed it afterwards. Dark mode and a 390-pixel
+viewport were also checked; there were no uncaught page errors.
+
+Visual inspection exposed labels covering paths and automatic routes crossing
+unrelated nodes. The model now supports per-edge and per-view waypoints, port
+directions and label positions. Views can hide boundaries; the minimap is optional,
+and fit includes authored path geometry. Source replacement resets stale filters.
+Node/edge deletion cleans view references. Navigation protection remains active
+during a pending save, and conditional writes preserve conflicting drafts.
+
+Validation uses strict TypeScript/ESLint, both existing coverage gates, the original
+59 true-HTTP checks and 25 new checks in `scripts/run-diagram-e2e.ts`. The new runner
+builds the active SPA Worker and uses its own temporary local D1 and ports. It
+verifies concurrency, body and graph validation, same-origin protection, pagination,
+tombstone behavior, and storage of 500 nodes with 1,999 edges. The normalized JSON
+document is limited to 1 MiB so export remains importable; counts are capped at
+500 nodes, 2,000 edges, 100 groups and 40 views.
+
+This acceptance completes the diagram prerequisite for Connect. Production
+remains v0.2.0; this work has not been pushed or deployed.

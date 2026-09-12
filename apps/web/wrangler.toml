@@ -26,6 +26,7 @@ CF_ACCESS_AUD = "29357a96bddbff5c8063138868e4d55cca100df0e1c3856bf9a86fa3ec8319d
 binding = "DB"
 database_name = "steed"
 database_id = "8c69f63f-38a5-4ad4-9832-ee04e0b2237d"
+migrations_dir = "../../packages/worker/migrations"
 
 # ── Local development: bypass CF Access JWT for localhost ─────────────
 # Always run with: wrangler dev --env dev --local --persist-to .wrangler/state/web
@@ -43,3 +44,4 @@ DASHBOARD_SERVICE_TOKEN = "dev-token"
 binding = "DB"
 database_name = "steed"
 database_id = "8c69f63f-38a5-4ad4-9832-ee04e0b2237d"
+migrations_dir = "../../packages/worker/migrations"

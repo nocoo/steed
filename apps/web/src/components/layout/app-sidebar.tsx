@@ -119,7 +119,7 @@ export function AppSidebar({
                 <Tooltip key={item.href} delayDuration={0}>
                   <TooltipTrigger asChild>
                     <SidebarIconItem
-                      active={pathname === item.href}
+                      active={pathname === item.href || pathname.startsWith(`${item.href}/`)}
                       aria-label={item.title}
                       className="self-center"
                       onClick={() => go(item.href)}
@@ -150,7 +150,7 @@ export function AppSidebar({
                     return (
                       <SidebarItem
                         key={item.href}
-                        active={pathname === item.href}
+                        active={pathname === item.href || pathname.startsWith(`${item.href}/`)}
                         onClick={() => go(item.href)}
                       >
                         <Icon className="h-4 w-4 shrink-0" strokeWidth={1.5} />

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import { createMockApiClient } from "@/viewmodels/__tests__/test-utils";
 
 const mockApiClient = createMockApiClient();
@@ -15,6 +15,7 @@ vi.mock("./contexts/api-client", async () => {
 });
 
 import { App } from "./App";
+import { router } from "./router";
 
 describe("App", () => {
   it("renders inside ApiClientProvider with the live router", async () => {
@@ -28,7 +29,7 @@ describe("App", () => {
       data_sources: { total: 0, active: 0 },
     });
 
-    window.history.pushState({}, "", "/overview");
+    await act(() => router.navigate("/overview"));
 
     render(<App />);
 

@@ -11,13 +11,16 @@ import { AgentDetailPage } from "./routes/agents/$id";
 import { DataSourcesPage } from "./routes/data-sources/index";
 import { DataSourceDetailPage } from "./routes/data-sources/$id";
 import { MapPage } from "./routes/map";
+import { DiagramsPage } from "./routes/diagrams";
 
 const routes: RouteObject[] = [
   {
     path: "/",
     element: <Layout />,
     children: [
-      { index: true, element: <Navigate to="/overview" replace /> },
+      { index: true, element: <Navigate to="/diagrams" replace /> },
+      { path: "diagrams", element: <DiagramsPage /> },
+      { path: "diagrams/:id", element: <DiagramsPage /> },
       { path: "overview", element: <OverviewPage /> },
       { path: "hosts", element: <HostsPage /> },
       { path: "agents", element: <AgentsPage /> },

@@ -12,3 +12,37 @@
     @apply bg-basalt-background text-basalt-foreground antialiased;
   }
 }
+
+.diagram-canvas {
+  --diagram-paper: #fbfcfe;
+  --diagram-ink: #243247;
+  --diagram-dot: #dbe2ed;
+  background: var(--diagram-paper);
+  color: var(--diagram-ink);
+}
+.dark .diagram-canvas {
+  --diagram-paper: #111827;
+  --diagram-ink: #e2e8f0;
+  --diagram-dot: #293548;
+}
+.architecture-component {
+  padding: 12px 16px;
+  border: 1px solid var(--diagram-dot);
+  border-left: 3px solid #64748b;
+  border-radius: 10px;
+  background: var(--diagram-paper);
+  box-shadow: 0 2px 6px rgb(15 23 42 / 5%);
+}
+.architecture-component[data-kind="worker"], .architecture-component[data-kind="gateway"] { border-left-color: #f59e0b; }
+.architecture-component[data-kind="database"], .architecture-component[data-kind="cache"], .architecture-component[data-kind="storage"] { border-left-color: #8b5cf6; }
+.architecture-component[data-kind="monitor"] { border-left-color: #059669; }
+.architecture-component.is-selected { outline: 2px solid #0891b2; outline-offset: 2px; }
+.architecture-component.is-compact { display: flex; align-items: center; }
+.architecture-boundary { height: 100%; border: 1px dashed #94a3b866; border-radius: 16px; background: #94a3b80a; }
+.architecture-boundary > span { display: flex; align-items: center; gap: 8px; padding: 12px 16px; font-size: 12px; font-weight: 600; color: var(--diagram-ink); }
+.diagram-canvas .react-flow__handle { width: 5px; height: 5px; border: none; background: #94a3b8; opacity: 0; }
+.diagram-canvas .architecture-component:hover .react-flow__handle, .diagram-canvas .is-selected .react-flow__handle { opacity: 1; }
+.diagram-canvas .react-flow__controls-button { background: var(--diagram-paper); color: var(--diagram-ink); border-color: var(--diagram-dot); }
+.diagram-canvas .react-flow__controls-button svg { fill: currentColor; }
+.diagram-canvas .react-flow__minimap { background: var(--diagram-paper); border: 1px solid var(--diagram-dot); border-radius: 8px; }
+.diagram-canvas .react-flow__attribution { display: none; }

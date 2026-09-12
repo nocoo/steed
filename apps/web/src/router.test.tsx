@@ -5,6 +5,7 @@ import { createMockApiClient } from "@/viewmodels/__tests__/test-utils";
 import { routes } from "./router";
 
 const mockApiClient = createMockApiClient();
+vi.mock("@/lib/diagram-client", () => ({ diagramClient: { list: vi.fn().mockResolvedValue({ data: [], nextCursor: null }) } }));
 
 vi.mock("@/contexts/api-client", () => ({
   useApiClient: () => mockApiClient,
@@ -36,11 +37,11 @@ describe("router", () => {
     });
   });
 
-  it("redirects / to /overview", async () => {
+  it("redirects / to /diagrams", async () => {
     renderRoute("/");
     await waitFor(() => {
       expect(
-        screen.getAllByRole("heading", { name: "Overview" }).length
+        screen.getAllByRole("heading", { name: "Diagrams" }).length
       ).toBeGreaterThan(0);
     });
   });

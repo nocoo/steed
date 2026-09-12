@@ -25,8 +25,8 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": {
-        target: "http://localhost:8787",
-        changeOrigin: true,
+        target: process.env.STEED_API_PROXY ?? "http://localhost:8787",
+        changeOrigin: false,
       },
     },
   },
