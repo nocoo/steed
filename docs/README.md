@@ -41,3 +41,5 @@
 | 07 | [Phase F: Vite Web on CF Worker + CF Access](./features/07-phase-f-vite-web-cf-access.md) | Dashboard 重写为 Vite SPA + CF Worker + CF Access；抽 packages/api |
 
 > Features 子目录详细状态见 [features/README.md](./features/README.md)。
+
+- [16 — Agent workflow and inventory constraints](16-agent-workflow.md)

@@ -1,131 +1,86 @@
 # Steed
 
-> AI Hub — Asset visibility & relationship management for the multi-agent era.
-> v1 scope: inventory, status display, manual classification & binding. No remote control.
+Multi-host autonomous-agent inventory, architecture diagrams and explicit relationship management.
+Profile: ts-worker-web + ts CLI/service.
+Direction: [current project scope](README.md). Frameworks must preserve this handbook.
 
-## Deployment Stance (Development Phase)
+## Sources of Truth
 
-- Currently in **development phase**, no external users — **do not treat deployment as a ceremonial event**.
-- This is a personal tool. **Whenever the Worker has a git update, just `wrangler deploy`** — ship first, fix later if it breaks.
-- If a deploy does break something, that means **our tests missed it**; note it down and backfill the missing test afterward. Don't let this slow the release cadence.
+This file is the quality contract; hooks, CI and config are enforcement. Close implementation gaps without lowering the contract. Historical test results are not evidence of a current passing run.
 
-## Development Rules
+| Fact | Where |
+|---|---|
+| Setup / inventory workflow | [README.md](README.md), [agent workflow](docs/16-agent-workflow.md) |
+| Current web / Connect | [architecture workspace](docs/13-architecture-diagrams-and-connect.md), [dev domain](docs/15-local-dev-domain.md) |
+| Versions / dependencies | root and workspace manifests, `bun.lock` |
+| Tests / deployment | `vitest.config.ts`, `scripts/run-*-e2e.ts`, `.husky`, CI/release workflows |
+| Accidents | [Retrospective.md](Retrospective.md) |
+| Machine workflow | global `AGENTS.md` and Git rules |
 
-### 1. Numbered Documents First
+## Project Invariants
 
-All development MUST start with a numbered document in `docs/`. Write the doc, review it thoroughly, then execute.
+- Inventory scope is visibility, status and manual classification/binding, not general remote control. Host snapshots update every ten minutes; scanning alone never creates a managed Agent or binding.
+- Agent identity is a user-confirmed autonomous system; IDE/dev tools are not v1 Agent entities. One Lane per Agent, multiple per Data Source; binding is independent of Lane.
+- Production uses the full `apps/web` Worker with Cloudflare Access and D1; `apps/web_legacy` contains the older Next.js/Railway implementation. Keep internal dashboard and Host API-key scopes distinct.
+- Connect credentials and keyring stay ignored/private; preserve explicit managers, same-origin writes, revision/idempotency and confirmation/challenge boundaries.
+- Development starts with a reviewed numbered doc and atomic commit plan. Reuse healthy owned processes, existing D1 and Connect configuration; do not reset the architecture workspace.
 
-- File naming: `01-file-name.md` (numbered, lowercase English, hyphen-separated)
-- Docs must include: design details, code references, atomic commit plan
-- `docs/README.md` maintains the index of all documents
-- Subdirectories (`architecture/`, `features/`, `archive/`) use independent numbering with their own `README.md`
+## Stack / Layout
 
-### 2. Atomic Commits
+| Component | Path / choice |
+|---|---|
+| Current UI / Worker | `apps/web`, Vite/React/React Flow + Access |
+| API / schema | `packages/api`, `packages/worker` Hono/D1/migrations |
+| Host / shared | `packages/cli` Bun service/CLI, `packages/shared` |
 
-Every change must be an atomic commit — one logical change per commit.
+## Commands
 
-- Plan atomic commit steps BEFORE writing code
-- Each commit must be self-contained and pass all checks
-- Commit message format: imperative mood, concise, explains "why"
+Use Bun for package/scripts, Node 22.12+, gitleaks and OSV. Before starting dev, query nmem for Steed port reservations and inspect Caddy/listeners. Use document 13 for the existing dataset; tests use local Wrangler and synthetic credentials.
 
-### 3. Git Hooks (Enforced)
-
-Pre-commit and pre-push hooks are mandatory infrastructure.
-
-- **pre-commit** (<30s): G1 (tsc --noEmit + ESLint strict --max-warnings=0) ‖ L1 (vitest + coverage ≥ 90%)
-- **pre-push** (<3min): L2 (E2E true HTTP, D1 test isolation) ‖ G2 (osv-scanner + gitleaks)
-- Hooks must NEVER be skipped (`--no-verify` is forbidden)
-- All commits must pass hooks before being accepted
-
-### 4. 6DQ Quality Framework
-
-Six-dimension quality system: L1/L2/L3 + G1/G2 + D1.
-
-| Dimension | Tool | Gate | Target |
-|-----------|------|------|--------|
-| L1 Unit | vitest + check-coverage ≥ 90% | pre-commit | Unit tests |
-| L2 Integration | run-e2e.ts, true HTTP | pre-push | 100% API endpoint coverage |
-| L3 System | Playwright | on-demand | Dashboard core flows |
-| G1 Static | tsc strict + ESLint tseslint.configs.strict --max-warnings=0 | pre-commit | Zero warnings |
-| G2 Security | osv-scanner + gitleaks | pre-push | Dependency + secret scan |
-| D1 Isolation | Local D1 via `wrangler dev --local --persist-to` | pre-push (L2) | Test isolation |
-
-## Tooling
-
-- **Package manager**: Bun (all install, run, test, build via `bun`)
-- **Monorepo**: Bun workspaces
-- **Language**: TypeScript throughout
-
-## Local Development
-
-- The browser entry point MUST be **https://steed.dev.hexly.ai**, served through
-  the existing Caddy HTTPS proxy to Vite on **7035**. A loopback URL alone does
-  not complete a request to start dev.
-- Before starting or allocating ports, query
-  `nmem memories search "Steed local development ports" -n 5`
-  and the latest port reservations. Inspect
-  `/opt/homebrew/etc/Caddyfile`, current listeners, and candidate port bindability.
-  Record new reservations in nmem; never assume an unused listener is unreserved.
-- Coordinated ports: Vite **7035**, `apps/web` Worker **37035** (dev + 30000),
-  inspector **38035**. Bind application servers to loopback; keep Vite's strict
-  port and exact hostname allowlist. Preserve Host and HTTPS origin through the
-  API proxy so same-origin writes and Connect work through Caddy.
-- Reuse healthy services. Restart only identified Steed processes; preserve
-  unknown changes/processes and other repositories. Existing wildcard DNS,
-  certificates, and the Caddy mapping already cover this domain.
-- Use [document 13's startup commands](docs/13-architecture-diagrams-and-connect.md#local-configuration-and-future-enablement)
-  for the current architecture workspace. Preserve its local D1 directory and
-  ignored Connect env/keyring file across restarts. The full web backend is in
-  `apps/web`; the root `dev:worker` script targets the historical API Worker.
-- Verify trusted HTTPS, `/api/live`, actual diagram rendering, and Connect at
-  the dev domain before reporting it ready. The port decision and verification
-  record are in [document 15](docs/15-local-dev-domain.md).
-
-## Architecture
-
-```
-┌─────────────────────────────────────┐
-│       Dashboard (Railway)           │
-│       Web UI + metadata mgmt        │
-└───────────────┬─────────────────────┘
-                │ HTTPS (server-side)
-┌───────────────┴─────────────────────┐
-│       CF Worker (API layer)         │
-│       All reads/writes via D1       │
-└───────────────┬─────────────────────┘
-                │ HTTPS
-    ┌───────────┼───────────┐
-    ▼           ▼           ▼
-  Host A      Host B      Host C
- (Service     (Service     (Service
-  + CLI)       + CLI)       + CLI)
+```bash
+bun install --frozen-lockfile
+bun run typecheck
+bun run lint
+bun run build
+bun run test                    # Vitest with coverage
+bun run check-coverage
+bun run test:e2e                # API, diagrams, Connect over local HTTP
+bun run --cwd packages/cli build
+bun run packages/cli/src/bin/steed.ts --help
 ```
 
-### Monorepo Packages
+## Verification
 
-| Package | Description | Runtime |
-|---------|-------------|---------|
-| `packages/dashboard` | Web UI for global view + metadata management | Railway |
-| `packages/worker` | API layer, connects to D1 | Cloudflare Workers |
-| `packages/cli` | CLI + Host Service (heartbeat every 10min) | Bun on host |
-| `packages/shared` | Shared types, constants, utilities | — |
+6DQ = L1/L2/L3 + G1/G2 + D1 (test isolation). Status: `enforced`, `planned`, `manual`, or `N/A`; partial enforcement below does not certify the full required bar.
+L1 requires statements, branches, functions and lines each ≥95%, with no skipped/focused tests; preserve any stricter package threshold. Native tools must identify unmeasured metrics as gaps.
+G1 requires check-only strict analysis/formatting with zero errors/warnings. G2 requires dependency and secret scans, with missing required scanners failing.
 
-### Key Decisions
+| Dimension | Status | Required proof and current evidence/gap |
+|---|---|---|
+| L1 TypeScript | planned | Hooks/CI gate statements/functions/lines 95%, branches 90%. CLI entry exclusions and missing-report success in `check-coverage` leave all-four 95% incomplete. |
+| L2 API / CLI | planned | Three local real-HTTP runners cover API, diagrams and Connect; require audited 100% endpoint/auth/error coverage plus actual CLI/service flows. The legacy migration runner can continue after init failure. |
+| L3 browser / CLI | manual | No Playwright gate is configured. Verify full pages, rendered diagrams and Connect through trusted dev HTTPS with disposable data; prove CLI workflows separately. |
+| G1 TypeScript | planned | Hooks/CI run root strict types and ESLint `--max-warnings=0`; formatting and full index-snapshot checks remain incomplete. |
+| G2 | enforced | Pre-push and shared CI run OSV on Bun lock plus gitleaks; missing scanners must fail. |
+| D1 | planned | Diagram/Connect use mkdtemp/local persist directories; legacy API uses fixed `.wrangler/state/e2e`. Full marker/canonical-path cleanup guards and fail-closed initialization are incomplete. |
 
-- **Dashboard** deploys to Railway, calls Worker API via server-side only (no direct DB access, browser never holds Worker credentials). User auth via Google OAuth whitelist; Worker calls use internal `DASHBOARD_SERVICE_TOKEN`
-- **CF Worker** is the single API gateway, owns D1 connection
-- **Host Service** runs as a resident process, heartbeat snapshot every 10 minutes; CLI for manual scan/register/debug
-- **D1** is the sole persistent store
-- **v1 data model**: Heartbeat snapshot. Host Service generates full resource snapshot every 10min and reports; Worker does idempotent upsert. No event stream or version history
-- **Agent identification**: Auto-scan known types (including runtime_app + runtime_version) + manual registration. Agent identity is the user-confirmed management object, not the scan result itself
-- **Data source detection**: PATH probe + config file scan (dual confirmation) + version collection. Scan only discovers resources, does NOT auto-establish Agent ↔ Data Source relationships
-- **Lane assignment**: Agent belongs to one Lane (manual). Data Source belongs to one or more Lanes (manual, multi-select). Binding relationships are independent of Lane assignment
-- **Agent boundary**: Autonomous agent systems only (OpenClaw, Hermes, etc.). Interactive dev tools (Claude Code, Codex, Cursor) are NOT Agent entities in v1
-- **Two-layer auth**: Google OAuth whitelist at Dashboard (D1 stores no admin info); Worker only recognizes `DASHBOARD_SERVICE_TOKEN` (dashboard role) and Host API Key (host role). Worker never handles Google identity directly
+Pre-commit runs types/lint/coverage in parallel, then the coverage-summary check. Pre-push runs local HTTP E2E and security in parallel; build happens inside newer E2E runners and in CI. Existing gates operate on the working tree rather than index/pushed refs.
 
-### Core Concepts
+Target hooks: pre-commit checks G1 + L1 against the index snapshot (`git checkout-index`) in <30s; pre-push checks L2 and G2 in parallel against every stdin push ref/commit in <3min, plus build where applicable. L3 runs in CI or an explicit manual lane.
+Never bypass commit/push hooks, force-push, or use autofix in checks. Documentation changes do not authorize deploying or implementing new gates.
 
-- **Host**: A machine running the Host Service + CLI
-- **Agent**: A managed autonomous agent entity on a host. Carries human-maintained metadata (nickname, role, lane) + scanned runtime info (runtime_app, runtime_version, status)
-- **Data Source**: A discoverable external resource on a host (CLI, third-party platform CLI, MCP service, etc.). Belongs to one or more Lanes
-- **Lane**: Business line tag — Work, Life, or Learning
+## Resources / Isolation
+
+Dev entry must be `https://steed.dev.hexly.ai`: Caddy → Vite 7035 → full Web Worker 37035, inspector 38035; preserve Host/HTTPS origin, exact allowlist, loopback binds and strict ports. Root `dev:worker` is the historical API Worker. L2 API defaults to 18787 (`TEST_PORT`), newer runners reserve ephemeral loopback ports. Tests must use unique per-run local D1, `NODE_ENV=test`, checked markers and owned cleanup; no remote test resources.
+
+## Operations / Release
+
+Keep authorized development releases prompt through the existing CI → `apps/web --env production` workflow. Root `deploy:worker` targets the historical Worker; use current release docs for production. Verify trusted HTTPS, `/api/live`, actual diagrams and Connect before claiming dev ready; record new reservations in nmem.
+
+## Retrospective
+
+Move accident narratives to [Retrospective.md](Retrospective.md); keep at most about ten concise recurring project rules here. Put architecture and operational detail in linked docs.
+
+- Config-file presence is an observation, not proof that remote credentials remain valid.
+- User metadata/bindings and scan observations have different ownership.
+- Deployment failures identify missing test coverage; record the incident and add a regression test.

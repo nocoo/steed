@@ -122,7 +122,7 @@ apps/web_legacy/    保留的旧版 Next.js 实现
 | Web 组件与视图模型测试 | `bun run --cwd apps/web test` |
 | API HTTP 集成测试 | `bun run test:e2e` |
 
-`bun run test` 同时生成覆盖率报告；`bun run test:watch` 进入监听模式。Web 测试使用 jsdom 和 React Testing Library。HTTP 测试会启动本地 Wrangler，在独立的 D1 状态目录中应用迁移，使用端口 8787；运行前先停止占用该端口的开发服务。
+`bun run test` 同时生成覆盖率报告；`bun run test:watch` 进入监听模式。Web 测试使用 jsdom 和 React Testing Library。HTTP 测试会启动本地 Wrangler，在独立的 D1 状态目录中应用迁移，底层 API 默认使用端口 18787，diagram / Connect 使用临时回环端口；仅处理已确认归属本仓库的端口冲突。
 
 当前没有已配置的浏览器端到端测试命令。`test:e2e` 覆盖底层 API 的真实 HTTP 请求，浏览器完整操作链路仍需手动验证。
 
