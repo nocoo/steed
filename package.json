@@ -46,7 +46,7 @@
     "@humanfs/node": "0.16.8",
     "nanoid": "3.3.18",
     "sharp": "0.35.4",
-    "next": "16.3.4",
+    "next": "16.3.5",
     "baseline-browser-mapping": "2.11.0"
   }
 }
