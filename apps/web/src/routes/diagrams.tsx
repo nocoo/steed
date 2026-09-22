@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { Badge, Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Input, Label, LayerCard } from "@nocoo/basalt";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@nocoo/basalt/components/select";
 import { ArrowDownLeft, ArrowUpRight, Braces, Check, Download, FileUp, Layers, Network, Plus, Save, Search, Trash2, X } from "lucide-react";
 import { DIAGRAM_LIMITS, EDGE_KINDS, NODE_KINDS, diagramSchema, edgeSchema, nodeSchema, removeDiagramEdge, removeDiagramNode, type Diagram, type DiagramEdge, type DiagramNode } from "@steed/api/shared";
 import { DiagramCanvas } from "@/components/map/diagram-canvas";
@@ -66,11 +67,13 @@ function ArchitectureEditor({ document, onChange, busy }: { document: Diagram; o
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <Label htmlFor="diagram-view" className="sr-only">Diagram view</Label>
-          <select id="diagram-view" className={`${fieldClass} !w-auto max-w-64`} value={viewId}
-            onChange={(event) => { setViewId(event.target.value); setFocus(undefined); setSelected(""); setSelectedEdges([]); setShowBoundaries(undefined); }}>
-            <option value="">All components · {document.nodes.length}</option>
-            {document.views.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
-          </select>
+          <Select value={viewId === "" ? "\u0000" : viewId} onValueChange={(value) => { setViewId(value === "\u0000" ? "" : value); setFocus(undefined); setSelected(""); setSelectedEdges([]); setShowBoundaries(undefined); }}>
+            <SelectTrigger id="diagram-view" className="w-auto max-w-64"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={"\u0000"}>All components · {document.nodes.length}</SelectItem>
+              {document.views.map((item) => <SelectItem key={item.id} value={item.id}>{item.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
           {focus && <Button variant="outline" size="sm" onClick={() => setFocus(undefined)}><X className="h-3 w-3" />Clear trace</Button>}
           <Badge variant="outline">{document.nodes.length} components</Badge>
           <Badge variant="outline">{document.edges.length} connections</Badge>
@@ -150,16 +153,42 @@ function ArchitectureEditor({ document, onChange, busy }: { document: Diagram; o
           {editor?.kind === "source" && <textarea aria-label="Diagram JSON" spellCheck={false} className={`${fieldClass} h-[50vh] font-mono text-xs`} value={editor.text} onChange={(event) => setEditor({ ...editor, text: event.target.value })} />}
           {editor?.kind === "node" && <div className="space-y-4">
             <div><Label htmlFor="node-label">Name</Label><Input id="node-label" value={editor.value.label} onChange={(event) => setEditor({ ...editor, value: { ...editor.value, label: event.target.value } })} /></div>
-            <div className="grid gap-4 sm:grid-cols-2"><div><Label htmlFor="node-kind">Kind</Label><select id="node-kind" className={fieldClass} value={editor.value.kind} onChange={(event) => setEditor({ ...editor, value: { ...editor.value, kind: nodeSchema.shape.kind.parse(event.target.value) } })}>{NODE_KINDS.map((kind) => <option key={kind}>{kind}</option>)}</select></div>
-              <div><Label htmlFor="node-group">Boundary</Label><select id="node-group" className={fieldClass} value={editor.value.groupId ?? ""} onChange={(event) => setEditor({ ...editor, value: { ...editor.value, groupId: event.target.value || undefined } })}><option value="">No boundary</option>{document.groups.map((group) => <option key={group.id} value={group.id}>{group.label}</option>)}</select></div></div>
+            <div className="grid gap-4 sm:grid-cols-2"><div><Label htmlFor="node-kind">Kind</Label>
+              <Select value={editor.value.kind} onValueChange={(value) => setEditor({ ...editor, value: { ...editor.value, kind: nodeSchema.shape.kind.parse(value) } })}>
+                <SelectTrigger id="node-kind" className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>{NODE_KINDS.map((kind) => <SelectItem key={kind} value={kind}>{kind}</SelectItem>)}</SelectContent>
+              </Select></div>
+              <div><Label htmlFor="node-group">Boundary</Label>
+                <Select value={(editor.value.groupId ?? "") === "" ? "\u0000" : editor.value.groupId} onValueChange={(value) => setEditor({ ...editor, value: { ...editor.value, groupId: value === "\u0000" ? undefined : value } })}>
+                  <SelectTrigger id="node-group" className="w-full"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={"\u0000"}>No boundary</SelectItem>
+                    {document.groups.map((group) => <SelectItem key={group.id} value={group.id}>{group.label}</SelectItem>)}
+                  </SelectContent>
+                </Select></div></div>
             <div><Label htmlFor="node-url">URL</Label><Input id="node-url" value={editor.value.url ?? ""} placeholder="https://…" onChange={(event) => setEditor({ ...editor, value: { ...editor.value, url: event.target.value || undefined } })} /></div>
             <div><Label htmlFor="node-description">Description and evidence</Label><textarea id="node-description" className={`${fieldClass} min-h-28`} value={editor.value.description} onChange={(event) => setEditor({ ...editor, value: { ...editor.value, description: event.target.value } })} /></div>
           </div>}
           {editor?.kind === "edge" && <div className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2">{(["source", "target"] as const).map((end) => <div key={end}><Label htmlFor={`edge-${end}`}>{end === "source" ? "From" : "To"}</Label><select id={`edge-${end}`} className={fieldClass} value={editor.value[end]} onChange={(event) => setEditor({ ...editor, value: { ...editor.value, [end]: event.target.value } })}>{document.nodes.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></div>)}</div>
+            <div className="grid gap-4 sm:grid-cols-2">{(["source", "target"] as const).map((end) => <div key={end}><Label htmlFor={`edge-${end}`}>{end === "source" ? "From" : "To"}</Label>
+              <Select value={editor.value[end]} onValueChange={(value) => setEditor({ ...editor, value: { ...editor.value, [end]: value } })}>
+                <SelectTrigger id={`edge-${end}`} className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>{document.nodes.map((item) => <SelectItem key={item.id} value={item.id}>{item.label}</SelectItem>)}</SelectContent>
+              </Select></div>)}</div>
             <div><Label htmlFor="edge-label">Connection label</Label><Input id="edge-label" value={editor.value.label} onChange={(event) => setEditor({ ...editor, value: { ...editor.value, label: event.target.value } })} /></div>
-            <div className="grid gap-4 sm:grid-cols-2"><div><Label htmlFor="edge-kind">Kind</Label><select id="edge-kind" className={fieldClass} value={editor.value.kind} onChange={(event) => setEditor({ ...editor, value: { ...editor.value, kind: edgeSchema.shape.kind.parse(event.target.value) } })}>{EDGE_KINDS.map((kind) => <option key={kind}>{kind}</option>)}</select></div>
-              <div><Label htmlFor="edge-evidence">Evidence</Label><select id="edge-evidence" className={fieldClass} value={editor.value.evidence} onChange={(event) => setEditor({ ...editor, value: { ...editor.value, evidence: edgeSchema.shape.evidence.parse(event.target.value) } })}><option value="documented">Documented</option><option value="inferred">Inferred</option></select></div></div>
+            <div className="grid gap-4 sm:grid-cols-2"><div><Label htmlFor="edge-kind">Kind</Label>
+              <Select value={editor.value.kind} onValueChange={(value) => setEditor({ ...editor, value: { ...editor.value, kind: edgeSchema.shape.kind.parse(value) } })}>
+                <SelectTrigger id="edge-kind" className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>{EDGE_KINDS.map((kind) => <SelectItem key={kind} value={kind}>{kind}</SelectItem>)}</SelectContent>
+              </Select></div>
+              <div><Label htmlFor="edge-evidence">Evidence</Label>
+                <Select value={editor.value.evidence} onValueChange={(value) => setEditor({ ...editor, value: { ...editor.value, evidence: edgeSchema.shape.evidence.parse(value) } })}>
+                  <SelectTrigger id="edge-evidence" className="w-full"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="documented">Documented</SelectItem>
+                    <SelectItem value="inferred">Inferred</SelectItem>
+                  </SelectContent>
+                </Select></div></div>
             <div><Label htmlFor="edge-description">Evidence and notes</Label><textarea id="edge-description" className={`${fieldClass} min-h-28`} value={editor.value.description} onChange={(event) => setEditor({ ...editor, value: { ...editor.value, description: event.target.value } })} /></div>
             {!editor.isNew && <Button variant="outline" onClick={() => { onChange(removeDiagramEdge(document, editor.value.id)); setSelectedEdges([]); setEditor(null); }}>Remove connection</Button>}
           </div>}

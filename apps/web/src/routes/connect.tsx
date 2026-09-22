@@ -1,11 +1,11 @@
 import { useMemo, useRef, useState } from "react";
 import { Badge, Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Input, Label, LayerCard } from "@nocoo/basalt";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@nocoo/basalt/components/select";
 import { Check, Copy, Eye, EyeOff, KeyRound, Pencil, Plug, Plus, RefreshCw, RotateCw, ShieldCheck, Terminal, Trash2 } from "lucide-react";
 import { CONNECT_LIMITS, connectScopeSchema, type ConnectToken } from "@steed/api/shared";
 import { connectDate, connectExamples, tokenStatus } from "@/lib/connect-client";
 import { useConnectViewModel } from "@/viewmodels/use-connect-viewmodel";
 
-const fieldClass = "w-full rounded-md border border-basalt-border bg-basalt-background px-3 py-2 text-sm text-basalt-foreground focus-visible:outline-2 focus-visible:outline-basalt-ring";
 const labels = { reveal: "Reveal key", rotate: "Rotate key", revoke: "Revoke token", rename: "Rename token" };
 const descriptions = {
   reveal: "The key hides after 30 seconds, when this window loses focus, or when you leave this target. Copy it only to your agent's secret store.",
@@ -19,7 +19,7 @@ export function ConnectPage() {
   const [example, setExample] = useState<"curl" | "agent">("curl");
   const examples = useMemo(() => connectExamples(vm.baseUrl, vm.target), [vm.baseUrl, vm.target]);
   const opener = useRef<HTMLButtonElement | null>(null);
-  const target = useRef<HTMLSelectElement | null>(null);
+  const target = useRef<HTMLButtonElement | null>(null);
   const restoreFocus = (event: Event) => { event.preventDefault(); (opener.current?.isConnected && !opener.current.disabled ? opener.current : target.current)?.focus(); };
   const open = (button: HTMLButtonElement, token: ConnectToken, kind: keyof typeof labels) => { opener.current = button; vm.openAction(token, kind); };
   const used = vm.tokens.filter((token) => !token.revokedAt).length;
@@ -40,11 +40,14 @@ export function ConnectPage() {
         <div><h2 className="text-sm font-semibold">Choose what your agent can access</h2><p className="mt-2 max-w-lg text-sm text-basalt-muted-foreground">Bind a token to one diagram, or allow all diagrams so an agent can create new ones. Write permission includes read access.</p></div>
       </div>
       <div className="w-full shrink-0 space-y-2 sm:w-64"><Label htmlFor="connect-target">Target</Label>
-        <select ref={target} id="connect-target" className={fieldClass} value={vm.target} onChange={(event) => vm.changeTarget(event.target.value)}>
-          <option value="">All diagrams</option>
-          {vm.target && !vm.diagrams.some((diagram) => diagram.id === vm.target) && <option value={vm.target}>Unavailable diagram</option>}
-          {vm.diagrams.map((diagram) => <option key={diagram.id} value={diagram.id}>{diagram.title}{diagram.deleted ? " (deleted)" : ""}</option>)}
-        </select>
+        <Select value={vm.target === "" ? "\u0000" : vm.target} onValueChange={(value) => vm.changeTarget(value === "\u0000" ? "" : value)}>
+          <SelectTrigger ref={target} id="connect-target" className="w-full"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value={"\u0000"}>All diagrams</SelectItem>
+            {vm.target && !vm.diagrams.some((diagram) => diagram.id === vm.target) && <SelectItem value={vm.target}>Unavailable diagram</SelectItem>}
+            {vm.diagrams.map((diagram) => <SelectItem key={diagram.id} value={diagram.id}>{diagram.title}{diagram.deleted ? " (deleted)" : ""}</SelectItem>)}
+          </SelectContent>
+        </Select>
       </div>
     </LayerCard>
     <section aria-labelledby="connect-tokens-title" className="space-y-4">
@@ -80,7 +83,14 @@ export function ConnectPage() {
     <LayerCard className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="flex items-center gap-2 text-sm font-semibold"><Terminal className="h-4 w-4" />Connect your agent</h2><a href="/api/connect/openapi.json" className="text-sm text-basalt-primary underline">Download OpenAPI</a></div>
       <p className="text-sm text-basalt-muted-foreground">Read capabilities first. Keep credentials in a secret store, and retain one idempotency key for each intended change.</p>
-      <div className="flex flex-wrap items-center gap-2"><Label htmlFor="connect-example" className="sr-only">Instructions format</Label><select id="connect-example" className={`${fieldClass} !w-auto`} value={example} onChange={(event) => setExample(event.target.value === "agent" ? "agent" : "curl")}><option value="curl">curl</option><option value="agent">Agent instructions</option></select>
+      <div className="flex flex-wrap items-center gap-2"><Label htmlFor="connect-example" className="sr-only">Instructions format</Label>
+        <Select value={example} onValueChange={(value) => setExample(value === "agent" ? "agent" : "curl")}>
+          <SelectTrigger id="connect-example" className="w-auto"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="curl">curl</SelectItem>
+            <SelectItem value="agent">Agent instructions</SelectItem>
+          </SelectContent>
+        </Select>
         <Button size="sm" variant="outline" onClick={() => void vm.copy(examples[example], "Instructions")}><Copy className="h-3.5 w-3.5" />Copy instructions</Button></div>
       <pre className="max-h-96 overflow-auto rounded-lg bg-basalt-secondary p-4 font-mono text-xs leading-relaxed" aria-label="Agent connection instructions">{examples[example]}</pre>
     </LayerCard>
@@ -92,7 +102,15 @@ export function ConnectPage() {
       {vm.error && <p role="alert" className="whitespace-pre-wrap text-sm text-red-600">{vm.error}</p>}
       <form onSubmit={(event) => { event.preventDefault(); void vm.create(); }} className="space-y-4">
         <div><Label htmlFor="token-name">Name</Label><Input id="token-name" value={vm.name} maxLength={64} required disabled={vm.busy} onChange={(event) => vm.setName(event.target.value)} placeholder="Architecture assistant" /></div>
-        <div><Label htmlFor="token-scope">Permission</Label><select id="token-scope" className={fieldClass} value={vm.scope} disabled={vm.busy} onChange={(event) => vm.setScope(connectScopeSchema.parse(event.target.value))}><option value="read">Read · view and export</option><option value="write">Read + write · create and maintain</option></select></div>
+        <div><Label htmlFor="token-scope">Permission</Label>
+          <Select value={vm.scope} onValueChange={(value) => vm.setScope(connectScopeSchema.parse(value))}>
+            <SelectTrigger id="token-scope" className="w-full" disabled={vm.busy}><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="read">Read · view and export</SelectItem>
+              <SelectItem value="write">Read + write · create and maintain</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         <div><Label htmlFor="token-expiry">Expiry (optional)</Label><Input id="token-expiry" type="datetime-local" value={vm.expiry} disabled={vm.busy} onChange={(event) => vm.setExpiry(event.target.value)} /><p className="mt-1 text-xs text-basalt-muted-foreground">Leave blank for no expiry. Rotate or revoke it whenever needed.</p></div>
         <DialogFooter><Button type="button" variant="outline" disabled={vm.busy} onClick={() => vm.setCreating(false)}>Cancel</Button><Button type="submit" disabled={vm.busy || !vm.name.trim()}>{vm.busy ? "Creating…" : "Create token"}</Button></DialogFooter>
       </form>

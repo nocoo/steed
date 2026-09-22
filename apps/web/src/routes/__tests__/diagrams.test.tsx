@@ -24,7 +24,22 @@ const record = (document = diagramSchema.parse(example)): DiagramRecord => ({
 });
 const button = (name: string) => screen.getByRole("button", { name, exact: true });
 const click = (name: string) => fireEvent.click(button(name));
-const change = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label, { exact: true }), { target: { value } });
+const change = (label: string, value: string) => {
+  const control = screen.getByLabelText(label, { exact: true });
+  if (control.getAttribute("role") !== "combobox") {
+    fireEvent.change(control, { target: { value } });
+    return;
+  }
+  fireEvent.keyDown(control, { key: "ArrowDown" });
+  const options = screen.getAllByRole("option");
+  const option = value === ""
+    ? options.find((item) => /^no\b/i.test(item.textContent ?? ""))
+    : options.find((item) => (item.textContent ?? "").toLowerCase() === value.toLowerCase())
+      ?? options.find((item) => (item.textContent ?? "").toLowerCase().includes(value.toLowerCase()));
+  if (!option) throw new Error(`Missing option for ${label}: ${value}`);
+  option.focus();
+  fireEvent.keyDown(option, { key: "Enter" });
+};
 async function open(path = "/diagrams/example") {
   const router = createMemoryRouter([{ path: "/diagrams/:id?", element: <DiagramsPage /> }, { path: "/away", element: <p>Another page</p> }], { initialEntries: [path] });
   render(<RouterProvider router={router} />);

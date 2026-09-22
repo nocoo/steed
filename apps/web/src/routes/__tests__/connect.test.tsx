@@ -28,7 +28,22 @@ async function respond(path: string, options: Options = {}) {
     { id: 2, operation: "diagrams.delete", status: 412, code: "version_conflict", requestId: "request-two", createdAt: token.createdAt }], nextCursor: null };
 }
 const click = (name: string) => fireEvent.click(screen.getByRole("button", { name, exact: true }));
-const change = (name: string | RegExp, value: string) => fireEvent.change(screen.getByLabelText(name), { target: { value } });
+const change = (name: string | RegExp, value: string) => {
+  const control = screen.getByLabelText(name);
+  if (control.getAttribute("role") !== "combobox") {
+    fireEvent.change(control, { target: { value } });
+    return;
+  }
+  fireEvent.keyDown(control, { key: "ArrowDown" });
+  const options = screen.getAllByRole("option");
+  const option = value === ""
+    ? options.find((item) => /^(all|no)\b/i.test(item.textContent ?? ""))
+    : options.find((item) => (item.textContent ?? "").toLowerCase() === value.toLowerCase())
+      ?? options.find((item) => (item.textContent ?? "").toLowerCase().includes(value.toLowerCase()));
+  if (!option) throw new Error(`Missing option for ${String(name)}: ${value}`);
+  option.focus();
+  fireEvent.keyDown(option, { key: "Enter" });
+};
 const dialogButton = (name: string) => within(screen.getByRole("dialog")).getByRole("button", { name, exact: true });
 async function setup() {
   const view = render(<ConnectPage />);
@@ -135,8 +150,7 @@ describe("Connect page", () => {
     diagrams = []; tokens = [];
     request.mockImplementation(async (path: string, options?: Options) => path.startsWith("/api/connect/audit") ? { data: [] } : respond(path, options));
     click("Refresh");
-    await screen.findByRole("option", { name: "Unavailable diagram" });
-    expect(screen.getByLabelText("Target")).toHaveValue("network");
+    await waitFor(() => expect(screen.getByLabelText("Target")).toHaveTextContent("Unavailable diagram"));
     expect(screen.getByText("No recorded activity for this target.")).toBeInTheDocument();
   });
 
@@ -144,7 +158,7 @@ describe("Connect page", () => {
     diagrams = [{ id: "network", title: "Network", deleted: true }]; await setup();
     change("Target", "network");
     await waitFor(() => expect(screen.queryByText("Refreshing connections…")).not.toBeInTheDocument());
-    expect(screen.getByRole("option", { name: "Network (deleted)" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Target")).toHaveTextContent("Network (deleted)");
     expect(screen.getByRole("button", { name: "Create token" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Revoke Assistant" })).toBeEnabled();
     expect(screen.getByText("This diagram is unavailable. You can still revoke its existing tokens.")).toBeInTheDocument();
