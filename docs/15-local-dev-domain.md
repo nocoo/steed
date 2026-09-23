@@ -28,7 +28,7 @@ same-origin mutation checks intact.
 The web typecheck must exclude its Node-only `worker/__tests__` SQLite fixture,
 just as it excludes test files; the runtime build does not include that fixture.
 
-`CLAUDE.md` must require nmem lookup, Caddy/port checks, the dev-domain entry point,
+`AGENTS.md` must require nmem lookup, Caddy/port checks, the dev-domain entry point,
 and HTTP/browser verification for future local starts. Update the current README
 and documents 13/14 so their startup instructions use the coordinated ports.
 Historical screenshots and reports remain the evidence from their original runs.

@@ -642,7 +642,7 @@ F1       chore(legacy): finalize web_legacy exclusion + flip status to ✅
 ### 8.5 CI
 
 - `.github/workflows/ci.yml`：`test-command` 简化为 `"bun run test"`；`typecheck-command` 简化为 `"bun run typecheck"`（依赖 §8.2 的 root include-based `tsc --noEmit`）；`l2-command` 不变。
-- 不在 CI 跑 `wrangler deploy`；按 `CLAUDE.md`，部署是手动 `wrangler deploy`。
+- 不在 CI 跑 `wrangler deploy`；按 `AGENTS.md`，部署是手动 `wrangler deploy`。
 
 ### 8.6 部署
 

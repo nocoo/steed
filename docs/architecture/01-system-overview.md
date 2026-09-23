@@ -39,7 +39,7 @@ steed/
 │   ├── cli/           # CLI + Host Service — 安装在各 Host
 │   └── shared/        # 共享类型、常量、工具函数
 ├── docs/
-├── CLAUDE.md
+├── AGENTS.md
 └── package.json       # Bun workspace root
 ```
 

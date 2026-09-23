@@ -5,7 +5,7 @@
 > Package: `@nocoo/basalt@2.1.7` (exact). Active frontend: `apps/web` (Vite / React 19 / React Router 7).
 > Baseline HEAD: `107256b7104a067133029f7f4b5a60a86efd717b`. App version stays `0.0.1`. Root has no `version`; do not add one.
 
-This document is the numbered plan required by `CLAUDE.md` §1. It inventories the live SPA, maps every chrome and leaf control onto the published Basalt 2.1.7 API, and lists atomic commits. It does **not** migrate `apps/web_legacy`, `packages/*` APIs, Caddy, Basalt itself, or Wooly.
+This document is the numbered plan required by `AGENTS.md`. It inventories the live SPA, maps every chrome and leaf control onto the published Basalt 2.1.7 API, and lists atomic commits. It does **not** migrate `apps/web_legacy`, `packages/*` APIs, Caddy, Basalt itself, or Wooly.
 
 ---
 

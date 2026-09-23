@@ -378,7 +378,7 @@ scripts/run-e2e.ts
 bun run test:e2e        # 触发 scripts/run-e2e.ts
 
 pre-commit / pre-push 全绿
-wrangler deploy（按 CLAUDE.md "deploy first" 原则）
+wrangler deploy（按 AGENTS.md "deploy first" 原则）
 ```
 
 ## Verification
