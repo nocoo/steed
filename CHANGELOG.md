@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.3.1] - 2026-10-13
+
+### Added
+
+- Hexly project link and accessible header tooltips.
+- Existing automated release helper and root release command.
+
+### Changed
+
+- Remove the retired Next.js web workspace, obsolete Railway Docker build,
+  browser OAuth CLI login and their exclusive dependencies and configuration.
+- Preserve Host API-key initialization and current Worker/Access/Connect authentication.
+- Bound full-suite Vitest concurrency to two workers without changing checks.
+- Update Basalt to 2.2.0, Vitest to 5.0.3, ESLint to 10.11.0 and
+  typescript-eslint to 8.71.0 from commits since v0.3.0.
+- Normalize the agent handbook, retrospective and dependency verification notes.
+- Synchronize the root-derived web, Worker and CLI version at v0.3.1.
+
+### Fixed
+
+- Patch dependency security advisories, including sharp 0.35.5 and source-map-js 1.2.2.
+- Replace native selects with Basalt and add accessible header icon labels.
+- Disable default Worker and preview URLs.
+- Seed the current and next minute in the isolated HTTP rate-limit fixture,
+  retaining the exact 429 and Retry-After checks across minute boundaries.
+
 ## [0.3.0] - 2026-09-12
 
 ### Added
