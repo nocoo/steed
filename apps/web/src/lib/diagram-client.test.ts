@@ -5,6 +5,26 @@ import { diagramClient, diagramRequest, downloadDiagram } from "./diagram-client
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe("diagram client", () => {
+  async function expectDiagramError(body: unknown, message: string) {
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(async () => Response.json(body, { status: 412 })));
+    await expect(diagramRequest("/api/diagrams/example")).rejects.toMatchObject({ message });
+  }
+
+  it("preserves remote concurrency errors", async () => {
+    await expectDiagramError({ error: { message: "Changed remotely" } }, "Changed remotely");
+  });
+
+  it("preserves validation errors", async () => {
+    await expectDiagramError(
+      { error: { message: "Invalid", issues: [{ path: ["nodes", 0, "id"], message: "Duplicate" }] } },
+      "nodes.0.id: Duplicate",
+    );
+  });
+
+  it("preserves generic HTTP errors", async () => {
+    await expectDiagramError({}, "Request failed (412).");
+  });
+
   it("sends same-origin requests with revision preconditions", async () => {
     const fetcher = vi.fn().mockImplementation(async () => Response.json({ data: [] }));
     vi.stubGlobal("fetch", fetcher);
@@ -20,15 +40,6 @@ describe("diagram client", () => {
     expect(fetcher.mock.calls[4]?.[1].headers.get("If-Match")).toBe('"example:3"');
     expect(fetcher.mock.calls[2]?.[1]).toMatchObject({ credentials: "same-origin", redirect: "error", cache: "no-store" });
     expect(fetcher.mock.calls[2]?.[1].headers.get("X-Steed-Request")).toBe("1");
-  });
-
-  it.each([
-    [{ error: { message: "Changed remotely" } }, "Changed remotely"],
-    [{ error: { message: "Invalid", issues: [{ path: ["nodes", 0, "id"], message: "Duplicate" }] } }, "nodes.0.id: Duplicate"],
-    [{}, "Request failed (412)."],
-  ])("preserves actionable validation and concurrency errors", async (body, message) => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json(body, { status: 412 })));
-    await expect(diagramRequest("/api/diagrams/example")).rejects.toThrow(message as string);
   });
 
   it("exports the complete document, including views and geometry", () => {
