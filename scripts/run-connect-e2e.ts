@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import { chmod, mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { CONNECT_OPERATIONS, matchConnectOperation, type ConnectToken } from "../packages/api/src/shared/connect";
+import { CONNECT_LIMITS, CONNECT_OPERATIONS, matchConnectOperation, type ConnectToken } from "../packages/api/src/shared/connect";
 import { diagramSchema, type DiagramRecord } from "../packages/api/src/shared/diagram";
 import example from "../examples/service-platform.json";
 
@@ -256,7 +256,11 @@ try {
     await status(await api(writer, "/capabilities"), 401);
   });
   await check("expired receipts retain intent tombstones and active tokens honor D1 rate limits", async () => {
-    await sql("UPDATE connect_requests SET expires_at = 1; UPDATE connect_rate_limits SET count = 120 WHERE key LIKE 'token:%:read'");
+    const window = Math.floor(Date.now() / 60_000) * 60;
+    await sql(`UPDATE connect_requests SET expires_at = 1;
+      INSERT OR REPLACE INTO connect_rate_limits (key, window, count) VALUES
+      ('token:${readToken.id}:read', ${window}, ${CONNECT_LIMITS.readPerMinute}),
+      ('token:${readToken.id}:read', ${window + 60}, ${CONNECT_LIMITS.readPerMinute})`);
     const limited = await api(reader, "/capabilities"); await status(limited, 429); assert.equal(limited.headers.get("Retry-After"), "60");
     await sql("DELETE FROM connect_rate_limits");
     await status(await manage(), 200);
