@@ -21,7 +21,7 @@
     "@steed/worker": "workspace:*",
     "clsx": "^2.1.1",
     "jose": "^6.2.3",
-    "lucide-react": "^1.18.0",
+    "lucide-react": "1.55.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-hook-form": "7.90.0",
