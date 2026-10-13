@@ -5,7 +5,7 @@
 | 编号 | 文档 | 说明 |
 |------|------|------|
 | 01 | [项目概述](./01-overview.md) | 要解决的问题、核心概念、模块定义 |
-| 05 | [部署与本地 E2E 链路](./05-deployment.md) | Worker/D1 部署、Host 注册、Dashboard 本地运行 |
+| 05 | [部署与本地 E2E 链路](./05-deployment.md) | Historical Next.js/Railway deployment record; not current instructions |
 | 05 | [Pilot Validation](./05-pilot-validation.md) | 真实环境验证清单、Host Service 24h 试运行记录 |
 | 06 | [Logo identity](./06-logo-identity.md) | Artwork direction, asset roles, source adoption, and verification |
 | 07 | [Dependency security](./07-dependency-security.md) | Targeted advisory fixes required by the publication gate |
@@ -18,6 +18,7 @@
 | 14 | [Local architecture and Connect verification](./14-local-architecture-verification.md) | Actual-network acceptance, authenticated HTTP/browser evidence, and validation results |
 | 15 | [Local development through Caddy](./15-local-dev-domain.md) | Coordinated nmem ports, HTTPS dev-domain startup, and verification |
 | 16 | [Release v0.3.0](./16-release-0.3.0.md) | Architecture diagrams, Scoped Connect, sidebar profile, unified v0.3.0 release |
+| 17 | [Retire the legacy web application](./17-retire-legacy-web.md) | Remove retired Next.js, Docker and CLI login paths; publish patch v0.3.1 |
 
 ## 架构
 

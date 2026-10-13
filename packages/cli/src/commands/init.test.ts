@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { join } from "node:path";
 import { mkdtemp, rm, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { runInit } from "./init.js";
+import { createInitCommand, runInit } from "./init.js";
 import { ConfigManager } from "../config/index.js";
 import type { HostConfig } from "../config/schema.js";
 
@@ -32,6 +32,20 @@ describe("init command", () => {
     await rm(tempDir, { recursive: true, force: true });
     globalThis.fetch = originalFetch;
     vi.restoreAllMocks();
+  });
+
+  it("requires a Host API key without suggesting retired login", async () => {
+    const previousExitCode = process.exitCode;
+    try {
+      await createInitCommand(configManager).parseAsync(["--url", "https://api.example.com"], { from: "user" });
+      expect(process.exitCode).toBe(1);
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining("Provide a Host API key:"));
+      expect(console.log).not.toHaveBeenCalledWith(expect.stringContaining("steed login"));
+      expect(mockFetch).not.toHaveBeenCalled();
+      expect(await configManager.exists()).toBe(false);
+    } finally {
+      process.exitCode = previousExitCode;
+    }
   });
 
   it("rejects invalid URL format", async () => {

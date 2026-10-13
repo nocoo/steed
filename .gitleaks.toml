@@ -7,7 +7,5 @@ title = "Steed Gitleaks Config"
   description = "Ignore dev/local files and example patterns"
   paths = [
     '''\.env\..*\.example$''',
-    '''^packages/dashboard/\.env\.local$''',
-    '''^packages/dashboard/\.next/''',
     '''\.wrangler/''',
   ]

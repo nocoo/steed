@@ -56,7 +56,7 @@ bun run packages/cli/src/bin/steed.ts status        # 查看本机记录的状�
 bun run packages/cli/src/bin/steed.ts service start # 前台运行，Ctrl+C 停止
 ```
 
-注册时可指定进程、配置文件或自定义命令作为检测方式；参数见 `register --help`。源码中的 `login` 仍依赖旧版 Dashboard 的 `/api/auth/cli`，当前 Web 入口未提供这个流程，因此这里使用 Host API key 初始化。
+注册时可指定进程、配置文件或自定义命令作为检测方式；参数见 `register --help`。旧版浏览器 `login` 流程已移除，使用管理员签发的 Host API key 初始化。
 
 ## 开发
 
@@ -107,7 +107,6 @@ packages/api/       浏览器 API 客户端与服务端处理函数
 packages/worker/    Hono API、D1 数据访问和迁移
 packages/cli/       CLI、资源扫描与 Host Service
 packages/shared/    共享类型与工具
-apps/web_legacy/    保留的旧版 Next.js 实现
 ```
 
 当前生产部署构建 `apps/web`，使用其 `production` 环境发布到 Cloudflare Workers。早期文档中的 Next.js / Railway 架构对应旧版实现。

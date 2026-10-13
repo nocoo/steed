@@ -57,7 +57,6 @@ const hosts = new Hono<{ Bindings: Env }>();
  * Requires: dashboard role
  *
  * If a host with the same name exists, regenerates its API key.
- * This allows `steed login` to be idempotent on the same machine.
  */
 hosts.post("/register", requireRole("dashboard"), async (c) => {
   const body = await c.req.json<RegisterHostRequest>().catch(() => null);

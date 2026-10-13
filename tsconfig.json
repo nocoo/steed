@@ -33,7 +33,6 @@
     "**/node_modules",
     "**/dist",
     "**/*.test.ts",
-    "**/*.test.tsx",
-    "apps/web_legacy/**"
+    "**/*.test.tsx"
   ]
 }

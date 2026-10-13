@@ -14,7 +14,7 @@ Direction: [current project scope](README.md). Frameworks must preserve this han
 
 - Inventory scope is visibility, status and manual classification/binding, not general remote control. Host snapshots update every ten minutes; scanning alone never creates a managed Agent or binding.
 - Agent identity is a user-confirmed autonomous system; IDE/dev tools are not v1 Agent entities. One Lane per Agent, multiple per Data Source; binding is independent of Lane.
-- Production uses the full `apps/web` Worker with Cloudflare Access and D1; `apps/web_legacy` contains the older Next.js/Railway implementation. Keep internal dashboard and Host API-key scopes distinct.
+- Production uses the full `apps/web` Worker with Cloudflare Access and D1. The retired Next.js/Railway application and browser-login command are removed; initialize hosts with an administrator-issued Host API key. Keep internal dashboard and Host API-key scopes distinct.
 - Connect credentials and keyring stay ignored/private; preserve explicit managers, same-origin writes, revision/idempotency and confirmation/challenge boundaries.
 - Development starts with a reviewed numbered doc and atomic commit plan. Reuse healthy owned processes, existing D1 and Connect configuration; do not reset the architecture workspace.
 

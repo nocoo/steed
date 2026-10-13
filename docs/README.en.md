@@ -56,7 +56,7 @@ bun run packages/cli/src/bin/steed.ts status        # Inspect locally recorded s
 bun run packages/cli/src/bin/steed.ts service start # Run in foreground; Ctrl+C stops
 ```
 
-Registration supports process, configuration-file and custom-command detection; see `register --help`. The source still includes `login`, which depends on the legacy Dashboard's `/api/auth/cli` route. The current web entry does not implement that flow, so this guide uses Host API key initialization.
+Registration supports process, configuration-file and custom-command detection; see `register --help`. The retired browser `login` flow has been removed. Initialize with an administrator-issued Host API key.
 
 ## Development
 
@@ -100,7 +100,6 @@ packages/api/       Browser API client and server handlers
 packages/worker/    Hono API, D1 data access and migrations
 packages/cli/       CLI, resource scanners and Host Service
 packages/shared/    Shared types and utilities
-apps/web_legacy/    Preserved Next.js implementation
 ```
 
 The current production workflow builds `apps/web` and deploys its `production` environment to Cloudflare Workers. The Next.js / Railway architecture in earlier documents describes the previous implementation.

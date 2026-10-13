@@ -26,7 +26,6 @@ interface VersionTarget {
 const VERSION_TARGETS: VersionTarget[] = [
   { path: "package.json", pattern: "json-version" },
   { path: "apps/web/package.json", pattern: "json-version" },
-  { path: "apps/web_legacy/package.json", pattern: "json-version" },
   { path: "packages/api/package.json", pattern: "json-version" },
   { path: "packages/cli/package.json", pattern: "json-version" },
   { path: "packages/shared/package.json", pattern: "json-version" },

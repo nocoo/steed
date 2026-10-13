@@ -1,6 +1,5 @@
 import { Command } from "commander";
 import { createInitCommand } from "./commands/init.js";
-import { createLoginCommand } from "./commands/login.js";
 import { createScanCommand } from "./commands/scan.js";
 import { createReportCommand } from "./commands/report.js";
 import { createRegisterCommand } from "./commands/register.js";
@@ -21,7 +20,6 @@ function createProgram(): Command {
 
   // Add commands
   program.addCommand(createInitCommand());
-  program.addCommand(createLoginCommand());
   createScanCommand(program);
   createReportCommand(program);
   createRegisterCommand(program);

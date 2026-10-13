@@ -2,6 +2,7 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
+    maxWorkers: 2,
     projects: [
       "packages/shared",
       "packages/worker",
@@ -12,7 +13,6 @@ export default defineConfig({
     exclude: [
       "**/node_modules/**",
       "**/dist/**",
-      "apps/web_legacy/**",
     ],
     coverage: {
       provider: "v8",
@@ -25,7 +25,6 @@ export default defineConfig({
         "**/*.test.ts",
         "**/*.test.tsx",
         "**/index.ts",
-        "apps/web_legacy/**",
         "apps/web/src/main.tsx",
         "apps/web/src/vite-env.d.ts",
         "packages/cli/src/bin/**",

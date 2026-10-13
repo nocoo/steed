@@ -1,5 +1,10 @@
 # 05 - Deployment & Local End-to-End Setup
 
+> Historical Next.js/Railway deployment record. The application, Docker build and
+> CLI browser-login flow described below are retired. Do not run these deployment
+> instructions. Use [the current README](../README.md) and
+> [the agent workflow](16-agent-workflow.md) for Vite/Cloudflare operations.
+
 > Phase goal: bring one host online against a real Cloudflare Worker + D1,
 > so the Dashboard (running locally) can render real data.
 
