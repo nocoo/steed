@@ -34,7 +34,7 @@
         "react-router": "^7.18.2",
         "reactflow": "^11.11.4",
         "tailwind-merge": "^3.6.0",
-        "zod": "4",
+        "zod": "4.6.7",
       },
       "devDependencies": {
         "@tailwindcss/vite": "^4.3.1",
@@ -57,7 +57,7 @@
       "version": "0.3.1",
       "dependencies": {
         "@steed/shared": "workspace:*",
-        "zod": "^4.4.3",
+        "zod": "4.6.7",
       },
       "devDependencies": {
         "@vitest/coverage-v8": "5.0.4",
@@ -78,7 +78,7 @@
         "cli-table3": "^0.6.5",
         "commander": "15",
         "ora": "^9.4.0",
-        "zod": "^4.4.3",
+        "zod": "4.6.7",
       },
       "devDependencies": {
         "@types/node": "^25.9.3",
@@ -1099,7 +1099,7 @@
 
     "youch-core": ["youch-core@0.3.3", "", { "dependencies": { "@poppinss/exception": "^1.2.2", "error-stack-parser-es": "^1.0.5" } }, "sha512-ho7XuGjLaJ2hWHoK8yFnsUGy2Y5uDpqSTq1FkHLK4/oqKtyUU1AFbOOxY4IpC9f0fTLjwYbslUz0Po5BpD1wrA=="],
 
-    "zod": ["zod@4.4.3", "", {}, "sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ=="],
+    "zod": ["zod@4.6.7", "", {}, "sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg=="],
 
     "zustand": ["zustand@4.5.7", "", { "dependencies": { "use-sync-external-store": "^1.2.2" }, "peerDependencies": { "@types/react": ">=16.8", "immer": ">=9.0.6", "react": ">=16.8" }, "optionalPeers": ["@types/react", "immer", "react"] }, "sha512-CHOUy7mu3lbD6o6LJLfllpjkzhHXSBlX8B9+qPddUsIfeF5S/UZ5q0kmCsnRqT1UHFQZchNFDDzMbQsuesHWlw=="],
 
