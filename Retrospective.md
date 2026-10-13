@@ -15,3 +15,13 @@ with two workers. Bound Vitest concurrency without changing timeouts, assertions
 coverage or isolation, and run expensive gates sequentially. Inspect every
 parallel gate result independently: the HTTP rate-limit fixture also seeded only
 historical minute windows, and OSV found two unrelated publication blockers.
+
+## 2026-10-13: Inspect redirected registry slots before pushing
+
+The initial lock normalization matched the requested Microsoft proxy hostname
+only. Newly patched packages returned tarball URLs on a redirected Visual Studio
+feed hostname, leaving 28 mirror slots in local commits. The final pre-push
+review caught this before any remote write. Normalize registry URL slots rather
+than one hostname, require zero `\", \"https` lock entries, and prove a frozen
+install preserves the cleaned lock before publication. Versions and integrity
+hashes remain unchanged.
