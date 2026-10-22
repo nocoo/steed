@@ -1,6 +1,6 @@
 {
   "name": "@steed/cli",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "private": true,
   "type": "module",
   "bin": {
@@ -24,6 +24,6 @@
   },
   "devDependencies": {
     "@types/node": "^25.9.3",
-    "vitest": "5.0.4"
+    "vitest": "5.0.5"
   }
 }

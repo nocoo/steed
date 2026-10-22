@@ -1,6 +1,6 @@
 {
   "name": "@steed/worker",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "private": true,
   "type": "module",
   "exports": {
@@ -22,6 +22,6 @@
     "hono": "4.13.13"
   },
   "devDependencies": {
-    "wrangler": "4.149.0"
+    "wrangler": "4.151.3"
   }
 }
