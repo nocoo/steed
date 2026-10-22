@@ -66,7 +66,7 @@ describe("AppSidebar", () => {
     it("renders app name and version", () => {
       renderSidebar();
       expect(screen.getByText("Steed")).toBeInTheDocument();
-      expect(screen.getAllByText(/v0\.3\.2/).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/v0\.3\.3/).length).toBeGreaterThan(0);
     });
 
     it("renders nav groups", () => {

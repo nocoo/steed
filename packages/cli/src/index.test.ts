@@ -14,7 +14,7 @@ describe("CLI", () => {
     });
 
     expect(() => program.parse(["node", "steed", "--version"])).toThrow();
-    expect(output).toContain("0.3.2");
+    expect(output).toContain("0.3.3");
   });
 
   it("--help shows help", () => {
