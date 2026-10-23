@@ -7,11 +7,12 @@ import {
   Button,
   Sidebar,
   SidebarFooter,
+  SidebarGroup,
   SidebarHeader,
   SidebarIconItem,
   SidebarItem,
   SidebarNav,
-  SidebarPartition,
+  SidebarUser,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -20,20 +21,15 @@ import { APP_VERSION } from "@/lib/version";
 import { NAV_GROUPS, getAllNavItems } from "@/lib/navigation";
 import { useProfile } from "@/hooks/use-profile";
 
-const LOGO_SLOT_CLASS =
-  "flex h-14 w-[68px] shrink-0 items-center justify-center";
-
-function LogoSlot() {
+function BrandMark({ className }: { className?: string }) {
   return (
-    <div data-sidebar-logo-slot="" className={LOGO_SLOT_CLASS}>
-      <img
-        src="/logo-24.png"
-        alt="Steed"
-        width={24}
-        height={24}
-        className="shrink-0"
-      />
-    </div>
+    <img
+      src="/logo-24.png"
+      alt="Steed"
+      width={24}
+      height={24}
+      className={className}
+    />
   );
 }
 
@@ -54,9 +50,13 @@ export function AppSidebar({
   const items = getAllNavItems();
   const profile = useProfile();
   const name = profile?.name ?? "User";
+  const active = (href: string) =>
+    pathname === href || pathname.startsWith(`${href}/`);
   const avatar = (
     <Avatar className="h-9 w-9 shrink-0" aria-label={name} title={name}>
-      {profile?.avatar ? <AvatarImage src={profile.avatar} alt={name} referrerPolicy="no-referrer" /> : null}
+      {profile?.avatar ? (
+        <AvatarImage src={profile.avatar} alt={name} referrerPolicy="no-referrer" />
+      ) : null}
       <AvatarFallback className="bg-basalt-primary/10 text-xs text-basalt-primary">
         {name.slice(0, 1).toUpperCase()}
       </AvatarFallback>
@@ -70,33 +70,31 @@ export function AppSidebar({
 
   return (
     <Sidebar collapsed={collapsed}>
-      <SidebarHeader className="px-0">
+      <SidebarHeader>
         {collapsed ? (
-          <LogoSlot />
+          <BrandMark className="h-6 w-6 shrink-0" />
         ) : (
-          <div className="flex w-full min-w-0 items-center">
-            <LogoSlot />
-            <div className="flex min-w-0 flex-1 items-center justify-between pr-3">
-              <div className="flex min-w-0 items-center gap-3">
-                <span className="truncate text-lg font-semibold text-basalt-foreground md:text-xl">
-                  Steed
-                </span>
-                <span className="shrink-0 rounded-md bg-basalt-secondary px-1.5 py-0.5 font-mono text-[10px] leading-none font-medium text-basalt-muted-foreground">
-                  v{APP_VERSION}
-                </span>
-              </div>
-              {hideCollapse ? null : (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 shrink-0"
-                  onClick={onToggle}
-                  aria-label="Collapse sidebar"
-                >
-                  <PanelLeft aria-hidden="true" />
-                </Button>
-              )}
+          <div className="flex w-full min-w-0 items-center justify-between">
+            <div className="flex min-w-0 items-center gap-basalt-space-lg">
+              <BrandMark className="shrink-0" />
+              <span className="truncate text-lg font-semibold text-basalt-foreground md:text-xl">
+                Steed
+              </span>
+              <span className="shrink-0 rounded-md bg-basalt-secondary px-basalt-space-md py-basalt-space-xs font-mono text-[10px] leading-none font-medium text-basalt-muted-foreground">
+                v{APP_VERSION}
+              </span>
             </div>
+            {hideCollapse ? null : (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 shrink-0"
+                onClick={onToggle}
+                aria-label="Collapse sidebar"
+              >
+                <PanelLeft aria-hidden="true" />
+              </Button>
+            )}
           </div>
         )}
       </SidebarHeader>
@@ -106,22 +104,21 @@ export function AppSidebar({
           <Button
             variant="ghost"
             size="icon"
-            className="mb-1 self-center"
+            className="mb-basalt-space-sm self-center"
             onClick={onToggle}
             aria-label="Expand sidebar"
           >
             <PanelLeft aria-hidden="true" />
           </Button>
-          <SidebarNav className="w-full items-center gap-1 pt-1">
+          <SidebarNav>
             {items.map((item) => {
               const Icon = item.icon;
               return (
                 <Tooltip key={item.href} delayDuration={0}>
                   <TooltipTrigger asChild>
                     <SidebarIconItem
-                      active={pathname === item.href || pathname.startsWith(`${item.href}/`)}
+                      active={active(item.href)}
                       aria-label={item.title}
-                      className="self-center"
                       onClick={() => go(item.href)}
                     >
                       <Icon className="h-4 w-4" strokeWidth={1.5} />
@@ -134,46 +131,42 @@ export function AppSidebar({
               );
             })}
           </SidebarNav>
-          <SidebarFooter className="flex w-full justify-center px-0">
-            {avatar}
+          <SidebarFooter>
+            <Tooltip delayDuration={0}>
+              <TooltipTrigger asChild>
+                <span className="inline-flex">{avatar}</span>
+              </TooltipTrigger>
+              <TooltipContent side="right" sideOffset={8}>
+                {name}
+              </TooltipContent>
+            </Tooltip>
           </SidebarFooter>
         </>
       ) : (
         <>
-          <SidebarNav className="pt-1">
+          <SidebarNav>
             {NAV_GROUPS.map((group) => (
-              <div key={group.title}>
-                <SidebarPartition>{group.title}</SidebarPartition>
-                <div className="flex flex-col gap-0.5 px-3">
-                  {group.items.map((item) => {
-                    const Icon = item.icon;
-                    return (
-                      <SidebarItem
-                        key={item.href}
-                        active={pathname === item.href || pathname.startsWith(`${item.href}/`)}
-                        onClick={() => go(item.href)}
-                      >
-                        <Icon className="h-4 w-4 shrink-0" strokeWidth={1.5} />
-                        <span className="flex-1 truncate text-left">
-                          {item.title}
-                        </span>
-                      </SidebarItem>
-                    );
-                  })}
-                </div>
-              </div>
+              <SidebarGroup key={group.title} label={group.title} defaultOpen>
+                {group.items.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <SidebarItem
+                      key={item.href}
+                      active={active(item.href)}
+                      onClick={() => go(item.href)}
+                    >
+                      <Icon className="h-4 w-4 shrink-0" strokeWidth={1.5} />
+                      <span className="flex-1 truncate text-left">
+                        {item.title}
+                      </span>
+                    </SidebarItem>
+                  );
+                })}
+              </SidebarGroup>
             ))}
           </SidebarNav>
           <SidebarFooter>
-            <div className="flex min-w-0 items-center gap-3">
-              {avatar}
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-basalt-foreground">{name}</p>
-                {profile?.email ? (
-                  <p className="truncate text-xs text-basalt-muted-foreground">{profile.email}</p>
-                ) : null}
-              </div>
-            </div>
+            <SidebarUser name={name} email={profile?.email} avatar={avatar} />
           </SidebarFooter>
         </>
       )}

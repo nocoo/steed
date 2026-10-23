@@ -27,10 +27,6 @@ function renderSidebar(path = "/overview", collapsed = false) {
   return { ...view, onToggle };
 }
 
-function logoSlot() {
-  return document.querySelector("[data-sidebar-logo-slot]");
-}
-
 describe("AppSidebar", () => {
   beforeEach(() => {
     localStorage.clear();
@@ -57,10 +53,17 @@ describe("AppSidebar", () => {
   });
 
   describe("expanded", () => {
-    it("renders logo in the 68px leading slot", () => {
+    it("renders the brand mark in the header", () => {
       renderSidebar();
       expect(screen.getByAltText("Steed")).toBeInTheDocument();
-      expect(logoSlot()?.className).toContain("w-[68px]");
+    });
+
+    it("collapses a nav group from its label", () => {
+      renderSidebar();
+      const label = screen.getByRole("button", { name: /dashboard/i });
+      expect(screen.getByRole("button", { name: /overview/i })).toBeInTheDocument();
+      fireEvent.click(label);
+      expect(screen.queryByRole("button", { name: /overview/i })).not.toBeInTheDocument();
     });
 
     it("renders app name and version", () => {
@@ -127,12 +130,10 @@ describe("AppSidebar", () => {
   });
 
   describe("collapsed", () => {
-    it("keeps the same 68px logo slot without the name", () => {
+    it("keeps the brand mark without the app name", () => {
       renderSidebar("/overview", true);
       expect(screen.getByAltText("Steed")).toBeInTheDocument();
       expect(screen.queryByText("Steed")).not.toBeInTheDocument();
-      expect(logoSlot()?.className).toContain("w-[68px]");
-      expect(logoSlot()?.className).toContain("h-14");
     });
 
     it("shows expand button", () => {
