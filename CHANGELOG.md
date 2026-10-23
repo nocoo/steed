@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.3.4] - 2026-10-24
+
+### Added
+
+- Collapsible sidebar groups driven by the shared Basalt sidebar template.
+
+### Changed
+
+- Standardize every page shell: pages no longer add their own padding, centering
+  or max width, use `PageHeader` and `SectionRule` for their titles and regions,
+  and separate sections with the 24px layout gap.
+- Adopt the Basalt sidebar header, rail and footer geometry, and render the
+  account row with `SidebarUser`.
+- Use `LayerCard.Empty` for the diagrams and Connect empty states.
+- Upgrade `@nocoo/basalt` to 3.2.1, Wrangler to 4.152.0 with Workers types
+  5.20261023.1, `@types/node` to 26.6.5, jsdom to 30.1.3,
+  `@testing-library/jest-dom` to 7.0.1, `chalk` to 6.0.1,
+  `@hookform/resolvers` to 6.0.0 and React Router to 8.5.0.
+- Run the native TypeScript 7 compiler for typecheck and build, keeping the
+  TypeScript 6 API available to typescript-eslint through
+  `@typescript/typescript6` until it supports TypeScript 7.
+
 ## [0.3.1] - 2026-10-13
 
 ### Added

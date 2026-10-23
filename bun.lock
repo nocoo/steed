@@ -19,7 +19,7 @@
     },
     "apps/web": {
       "name": "@steed/web",
-      "version": "0.3.3",
+      "version": "0.3.4",
       "dependencies": {
         "@hookform/resolvers": "6.0.0",
         "@nocoo/basalt": "3.2.1",
@@ -54,7 +54,7 @@
     },
     "packages/api": {
       "name": "@steed/api",
-      "version": "0.3.3",
+      "version": "0.3.4",
       "dependencies": {
         "@steed/shared": "workspace:*",
         "zod": "4.6.7",
@@ -67,7 +67,7 @@
     },
     "packages/cli": {
       "name": "@steed/cli",
-      "version": "0.3.3",
+      "version": "0.3.4",
       "bin": {
         "steed": "./dist/bin/steed.js",
       },
@@ -86,11 +86,11 @@
     },
     "packages/shared": {
       "name": "@steed/shared",
-      "version": "0.3.3",
+      "version": "0.3.4",
     },
     "packages/worker": {
       "name": "@steed/worker",
-      "version": "0.3.3",
+      "version": "0.3.4",
       "dependencies": {
         "@steed/shared": "workspace:*",
         "hono": "4.13.13",
