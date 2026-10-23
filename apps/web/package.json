@@ -14,7 +14,7 @@
     "coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@hookform/resolvers": "5.9.1",
+    "@hookform/resolvers": "6.0.0",
     "@nocoo/basalt": "2.2.0",
     "@steed/api": "workspace:*",
     "@steed/shared": "workspace:*",
