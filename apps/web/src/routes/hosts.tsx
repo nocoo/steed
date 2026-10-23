@@ -9,7 +9,7 @@ export function HostsPage() {
 
   if (error) {
     return (
-      <div className="space-y-8">
+      <div className="space-y-basalt-layout-lg">
         <PageHeader
           title="Hosts"
           description="Connected machines running the host service"
@@ -25,7 +25,7 @@ export function HostsPage() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-basalt-layout-lg">
       <PageHeader
         title="Hosts"
         description="Connected machines running the host service"

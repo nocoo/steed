@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { Badge, Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Input, Label, LayerCard } from "@nocoo/basalt";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@nocoo/basalt/components/select";
+import { PageHeader } from "@nocoo/basalt/components/page-header";
 import { ArrowDownLeft, ArrowUpRight, Braces, Check, Download, FileUp, Layers, Network, Plus, Save, Search, Trash2, X } from "lucide-react";
 import { DIAGRAM_LIMITS, EDGE_KINDS, NODE_KINDS, diagramSchema, edgeSchema, nodeSchema, removeDiagramEdge, removeDiagramNode, type Diagram, type DiagramEdge, type DiagramNode } from "@steed/api/shared";
 import { DiagramCanvas } from "@/components/map/diagram-canvas";
@@ -64,7 +65,7 @@ function ArchitectureEditor({ document, onChange, busy }: { document: Diagram; o
 
   return (
     <>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-basalt-layout flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <Label htmlFor="diagram-view" className="sr-only">Diagram view</Label>
           <Select value={viewId === "" ? "\u0000" : viewId} onValueChange={(value) => { setViewId(value === "\u0000" ? "" : value); setFocus(undefined); setSelected(""); setSelectedEdges([]); setShowBoundaries(undefined); }}>
@@ -217,13 +218,12 @@ export function DiagramsPage() {
     finally { if (file.current) file.current.value = ""; }
   };
 
-  return <div className="p-4 md:p-6">
-    <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-      <div className="min-w-0"><div className="mb-2 flex items-center gap-2 text-xs font-medium text-basalt-muted-foreground"><Network className="h-4 w-4" />ARCHITECTURE WORKSPACE</div>
-        <h1 className="text-2xl font-semibold tracking-tight">{vm.record ? vm.draft?.title : "Diagrams"}</h1>
-        <p className="mt-2 max-w-3xl whitespace-pre-line text-sm text-basalt-muted-foreground">{vm.draft?.description || "Map services, infrastructure, and the connections between them."}</p>
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
+  return <div className="space-y-basalt-layout-lg">
+    <PageHeader
+      title={vm.record ? vm.draft?.title ?? "Diagrams" : "Diagrams"}
+      description={vm.draft?.description || "Map services, infrastructure, and the connections between them."}
+      actions={
+        <>
         {vm.record && vm.draft && <>
           <span className="mr-2 font-mono text-xs text-basalt-muted-foreground">{vm.dirty ? "Unsaved changes" : `Revision ${vm.record.revision}`}</span>
           <Button variant="outline" size="sm" onClick={() => { if (vm.draft) downloadDiagram(vm.draft); }}><Download className="h-3.5 w-3.5" />Export JSON</Button>
@@ -233,10 +233,11 @@ export function DiagramsPage() {
         <Button variant="outline" size="sm" disabled={vm.busy || vm.dirty} onClick={() => file.current?.click()}><FileUp className="h-3.5 w-3.5" />Import JSON</Button>
         <Button variant="outline" size="sm" disabled={vm.busy || vm.dirty} onClick={() => void vm.create()}><Plus className="h-3.5 w-3.5" />New diagram</Button>
         <input ref={file} type="file" accept=".json,application/json" aria-label="Import diagram file" className="hidden" onChange={(event) => void importFile(event.target.files?.[0])} />
-      </div>
-    </div>
-    {vm.error && <div role="alert" className="mb-4 whitespace-pre-wrap rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-700 dark:bg-red-950/30">{vm.error}</div>}
-    {vm.notice && <p role="status" className="mb-4 flex items-center gap-2 text-sm text-basalt-muted-foreground"><Check className="h-4 w-4" />{vm.notice}</p>}
+        </>
+      }
+    />
+    {vm.error && <div role="alert" className="whitespace-pre-wrap rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-700 dark:bg-red-950/30">{vm.error}</div>}
+    {vm.notice && <p role="status" className="flex items-center gap-2 text-sm text-basalt-muted-foreground"><Check className="h-4 w-4" />{vm.notice}</p>}
     {vm.loading ? <p role="status" className="py-12 text-center text-sm text-basalt-muted-foreground">Loading diagrams…</p>
       : vm.draft && vm.record ? <ArchitectureEditor key={vm.record.id} document={vm.draft} onChange={vm.setDraft} busy={vm.busy} />
         : <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">{vm.list.map((diagram) => <Link key={diagram.id} to={`/diagrams/${diagram.id}`} className="rounded-xl focus-visible:outline-2 focus-visible:outline-basalt-ring">
@@ -244,7 +245,7 @@ export function DiagramsPage() {
             <p className="mt-2 line-clamp-3 text-sm text-basalt-muted-foreground">{diagram.description || "Architecture diagram"}</p>
             <div className="mt-6 flex items-center gap-4 font-mono text-xs text-basalt-muted-foreground"><span>{diagram.nodeCount} components</span><span>{diagram.edgeCount} connections</span></div>
           </LayerCard></Link>)}
-          {!vm.list.length && !vm.error && <LayerCard className="col-span-full py-16 text-center"><Network className="mx-auto mb-4 h-10 w-10 text-basalt-muted-foreground" /><h2 className="mb-2 text-lg font-medium">Your architecture starts here</h2><p className="text-sm text-basalt-muted-foreground">Create a diagram, or import a structured graph from your agent.</p></LayerCard>}
+          {!vm.list.length && !vm.error && <LayerCard className="col-span-full"><LayerCard.Empty icon={<Network />} title="Your architecture starts here" description="Create a diagram, or import a structured graph from your agent." /></LayerCard>}
         </div>}
     <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}><DialogContent><DialogHeader><DialogTitle>Delete {vm.record?.title}?</DialogTitle><DialogDescription>This removes the diagram from your workspace. Export its JSON first if you need a copy.</DialogDescription></DialogHeader>
       <DialogFooter><Button variant="outline" onClick={() => setConfirmDelete(false)}>Cancel</Button><Button disabled={vm.busy} onClick={() => void vm.remove()}>Delete diagram</Button></DialogFooter>

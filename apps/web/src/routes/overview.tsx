@@ -10,7 +10,7 @@ export function OverviewPage() {
 
   if (error) {
     return (
-      <div className="space-y-8">
+      <div className="space-y-basalt-layout-lg">
         <PageHeader
           title="Overview"
           description="AI asset visibility at a glance"
@@ -26,7 +26,7 @@ export function OverviewPage() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-basalt-layout-lg">
       <PageHeader
         title="Overview"
         description="AI asset visibility at a glance"

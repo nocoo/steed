@@ -10,7 +10,7 @@ export function AgentsPage() {
 
   if (error) {
     return (
-      <div className="space-y-8">
+      <div className="space-y-basalt-layout-lg">
         <PageHeader
           title="Agents"
           description="Autonomous agent entities across all hosts"
@@ -26,7 +26,7 @@ export function AgentsPage() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-basalt-layout-lg">
       <PageHeader
         title="Agents"
         description="Autonomous agent entities across all hosts"

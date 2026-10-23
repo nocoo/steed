@@ -16,7 +16,7 @@ export function DataSourcesPage() {
 
   if (error) {
     return (
-      <div className="space-y-8">
+      <div className="space-y-basalt-layout-lg">
         <PageHeader
           title="Data Sources"
           description="Discovered external resources (CLIs, MCP services, platforms)"
@@ -32,7 +32,7 @@ export function DataSourcesPage() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-basalt-layout-lg">
       <PageHeader
         title="Data Sources"
         description="Discovered external resources (CLIs, MCP services, platforms)"

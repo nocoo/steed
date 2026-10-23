@@ -1,7 +1,9 @@
 import { useMemo, useRef, useState } from "react";
 import { Badge, Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Input, Label, LayerCard } from "@nocoo/basalt";
+import { PageHeader } from "@nocoo/basalt/components/page-header";
+import { SectionRule } from "@nocoo/basalt/components/section-rule";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@nocoo/basalt/components/select";
-import { Check, Copy, Eye, EyeOff, KeyRound, Pencil, Plug, Plus, RefreshCw, RotateCw, ShieldCheck, Terminal, Trash2 } from "lucide-react";
+import { Check, Copy, Eye, EyeOff, KeyRound, Pencil, Plus, RefreshCw, RotateCw, ShieldCheck, Terminal, Trash2 } from "lucide-react";
 import { CONNECT_LIMITS, connectScopeSchema, type ConnectToken } from "@steed/api/shared";
 import { connectDate, connectExamples, tokenStatus } from "@/lib/connect-client";
 import { useConnectViewModel } from "@/viewmodels/use-connect-viewmodel";
@@ -27,12 +29,12 @@ export function ConnectPage() {
   const targetName = selectedTarget ? `${selectedTarget.title}${selectedTarget.deleted ? " (deleted)" : ""}` : vm.target || "All diagrams";
   const targetUnavailable = Boolean(vm.target && (!selectedTarget || selectedTarget.deleted));
 
-  return <div className="mx-auto max-w-6xl space-y-6 p-4 md:p-6">
-    <div className="flex flex-wrap items-start justify-between gap-4">
-      <div><div className="mb-2 flex items-center gap-2 text-xs font-medium text-basalt-muted-foreground"><Plug className="h-4 w-4" />AGENT CONNECTIONS</div>
-        <h1 className="text-2xl font-semibold tracking-tight">Connect</h1><p className="mt-2 text-sm text-basalt-muted-foreground">Let your agents read and maintain architecture diagrams.</p></div>
-      <Badge variant="outline">API v1</Badge>
-    </div>
+  return <div className="space-y-basalt-layout-lg">
+    <PageHeader
+      title="Connect"
+      description="Let your agents read and maintain architecture diagrams."
+      actions={<Badge variant="outline">API v1</Badge>}
+    />
     {vm.error && <p role="alert" className="whitespace-pre-wrap rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-700 dark:bg-red-950/30">{vm.error}</p>}
     {vm.notice && <p role="status" className="flex items-center gap-2 text-sm text-basalt-muted-foreground"><Check className="h-4 w-4" />{vm.notice}</p>}
     <LayerCard className="flex flex-col justify-between gap-6 sm:flex-row sm:items-center">
@@ -50,14 +52,20 @@ export function ConnectPage() {
         </Select>
       </div>
     </LayerCard>
-    <section aria-labelledby="connect-tokens-title" className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 id="connect-tokens-title" className="text-base font-semibold">Tokens</h2><p className="mt-1 text-xs text-basalt-muted-foreground">{targetName} · {used} / {CONNECT_LIMITS.tokensPerTarget} slots used</p></div>
-        <div className="flex gap-2"><Button size="sm" variant="outline" disabled={vm.loading || vm.busy} onClick={vm.reload}><RefreshCw className="h-3.5 w-3.5" />Refresh</Button>
-          <Button size="sm" disabled={vm.loading || vm.busy || targetUnavailable || used >= CONNECT_LIMITS.tokensPerTarget} onClick={(event) => { opener.current = event.currentTarget; vm.openCreate(); }}><Plus className="h-3.5 w-3.5" />Create token</Button></div>
-      </div>
+    <SectionRule
+      title="Tokens"
+      actions={
+        <>
+          <Button size="sm" variant="outline" disabled={vm.loading || vm.busy} onClick={vm.reload}><RefreshCw className="h-3.5 w-3.5" />Refresh</Button>
+          <Button size="sm" disabled={vm.loading || vm.busy || targetUnavailable || used >= CONNECT_LIMITS.tokensPerTarget} onClick={(event) => { opener.current = event.currentTarget; vm.openCreate(); }}><Plus className="h-3.5 w-3.5" />Create token</Button>
+        </>
+      }
+    >
+      <div className="space-y-basalt-layout">
+      <p className="text-xs text-basalt-muted-foreground">{targetName} · {used} / {CONNECT_LIMITS.tokensPerTarget} slots used</p>
       {vm.loading && <p role="status" className="text-sm text-basalt-muted-foreground">Refreshing connections…</p>}
       {targetUnavailable && <p className="text-sm text-basalt-muted-foreground">This diagram is unavailable. You can still revoke its existing tokens.</p>}
-      {!vm.tokens.length && !vm.loading && !vm.error && <LayerCard className="py-10 text-center"><KeyRound className="mx-auto mb-3 h-8 w-8 text-basalt-muted-foreground" /><h3 className="text-sm font-medium">No tokens for this target</h3><p className="mt-2 text-sm text-basalt-muted-foreground">Create a read token to explore the API, or a write token to maintain diagrams.</p></LayerCard>}
+      {!vm.tokens.length && !vm.loading && !vm.error && <LayerCard><LayerCard.Empty icon={<KeyRound />} title="No tokens for this target" description="Create a read token to explore the API, or a write token to maintain diagrams." /></LayerCard>}
       {vm.tokens.map((token) => {
         const status = tokenStatus(token);
         return <LayerCard key={token.id} className="space-y-4" aria-label={`Token ${token.name}`}>
@@ -79,9 +87,11 @@ export function ConnectPage() {
           </div>}
         </LayerCard>;
       })}
-    </section>
-    <LayerCard className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="flex items-center gap-2 text-sm font-semibold"><Terminal className="h-4 w-4" />Connect your agent</h2><a href="/api/connect/openapi.json" className="text-sm text-basalt-primary underline">Download OpenAPI</a></div>
+      </div>
+    </SectionRule>
+    <LayerCard>
+      <LayerCard.Header className="flex items-center justify-between gap-3"><h2 className="flex items-center gap-2 text-sm font-semibold"><Terminal className="h-4 w-4" />Connect your agent</h2><a href="/api/connect/openapi.json" className="text-sm text-basalt-primary underline">Download OpenAPI</a></LayerCard.Header>
+      <LayerCard.Body className="space-y-4">
       <p className="text-sm text-basalt-muted-foreground">Read capabilities first. Keep credentials in a secret store, and retain one idempotency key for each intended change.</p>
       <div className="flex flex-wrap items-center gap-2"><Label htmlFor="connect-example" className="sr-only">Instructions format</Label>
         <Select value={example} onValueChange={(value) => setExample(value === "agent" ? "agent" : "curl")}>
@@ -93,6 +103,7 @@ export function ConnectPage() {
         </Select>
         <Button size="sm" variant="outline" onClick={() => void vm.copy(examples[example], "Instructions")}><Copy className="h-3.5 w-3.5" />Copy instructions</Button></div>
       <pre className="max-h-96 overflow-auto rounded-lg bg-basalt-secondary p-4 font-mono text-xs leading-relaxed" aria-label="Agent connection instructions">{examples[example]}</pre>
+      </LayerCard.Body>
     </LayerCard>
     <LayerCard><details><summary className="cursor-pointer text-sm font-semibold">Recent activity</summary>
       <ul className="mt-4 space-y-3">{vm.audit.map((entry) => <li key={entry.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-basalt-border pb-3 text-xs"><div><span className="font-mono">{entry.operation}</span><span className="ml-3 text-basalt-muted-foreground">{entry.status}{entry.code ? ` · ${entry.code}` : ""}</span><p className="mt-1 break-all font-mono text-[10px] text-basalt-muted-foreground">{entry.requestId}</p></div><time dateTime={entry.createdAt} className="text-basalt-muted-foreground">{connectDate(entry.createdAt)}</time></li>)}</ul>

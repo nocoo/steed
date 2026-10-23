@@ -77,7 +77,7 @@ export function AgentDetailPage() {
 
   if (loading && !agent) {
     return (
-      <div className="space-y-8">
+      <div className="space-y-basalt-layout-lg">
         <PageHeader title="Agent" />
         <SkeletonLine className="h-32" minWidth={100} maxWidth={100} />
         <SkeletonLine className="h-64" minWidth={100} maxWidth={100} />
@@ -87,7 +87,7 @@ export function AgentDetailPage() {
 
   if (error && !agent) {
     return (
-      <div className="space-y-8">
+      <div className="space-y-basalt-layout-lg">
         <PageHeader title="Agent" />
         <LayerCard>
           <div className="flex items-center gap-3">
@@ -102,7 +102,7 @@ export function AgentDetailPage() {
   if (!agent) return null;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-basalt-layout-lg">
       <PageHeader
         title={agent.nickname ?? agent.match_key}
         description={agent.match_key}

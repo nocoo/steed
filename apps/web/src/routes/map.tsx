@@ -20,7 +20,7 @@ export function MapPage() {
 
   if (error) {
     return (
-      <div className="space-y-8">
+      <div className="space-y-basalt-layout-lg">
         <PageHeader
           title="Map"
           description="Relationship map of Hosts, Agents, and Data Sources"
@@ -36,7 +36,7 @@ export function MapPage() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-basalt-layout-lg">
       <PageHeader
         title="Map"
         description="Relationship map of Hosts, Agents, and Data Sources"
