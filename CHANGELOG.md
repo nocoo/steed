@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.5] - 2026-10-24
+
+### Changed
+
+- Override `undici` to 7.30.1 so the dependency scan no longer reports the
+  advisories published against 7.29.1.
+- Upgrade `react-hook-form` to 7.91.0.
+
 ## [0.3.4] - 2026-10-24
 
 ### Added
