@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 export function testDatabase() {
   const sqlite = new DatabaseSync(":memory:");
-  const directory = join(dirname(fileURLToPath(import.meta.url)), "../../../../packages/worker/migrations");
+  const directory = join(dirname(fileURLToPath(import.meta.url)), "../../migrations");
   for (const name of readdirSync(directory).filter((name) => name.endsWith(".sql")).sort()) {
     sqlite.exec(readFileSync(join(directory, name), "utf8"));
   }
