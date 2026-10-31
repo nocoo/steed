@@ -4,10 +4,8 @@ import { randomSecret } from "./connect-crypto";
 import { connectManagementApi } from "./connect-management";
 import { testDatabase } from "./__tests__/db";
 
-const mocks = vi.hoisted(() => ({ access: vi.fn(), legacy: vi.fn(), dashboard: vi.fn() }));
+const mocks = vi.hoisted(() => ({ access: vi.fn() }));
 vi.mock("./access-jwt", () => ({ verifyAccessJwt: mocks.access }));
-vi.mock("@steed/worker", () => ({ default: { fetch: mocks.legacy } }));
-vi.mock("@steed/api/server", () => ({ createApiRouter: () => ({ fetch: mocks.dashboard }) }));
 import worker from "./index";
 
 const origin = "https://steed.example.com";
@@ -15,7 +13,7 @@ const user = { email: "manager@example.com", sub: "manager" };
 let database: ReturnType<typeof testDatabase>;
 beforeEach(() => { vi.resetAllMocks(); database = testDatabase(); });
 afterEach(() => database.close());
-const environment = () => ({ DB: database.db, ASSETS: { fetch: vi.fn() }, CF_ACCESS_TEAM: "team", CF_ACCESS_AUD: "aud", DASHBOARD_SERVICE_TOKEN: "legacy-service",
+const environment = () => ({ DB: database.db, ASSETS: { fetch: vi.fn() }, CF_ACCESS_TEAM: "team", CF_ACCESS_AUD: "aud",
   CONNECT_MANAGERS: "email:manager@example.com", CONNECT_DEPLOYMENT_ID: "steed-test", CONNECT_TOKEN_KEYS: JSON.stringify({ active: "test", keys: { test: randomSecret() } }) });
 
 describe("active Worker Connect authentication boundary", () => {
@@ -29,10 +27,9 @@ describe("active Worker Connect authentication boundary", () => {
     expect((await worker.fetch(request, env, {} as ExecutionContext)).status).toBe(403);
     mocks.access.mockResolvedValue({ ok: true, user });
     expect((await worker.fetch(request, env, {} as ExecutionContext)).status).toBe(200);
-    expect(mocks.legacy).not.toHaveBeenCalled(); expect(mocks.dashboard).not.toHaveBeenCalled();
   });
 
-  it("dispatches diagram Bearer routes separately from browser and legacy Host authentication", async () => {
+  it("dispatches every v1 route to Connect Bearer authentication, separate from the browser", async () => {
     const env = environment();
     const manage = (path: string, body: unknown, token?: ConnectToken) => connectManagementApi(new Request(`${origin}/api/connect${path}`, {
       method: "POST", headers: { "Content-Type": "application/json", Origin: origin, "X-Steed-Request": "1", ...(token ? { "If-Match": `"${token.id}:${token.version}"` } : {}) }, body: JSON.stringify(body),
@@ -51,13 +48,12 @@ describe("active Worker Connect authentication boundary", () => {
     }
     expect((await call("/api/v1/requests/missing-intent")).status).toBe(404);
     expect((await call("/api/v1/diagrams/example/unknown")).status).toBe(404);
-    expect(mocks.access).not.toHaveBeenCalled(); expect(mocks.legacy).not.toHaveBeenCalled();
+    expect(mocks.access).not.toHaveBeenCalled();
     mocks.access.mockResolvedValue({ ok: false, reason: "Missing JWT" });
     expect((await call("/api/diagrams")).status).toBe(401);
-    mocks.legacy.mockImplementation(async () => new Response("Unauthorized", { status: 401 }));
-    expect((await call("/api/v1/hosts")).status).toBe(401);
-    expect((await call("/api/v1/diagrams-extra")).status).toBe(401);
-    expect(mocks.legacy).toHaveBeenCalledTimes(2);
-    expect(mocks.dashboard).not.toHaveBeenCalled();
+    for (const path of ["/api/v1/hosts", "/api/v1/diagrams-extra", "/api/v1"]) {
+      expect((await call(path, false)).status).toBe(401);
+      expect((await call(path)).status).toBe(404);
+    }
   });
 });

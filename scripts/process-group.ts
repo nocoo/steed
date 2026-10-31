@@ -38,8 +38,3 @@ export async function stopProcessGroup(child: Subprocess, graceMs = 10_000): Pro
   }
   await child.exited;
 }
-
-/** Synchronous best-effort variant for exit paths that cannot await. */
-export function killProcessGroup(child: Subprocess): void {
-  if (!signalGroup(child.pid, "SIGTERM")) child.kill();
-}

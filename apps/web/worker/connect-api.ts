@@ -105,9 +105,6 @@ async function mutate(ctx: ConnectContext, route: NonNullable<ReturnType<typeof 
   return receiptResponse(ctx, result, hash);
 }
 
-export function isDiagramApiPath(path: string) {
-  return ["/api/v1/diagrams", "/api/v1/capabilities", "/api/v1/openapi.json", "/api/v1/requests"].some((base) => path === base || path.startsWith(`${base}/`));
-}
 export function connectMachineApi(request: Request, env: ConnectEnv) {
   return runConnect(request, env, "bearer", async (ctx) => {
     const url = new URL(request.url);

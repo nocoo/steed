@@ -119,8 +119,8 @@ try {
     for (const operation of CONNECT_OPERATIONS) assert.equal(contract.paths[operation.path]?.[operation.method.toLowerCase()]?.operationId, operation.id);
     const download = await manage("/openapi.json"); await status(download, 200); assert.ok(download.headers.get("Content-Disposition")?.includes("attachment"));
     await status(await api(credential, "/diagrams/example/unknown"), 404);
-    assert.equal((await request("/api/v1/hosts", "GET", undefined, { Authorization: `Bearer ${credential}` })).status, 401);
-    assert.equal((await request("/api/v1/hosts", "GET", undefined, { Authorization: "Bearer dev-token" })).status, 200);
+    assert.equal((await request("/api/v1/hosts", "GET", undefined, { Authorization: "Bearer dev-token" })).status, 401);
+    assert.equal((await request("/api/v1/hosts", "GET", undefined, { Authorization: `Bearer ${credential}` })).status, 404);
   });
   await check("full create, read, HEAD, validation and lossless export", async () => {
     const response = await api(credential, "/diagrams/example", "PUT", example, { "If-None-Match": "*", "Idempotency-Key": "create-example" });
