@@ -939,6 +939,10 @@ The former open questions, answered in order:
 - The topology registry is prepared separately from the active diagram
   registry; discovery remains unchanged until the atomic Connect switch.
   The revert operation is registered with its endpoint in the following commit.
+- The prepared OpenAPI document derives paths and scopes from that registry,
+  describes 304 and resync responses, and exposes the actual Zod input schemas.
+  Capabilities for a read token list only read operations; a write token lists
+  both read and write operations. Active discovery changes with the switch.
 
 ### Implementation decisions (read-only topology page)
 - Layout the complete canonical snapshot before applying view/client filters; canvas projection then uses only visible node IDs and edges whose endpoints remain visible, so a visible satellite keeps its canonical host/block geometry. The selected view supplies layout pins.
