@@ -896,5 +896,16 @@ The former open questions, answered in order:
 - Bidirectional edges are traversed in either direction by relationship traces.
   A view's focus layer is exposed separately rather than hiding other layers.
 
+### Implementation decisions (interim layout)
+
+- Lanes begin at `(0, 0)` with 32-pixel padding and pack host blocks in four
+  columns. Host cards are 240 by 96 pixels, satellite cards 220 by 72, with
+  horizontal and vertical gaps of 24 and 16 and a 32-pixel sub-satellite indent.
+- Pins are absolute canvas coordinates. A sub-satellite pin moves its complete
+  satellite block, placing the pinned node at its requested coordinate. If
+  pins within a block conflict, the host pin takes precedence, then the
+  satellite pin, then the lowest-ID sub-satellite pin. Pinned blocks can overlap
+  one another; unpinned blocks scan the grid to avoid reserved geometry.
+
 Delivery: Phase 1 and Phase 2 in one PR (#104), release `0.5.0`, developed
 through herdr (see the implementation path above).
