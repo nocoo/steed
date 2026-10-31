@@ -74,4 +74,22 @@ describe("prepared topology Connect management", () => {
     expect(audit.data.length).toBeGreaterThan(0);
     expect(audit.data.every((entry) => entry.target === "topology")).toBe(true);
   });
+
+  it("rejects stale versions, mismatched confirmations and expired tokens", async () => {
+    const token = await create();
+    expect((await call(`/tokens/${token.id}`)).headers.get("ETag")).toBe(`"${token.id}:1"`);
+    expect((await call(`/tokens/${token.id}`, "PATCH", { name: "Renamed" })).status).toBe(428);
+    expect((await call(`/tokens/${token.id}`, "PATCH", { name: "Renamed" }, { ...token, version: 2 })).status).toBe(412);
+    expect((await call(`/tokens/${token.id}`, "DELETE", undefined, token)).status).toBe(405);
+    const proof = await challenge(token, "reveal");
+    expect((await call(`/tokens/${token.id}/reveal`, "POST", { challenge: proof, confirmation: "Wrong" }, token)).status).toBe(403);
+    database.sqlite.prepare("UPDATE connect_tokens SET expires_at = 1 WHERE id = ?").run(token.id);
+    const expired = await call(`/tokens/${token.id}/reveal`, "POST", { challenge: proof, confirmation: token.name }, token);
+    expect(expired.status).toBe(409);
+    expect(await expired.json()).toMatchObject({ error: { code: "token_expired" } });
+    const revoked = await call(`/tokens/${token.id}/revoke`, "POST", { challenge: await challenge(token, "revoke"), confirmation: token.name }, token);
+    const updated = (await json<TopologyConnectToken>(revoked)).data;
+    expect((await call(`/tokens/${token.id}`, "PATCH", { name: "Denied" }, updated)).status).toBe(409);
+    expect((await call("/tokens/missing")).status).toBe(404);
+  });
 });

@@ -936,6 +936,12 @@ The former open questions, answered in order:
   change 100 nodes and replacements change all 1000 nodes and 5000 edges.
   It asserts the change counts and fails if any p95 misses its target.
 
+### Implementation decisions (root coverage)
+
+- Root coverage includes all Worker implementation files, including its
+  entrypoint; only declarations and test helpers are excluded. Existing root
+  95/90/95/95 thresholds stay unchanged.
+
 ### Implementation decisions (Connect mutation plans)
 
 - Operation batches containing any removal require confirmation, including a

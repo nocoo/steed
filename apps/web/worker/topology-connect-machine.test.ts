@@ -113,6 +113,26 @@ describe("prepared topology Connect machine API", () => {
     expect(database.sqlite.prepare("SELECT COUNT(*) AS n FROM topo_changes").get()?.n).toBe(1);
   });
 
+  it("fails closed on malformed keys, expired receipts and unknown outcomes", async () => {
+    const graph = emptyTopology();
+    const invalid = await api("/topology", "PUT", graph, intent("short", 0));
+    expect(invalid.status).toBe(400);
+    expect(await invalid.json()).toMatchObject({ error: { code: "invalid_idempotency_key" } });
+    const headers = intent("receipt-state", 0);
+    expect((await api("/topology", "PUT", graph, headers)).status).toBe(200);
+    database.sqlite.prepare("UPDATE connect_requests SET http_status = 0 WHERE token_id = 'writer'").run();
+    const unknown = await api("/topology", "PUT", graph, headers);
+    expect(unknown.status).toBe(409);
+    expect(await unknown.json()).toMatchObject({ error: { code: "outcome_unknown" } });
+    expect(await (await api("/requests/receipt-state")).json()).toMatchObject({ data: { state: "unknown" } });
+    database.sqlite.prepare("UPDATE connect_requests SET expires_at = 1, response_json = NULL WHERE token_id = 'writer'").run();
+    const expired = await api("/topology", "PUT", graph, headers);
+    expect(expired.status).toBe(409);
+    expect(await expired.json()).toMatchObject({ error: { code: "receipt_expired" } });
+    expect(await (await api("/requests/receipt-state")).json()).toMatchObject({ data: { state: "expired", result: null } });
+    expect(database.sqlite.prepare("SELECT revision FROM topology_meta").get()?.revision).toBe(1);
+  });
+
   it("reverts a change with confirmation and an idempotent receipt", async () => {
     const graph = { ...emptyTopology(), layers: [{ id: "cloud", label: "Cloud", provider: "Cloud", order: 0 }] };
     expect((await api("/topology", "PUT", graph, intent("setup-revert", 0))).status).toBe(200);
