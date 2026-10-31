@@ -134,6 +134,20 @@ describe("read-only topology page", () => {
     expect(screen.getByRole("link", { name: "https://example.com" })).toHaveAttribute("href", "https://example.com");
   });
 
+  it("orders equally labelled options and shows fallback details", async () => {
+    const topology = sample();
+    topology.description = "";
+    topology.types.push({ ...topology.types[0]!, id: "second" });
+    topology.boundaries.push({ id: "second", label: "Home", kind: "site", description: "" });
+    topology.nodes[3]!.description = "";
+    client.get.mockResolvedValue({ data: topology, updatedAt: "2026-10-31T00:00:00.000Z" });
+    setup();
+    await screen.findByRole("heading", { name: "Fixture topology" });
+    expect(screen.getByText("Canonical topology map.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Canvas peer" }));
+    expect(screen.getByText("No description.")).toBeInTheDocument();
+  });
+
   it("shows a Connect empty state and never calls the canvas when topology has no nodes", async () => {
     client.get.mockResolvedValue({ data: { ...sample(), nodes: [], edges: [], views: [] }, updatedAt: "2026-10-31T00:00:00.000Z" });
     setup();

@@ -70,15 +70,18 @@ export async function listTopologyChanges(db: D1Database, options: { since?: num
   };
 }
 
-export async function getTopologyChange(db: D1Database, id: number) {
-  const result = await db.batch<ChangeRow | ItemRow | ImageRow>([
+export async function getTopologyChangeWithRevision(db: D1Database, id: number) {
+  const result = await db.batch<ChangeRow | ItemRow | ImageRow | RevisionRow>([
     db.prepare(`SELECT ${changeColumns} FROM topo_changes WHERE id = ?`).bind(id),
     db.prepare("SELECT seq, collection, entity_id AS id FROM topo_change_items WHERE change_id = ? ORDER BY seq").bind(id),
     db.prepare("SELECT seq, side, image_json AS image FROM topo_change_images WHERE change_id = ? ORDER BY seq, side").bind(id),
+    db.prepare("SELECT revision FROM topology_meta WHERE id = 'main'"),
   ]);
   const change = rows(result[0] as D1Result<ChangeRow> | undefined)[0];
   const items = rows(result[1] as D1Result<ItemRow> | undefined);
   const images = rows(result[2] as D1Result<ImageRow> | undefined);
+  const metadata = rows(result[3] as D1Result<RevisionRow> | undefined)[0];
+  if (!metadata) throw new Error("Topology history metadata is missing.");
   if (!change) return null;
   const bySequence = new Map<number, { before: unknown; after: unknown }>();
   for (const image of images) {
@@ -91,7 +94,11 @@ export async function getTopologyChange(db: D1Database, id: number) {
     if (!pair || (pair.before === null && pair.after === null)) throw new Error("Topology change image is missing.");
     return { collection: item.collection, id: item.id, ...pair } as TopologyChangeItem;
   });
-  return { ...summary(change), items: changes };
+  return { change: { ...summary(change), items: changes }, revision: metadata.revision };
+}
+
+export async function getTopologyChange(db: D1Database, id: number) {
+  return (await getTopologyChangeWithRevision(db, id))?.change ?? null;
 }
 
 export async function laterTopologyChangeIdentities(db: D1Database, revision: number) {

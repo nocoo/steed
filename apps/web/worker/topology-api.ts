@@ -14,7 +14,7 @@ export function topologyReadError(error: unknown, requestId: string): Response |
   return null;
 }
 
-function query(url: URL, allowed: string[]) {
+export function topologyQuery(url: URL, allowed: string[]) {
   const values = new Map<string, string>();
   for (const [key, value] of url.searchParams) {
     if (!allowed.includes(key) || values.has(key)) {
@@ -26,7 +26,7 @@ function query(url: URL, allowed: string[]) {
   return values;
 }
 
-function positiveInteger(value: string | undefined, fallback: number, maximum: number): number {
+export function topologyPositiveInteger(value: string | undefined, fallback: number, maximum: number): number {
   if (value === undefined) return fallback;
   if (!/^\d+$/.test(value)) throw new HttpError(400, "invalid_query", "The topology query is invalid.");
   const parsed = Number(value);
@@ -34,14 +34,14 @@ function positiveInteger(value: string | undefined, fallback: number, maximum: n
   return parsed;
 }
 
-function notModified(request: Request, etag: string) {
+export function topologyNotModified(request: Request, etag: string) {
   return (request.headers.get("If-None-Match") ?? "").split(",")
     .map((value) => value.trim()).some((value) => value === "*" || value === etag || value === `W/${etag}`);
 }
 
 function readResponse(request: Request, data: unknown, requestId: string, etag: string, updatedAt?: string) {
   const headers = { ETag: etag };
-  if (notModified(request, etag)) return new Response(null, { status: 304, headers });
+  if (topologyNotModified(request, etag)) return new Response(null, { status: 304, headers });
   if (request.method === "HEAD") return new Response(null, { headers });
   return Response.json({ data, ...(updatedAt === undefined ? {} : { updatedAt }), requestId }, { headers });
 }
@@ -56,7 +56,7 @@ export async function topologyBrowserApi(request: Request, db: D1Database): Prom
     requireSameOrigin(request);
     try {
       if (url.pathname === "/api/topology") {
-        const params = query(url, ["since"]);
+        const params = topologyQuery(url, ["since"]);
         const since = parseTopologySince(params.get("since") ?? null);
         if (since !== undefined) {
           const delta = await loadTopologyDelta(db, since);
@@ -66,17 +66,17 @@ export async function topologyBrowserApi(request: Request, db: D1Database): Prom
           const row = await db.prepare("SELECT revision FROM topology_meta WHERE id = 'main'").first<{ revision: number }>();
           if (!row) throw new Error("Topology metadata is missing.");
           const etag = topologyEtag(row.revision);
-          if (notModified(request, etag)) return new Response(null, { status: 304, headers: { ETag: etag } });
+          if (topologyNotModified(request, etag)) return new Response(null, { status: 304, headers: { ETag: etag } });
         }
         const snapshot = await loadTopology(db);
         if (snapshot.topology.revision === undefined) throw new Error("Topology revision is missing.");
         return readResponse(request, snapshot.topology, requestId, topologyEtag(snapshot.topology.revision), snapshot.updatedAt);
       }
       if (url.pathname === "/api/topology/changes") {
-        const params = query(url, ["since", "cursor", "limit"]);
+        const params = topologyQuery(url, ["since", "cursor", "limit"]);
         const since = parseTopologySince(params.get("since") ?? null);
-        const cursor = params.has("cursor") ? positiveInteger(params.get("cursor"), 1, Number.MAX_SAFE_INTEGER) : undefined;
-        const limit = positiveInteger(params.get("limit"), 50, 500);
+        const cursor = params.has("cursor") ? topologyPositiveInteger(params.get("cursor"), 1, Number.MAX_SAFE_INTEGER) : undefined;
+        const limit = topologyPositiveInteger(params.get("limit"), 50, 500);
         const result = await listTopologyChanges(db, { since, cursor, limit });
         return readResponse(request, { changes: result.data, nextCursor: result.nextCursor }, requestId,
           topologyChangesEtag(result.currentRevision, result.oldestRetainedRevision));

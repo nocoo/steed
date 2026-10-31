@@ -912,6 +912,10 @@ The former open questions, answered in order:
   repeated query keys and malformed cursors are rejected. Mutation If-Match
   accepts one exact strong `"topology:<revision>"` ETag, including revision
   zero; a conflicting If-None-Match is rejected.
+- Machine collection and history pages return `data` arrays and `nextCursor`
+  alongside `requestId`; a history detail includes its change items. History
+  detail and its revision are read in one batch, so its snapshot ETag and
+  images describe the same database state.
 
 ### Implementation decisions (Connect mutation plans)
 
