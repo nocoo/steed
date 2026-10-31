@@ -158,11 +158,40 @@ describe("D1 Migrations", () => {
     sqlite.close();
   });
 
+  it("0009 creates normalized topology without changing existing data", () => {
+    const sqlite = new DatabaseSync(":memory:");
+    sqlite.exec("PRAGMA foreign_keys = ON");
+    applyMigrations(sqlite, 1, 8);
+    sqlite.exec(`
+      INSERT INTO diagrams (id, title, description, document, created_at, updated_at) VALUES ('g1', 'Fixture', '', '{}', 't', 't');
+      INSERT INTO connect_audit (request_id, diagram_id, actor, operation, status, created_at) VALUES ('req', 'g1', 'owner', 'read', 200, 1);
+    `);
+    applyMigrations(sqlite, 9, 9);
+    expect(sqlite.prepare("SELECT id, revision, provenance FROM topology_meta").get()).toEqual({ id: "main", revision: 0, provenance: null });
+    expect(sqlite.prepare("SELECT count(*) AS count FROM diagrams").get()?.count).toBe(1);
+    expect(sqlite.prepare("SELECT count(*) AS count FROM connect_audit").get()?.count).toBe(1);
+    for (const table of ["topology_meta", "topo_layers", "topo_types", "topo_boundaries", "topo_nodes", "topo_edges", "topo_views", "topo_changes"]) {
+      expect(sqlite.prepare(`PRAGMA table_info(${table})`).all().some((column) => column.name === "provenance")).toBe(true);
+    }
+    expect(() => sqlite.exec("INSERT INTO topo_nodes (id, type_id, label, layer_id, lifecycle, description, tags, attrs, updated_rev) VALUES ('n', 'missing', 'Node', 'missing', 'active', '', '[]', '{}', 0)")).toThrow();
+    sqlite.exec(`
+      INSERT INTO topo_layers (id, label, provider, sort_order, description, updated_rev) VALUES ('l', 'Layer', 'Fixture', 0, '', 1);
+      INSERT INTO topo_types (id, label, shape, description, attrs_schema, updated_rev) VALUES ('t', 'Type', 'rect', '', '[]', 1);
+      INSERT INTO topo_nodes (id, type_id, label, layer_id, lifecycle, description, tags, attrs, updated_rev) VALUES ('n', 't', 'Node', 'l', 'active', '', '[]', '{}', 1);
+    `);
+    expect(() => sqlite.exec("INSERT INTO topo_edges (id, source_id, target_id, kind, label, direction, evidence, description, tags, updated_rev) VALUES ('e', 'n', 'n', 'uses', '', 'uni', 'documented', '', '[]', 1)")).toThrow();
+    expect(() => sqlite.exec("INSERT INTO topo_views (id, label, description, filter, pins, updated_rev) VALUES ('v', 'View', '', 'bad json', '{}', 1)")).toThrow();
+    expect(sqlite.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+    expect(sqlite.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_topo_changes_reverts'").get()).toBeDefined();
+    sqlite.close();
+  });
+
   it("applies every migration to an empty database", () => {
     const sqlite = new DatabaseSync(":memory:");
     applyMigrations(sqlite, 1, Number.MAX_SAFE_INTEGER);
     expect(tableNames(sqlite)).toEqual([
       "connect_audit", "connect_confirmations", "connect_rate_limits", "connect_requests", "connect_tokens", "diagrams",
+      "topo_boundaries", "topo_change_items", "topo_changes", "topo_edges", "topo_layers", "topo_node_boundaries", "topo_nodes", "topo_types", "topo_views", "topology_meta",
     ]);
     sqlite.close();
   });

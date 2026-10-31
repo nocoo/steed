@@ -840,5 +840,11 @@ The former open questions, answered in order:
   revision is not part of its image. Revert checks later change identities,
   restores before-images without implicit cascades, then validates the graph.
 
+### Implementation decisions (topology storage)
+
+- The topology metadata and all six entity tables have a nullable provenance
+  column. AttrDef provenance is stored in the type's JSON schema. The change
+  revert foreign key also has an index for retention and delete checks.
+
 Delivery: Phase 1 and Phase 2 in one PR (#104), release `0.5.0`, developed
 through herdr (see the implementation path above).
