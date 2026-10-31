@@ -840,6 +840,12 @@ The former open questions, answered in order:
   string may use up to 1024 characters. Arrays remain limited to 16 strings of
   256 characters each. Edge `source` and `target` remain node IDs; provenance is only the separate
   `provenance` field.
+- Validation indexes incident edges for ancestor checks and caches only
+  secret-scan results that are safe, scoped to one validation and the exact
+  attr-key/declared-type mode. Rejected values are always rescanned at their
+  own paths, so issue redaction and per-field reports remain unchanged.
+  Warning calculation indexes nodes and memoizes trust sets per node; it does
+  not change warning order or the trust-boundary rule.
 
 ### Implementation decisions (topology operations)
 

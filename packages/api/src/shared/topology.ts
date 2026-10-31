@@ -348,6 +348,14 @@ export const topologySchema = topologyStrictObject({
     }
   });
 
+  const incidentEdges = new Map<string, { edge: z.infer<typeof topologyEdgeSchema>; index: number }[]>();
+  topology.edges.forEach((edge, index) => {
+    for (const id of new Set([edge.source, edge.target])) {
+      const entries = incidentEdges.get(id) ?? [];
+      entries.push({ edge, index });
+      incidentEdges.set(id, entries);
+    }
+  });
   topology.nodes.forEach((node, _nodeIndex) => {
     if (node.parentId === undefined) return;
     if (node.role === undefined) return;
@@ -359,11 +367,11 @@ export const topologySchema = topologyStrictObject({
       if (!parent?.parentId) break;
       current = parent.parentId;
     }
-    topology.edges.forEach((edge, edgeIndex) => {
+    for (const { edge, index: edgeIndex } of incidentEdges.get(node.id) ?? []) {
       if (ancestors.has(edge.source) && edge.target === node.id || ancestors.has(edge.target) && edge.source === node.id) {
         fail(["edges", edgeIndex], "ancestor_edge", "Satellite edges may not connect to an ancestor.");
       }
-    });
+    }
   });
 
   scanTopologyStrings(topology, ctx);
@@ -393,9 +401,14 @@ function addSecretIssue(ctx: z.RefinementCtx, issue: ReturnType<typeof findSecre
 }
 
 function scanTopologyStrings(topology: z.infer<typeof topologySchema>, ctx: z.RefinementCtx): void {
+  const safe = new Map<string, Set<string>>();
   const scan = (value: string, path: SecretLikePath, options?: { declaredAttrType?: AllowlistedAttrType; attrKey?: boolean }) => {
+    const mode = options?.attrKey ? "key" : options?.declaredAttrType ?? "default";
+    const known = safe.get(mode) ?? new Set<string>();
+    if (known.has(value)) return;
     const issue = findSecretLike(value, path, options);
     if (issue) addSecretIssue(ctx, issue, "secret_like_value");
+    else { known.add(value); safe.set(mode, known); }
   };
 
   scan(topology.title, ["title"]); scan(topology.description, ["description"]); if (topology.provenance) scan(topology.provenance, ["provenance"]);
@@ -446,14 +459,19 @@ function scanTopologyStrings(topology: z.infer<typeof topologySchema>, ctx: z.Re
 export function topologyWarnings(topology: z.infer<typeof topologySchema>): TopologyWarning[] {
   const warnings: TopologyWarning[] = [];
   const boundaryMap = new Map(topology.boundaries.map((boundary) => [boundary.id, boundary]));
+  const nodeMap = new Map<string, z.infer<typeof topologyNodeSchema>>();
+  for (const node of topology.nodes) if (!nodeMap.has(node.id)) nodeMap.set(node.id, node);
+  const trustCache = new Map<string, Set<string>>();
 
   const trustSetForNode = (node: z.infer<typeof topologyNodeSchema>): Set<string> => {
+    const cached = trustCache.get(node.id);
+    if (cached) return cached;
     let root = node;
     const seen = new Set([node.id]);
     let parentId = node.parentId;
     while (parentId && !seen.has(parentId)) {
       seen.add(parentId);
-      const parent = topology.nodes.find((candidate) => candidate.id === parentId);
+      const parent = nodeMap.get(parentId);
       if (!parent) break;
       root = parent;
       parentId = parent.parentId;
@@ -469,12 +487,13 @@ export function topologyWarnings(topology: z.infer<typeof topologySchema>): Topo
         current = boundary?.parentId;
       }
     }
+    trustCache.set(node.id, result);
     return result;
   };
 
   topology.edges.forEach((edge, index) => {
-    const source = topology.nodes.find((node) => node.id === edge.source);
-    const target = topology.nodes.find((node) => node.id === edge.target);
+    const source = nodeMap.get(edge.source);
+    const target = nodeMap.get(edge.target);
     if (source && target && edge.description.trim() === "") {
       const sourceTrust = trustSetForNode(source);
       const targetTrust = trustSetForNode(target);

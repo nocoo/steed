@@ -24,6 +24,18 @@ it("rejects malformed attribute keys and a satellite role without a parent", () 
   if (!result.success) expect(result.error.issues.map((issue) => issue.params?.topologyCode)).toEqual(expect.arrayContaining(["invalid_attr_key", "satellite_role_required"]));
 });
 
+it("keeps repeated secret values and attribute keys independently validated", () => {
+  const graph = clone(sample());
+  const secret = runtime("steed", "c_", "A".repeat(43));
+  graph.nodes[0].description = secret;
+  graph.nodes[1].description = secret;
+  graph.nodes[0].attrs.token = "safe";
+  const issues = validateTopology(graph).issues;
+  expect(issues.filter((issue) => issue.rule === "known_prefix")).toHaveLength(2);
+  expect(issues.some((issue) => issue.rule === "key_name")).toBe(true);
+  expect(JSON.stringify(issues)).not.toContain(secret);
+});
+
 function sample(): Topology {
   return {
     schemaVersion: 2,
