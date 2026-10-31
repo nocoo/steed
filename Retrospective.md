@@ -12,10 +12,10 @@ the exclusion checked before running the command.
 
 A continuation repeated the same mistake while looking for the commit rules:
 it included the home directory in an `fd` search. No results from the excluded
-workspace appeared and no file contents there were read or changed, but the
-search could have traversed it. Before searching, use the known rule-file path
-or explicitly list only approved instruction directories, never a parent that
-contains excluded workspaces.
+workspace appeared and no files there were intentionally opened or changed,
+but the search could have traversed it and read ignore files. Before searching,
+use the known rule-file path or explicitly list only approved instruction
+directories, never a parent that contains excluded workspaces.
 
 ## 2026-10-31: Target Herdr panes explicitly
 
