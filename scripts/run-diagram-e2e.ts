@@ -3,6 +3,7 @@ import { mkdtemp, mkdir, rm } from "node:fs/promises";
 import { resolve } from "node:path";
 import { diagramSchema, type DiagramRecord } from "../packages/api/src/shared/diagram";
 import example from "../examples/service-platform.json";
+import { processGroup, stopProcessGroup } from "./process-group";
 
 const root = resolve(import.meta.dir, "..");
 const web = resolve(root, "apps/web");
@@ -45,7 +46,7 @@ try {
   await command(["bun", "run", "build"]);
   await command(["bun", "x", "--no-install", "wrangler", "d1", "migrations", "apply", "DB", "--env", "dev", "--local", "--persist-to", state]);
   server = Bun.spawn(["bun", "x", "--no-install", "wrangler", "dev", "--env", "dev", "--local", "--persist-to", state,
-    "--ip", "127.0.0.1", "--port", String(port), "--inspector-port", String(inspectorPort)], { cwd: web, env, stdin: "ignore", stdout: "pipe", stderr: "pipe" });
+    "--ip", "127.0.0.1", "--port", String(port), "--inspector-port", String(inspectorPort)], { cwd: web, env, stdin: "ignore", stdout: "pipe", stderr: "pipe", ...processGroup });
   serverOutput = Promise.all([new Response(server.stdout).text(), new Response(server.stderr).text()]).then((chunks) => chunks.join("\n"));
   let ready = false;
   for (let attempt = 0; attempt < 60; attempt++) {
@@ -136,8 +137,7 @@ try {
   console.error(error instanceof Error ? error.message : error);
   process.exitCode = 1;
 } finally {
-  server?.kill();
-  if (server) await server.exited;
+  if (server) await stopProcessGroup(server);
   if (serverOutput && process.exitCode) console.error(await serverOutput);
   await rm(state, { recursive: true, force: true });
 }

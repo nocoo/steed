@@ -11,6 +11,7 @@
 
 import { spawn, type Subprocess } from "bun";
 import { rmSync, existsSync } from "fs";
+import { killProcessGroup, processGroup } from "./process-group";
 
 const TEST_PORT = Number(process.env.TEST_PORT ?? 18787);
 const BASE_URL = `http://localhost:${TEST_PORT}`;
@@ -102,6 +103,7 @@ async function startWrangler(): Promise<void> {
       `DASHBOARD_SERVICE_TOKEN:${DASHBOARD_TOKEN}`,
     ],
     cwd: workerDir,
+    ...processGroup,
     // Inherit stdio so wrangler is never blocked on a full pipe buffer
     // (the CI logs need this output anyway for diagnostics).
     stdout: "inherit",
@@ -141,7 +143,7 @@ async function startWrangler(): Promise<void> {
 function stopWrangler(): void {
   if (wranglerProcess) {
     console.log("🛑 Stopping Wrangler dev server...");
-    wranglerProcess.kill();
+    killProcessGroup(wranglerProcess);
     wranglerProcess = null;
   }
 }
