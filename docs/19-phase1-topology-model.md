@@ -933,6 +933,11 @@ The former open questions, answered in order:
   in metadata rather than SQLite's last-statement `changes()`. The receipt,
   history, topology and audit commit together; token hash, write scope,
   revocation and expiry are checked again in the batch.
+- The prepared machine handler returns `valid: true`, warnings and change
+  counts for a successful dry run; invalid graphs return 422 with redacted
+  issues. In-use and satellite-removal conflicts return 409 with their
+  operation code. An invalid idempotency-key format returns 400. A stored
+  matching receipt is checked before the revision precondition for replay.
 
 ### Implementation decisions (Connect operation registry)
 

@@ -18,7 +18,7 @@ export function topologyQuery(url: URL, allowed: string[]) {
   const values = new Map<string, string>();
   for (const [key, value] of url.searchParams) {
     if (!allowed.includes(key) || values.has(key)) {
-      if (key === "since") throw new InvalidTopologySince();
+      if (key === "since" && allowed.includes("since")) throw new InvalidTopologySince();
       throw new HttpError(400, "invalid_query", "The topology query is invalid.");
     }
     values.set(key, value);

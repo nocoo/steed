@@ -1,4 +1,4 @@
-import { CONNECT_LIMITS } from "@steed/api/shared";
+import { CONNECT_LIMITS, TopologyOperationError } from "@steed/api/shared";
 import { pruneTopologyHistoryStatement } from "./topology-history";
 import { apiResponse, errorResponse, HttpError, requireSameOrigin } from "./http";
 import { fingerprint } from "./connect-crypto";
@@ -84,8 +84,14 @@ export async function runConnect(request: Request, env: ConnectEnv, mode: "beare
       if (mode === "manager") await manager(ctx, user); else await bearer(ctx);
       response = await action(ctx);
     } catch (error) {
-      response = errorResponse(error, requestId);
-      code = error instanceof HttpError ? error.code : response.status === 422 ? "invalid_document" : "unavailable";
+      if (error instanceof TopologyOperationError) {
+        code = error.code;
+        response = Response.json({ error: { code, message: code === "invalid_topology" ? "Topology validation failed." : "The topology operation conflicts with the current graph.",
+          ...(code === "invalid_topology" ? { issues: error.issues } : {}), requestId } }, { status: code === "invalid_topology" ? 422 : 409 });
+      } else {
+        response = errorResponse(error, requestId);
+        code = error instanceof HttpError ? error.code : response.status === 422 ? "invalid_document" : "unavailable";
+      }
     }
     if (!ctx.audited) await auditStatement(ctx, response.status, code).run();
     return response;
