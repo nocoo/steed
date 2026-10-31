@@ -737,5 +737,67 @@ The former open questions, answered in order:
     - `edge.style.dash` is `solid|dashed|dotted`. `Boundary.style` allows only
       `color`, `border.color`, `border.style`, `border.width` and `icon`.
 
+### Implementation decisions (detector)
+
+- Malformed URLs with extra slashes are still scanned for credentials. After
+  the scheme delimiter, leading `/` characters are discarded only for userinfo
+  inspection; an embedded `@` in that authority remainder is credential-like.
+  Embedded tabs and line breaks are ignored only for credential parsing and
+  are not treated as valid plain-URL allowlist characters.
+- The high-entropy allowlist accepts a URL only when the complete string has
+  exactly one extracted URL candidate, an authority begins immediately after
+  the scheme, `URL` accepts it with a non-empty hostname, and it has no
+  whitespace, backslashes or credential indicators. Other URL-like strings
+  fail closed and remain subject to the normal secret rules.
+- Error-path sanitization removes any string segment that contains the scanned
+  value, is contained by the scanned value, shares a credential substring of
+  at least four characters, or names a sensitive key for a `key_name` issue.
+  The same rule also applies to string paths.
+- Known credential prefixes are matched even when embedded in surrounding
+  alphanumeric text; ordinary hyphenated and similarly named words are not
+  prefixes without the declared marker syntax. Declared `identifier` values do
+  not bypass a prior known-prefix match.
+- Embedded `sk-` prefixes require at least 24 payload characters when preceded
+  by an alphanumeric character. A standalone or separator-delimited `sk-`
+  retains the existing credential-format match; `task-runner` and
+  `disk-backed` are not embedded `sk-` credentials.
+- URL extraction includes apostrophes, double quotes, backticks and angle
+  brackets in candidate URLs; only whitespace terminates candidates. This
+  intentionally keeps quoted query and userinfo text observable to credential
+  checks, while the plain-URL allowlist rejects double quotes and backticks.
+  Single-slash, extra-slash and backslash URL forms are not treated as plain
+  URLs; backslashes are always fail-closed as credential-like URL syntax.
+  URL components and query values are percent-decoded for up to three passes
+  before the entropy allowlist; each pass result is inspected. Query-name
+  decoding is also capped at three passes and stops safely on malformed
+  encoding. Component decoding replaces malformed valid-looking percent
+  escapes when such a pass fails, so private-key markers, known prefixes and
+  JWTs remain detectable even after a malformed `%A` prefix. Four or more
+  encoding levels leave every decoding stage as evidence: they are not
+  URL-allowlisted and therefore remain subject to normal entropy detection.
+- Nested raw and encoded URLs are inspected recursively for userinfo and
+  sensitive query names. Every intermediate decoded stage is checked for
+  private-key markers, known prefixes and JWTs; matching stages are also added
+  to safe issue-path redaction, including string paths and array segments.
+  Malformed percent escapes use byte-safe replacement rather than echoing the
+  original encoded value in an issue. These URL and encoding checks are
+  fail-closed safety-net heuristics, not a complete secret parser; unusual
+  protocol-specific obfuscation outside the rules above is a known limitation.
+- Fingerprint detection removes whitespace only for substring inspection, but
+  the declared `fingerprint` exemption remains format-exact. SHA256, MD5 and
+  40/64-character hex fingerprints embedded in text therefore remain subject
+  to the `high_entropy` rule; valid standalone fingerprints are exempt only in
+  a matching declared attr type.
+- IPv6 validation counts an IPv4-mapped tail as two 16-bit units. IPv4 tails
+  are accepted only at the final segment, are rejected in compressed left-hand
+  text, and must keep the complete address within 8 units (or the specified
+  IPv6 CIDR limit of 128).
+- OpenSSH comments are optional text separated by a space or tab and may not
+  contain CR/LF. RSA `ssh-rsa` blobs require canonical positive MPINT exponent
+  and modulus values, with exponent at least 3 and odd and modulus odd. ECDSA
+  blobs require the matching NIST curve name and an uncompressed SEC1 point
+  with the exact curve-coordinate width that satisfies the curve equation.
+  For P-521, coordinate widths are 66 bytes and the encoded point is 133 bytes.
+
 Delivery: Phase 1 and Phase 2 in one PR (#104), release `0.5.0`, developed
 through herdr (see the implementation path above).
