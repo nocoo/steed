@@ -951,6 +951,10 @@ The former open questions, answered in order:
   existing manager and Bearer checks remain separate. Audit entries use the
   fixed target `topology`, including failed authentication attempts. The
   existing Connect sweep also prunes topology history under its retention rule.
+- The existing 50 non-revoked token limit now applies to the single topology.
+  Token listing is global, audit listing has no diagram filter, and token
+  version ETags retain their existing format. Old scope and diagram fields are
+  rejected rather than translated. Preparation remains unrouted until migration.
 
 ### Implementation decisions (read-only topology page)
 - Layout the complete canonical snapshot before applying view/client filters; canvas projection then uses only visible node IDs and edges whose endpoints remain visible, so a visible satellite keeps its canonical host/block geometry. The selected view supplies layout pins.

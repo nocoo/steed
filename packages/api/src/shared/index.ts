@@ -5,3 +5,4 @@ export * from "./secret-scan";
 export * from "./topology";
 export * from "./topology-operations";
 export * from "./topology-connect-operations";
+export * from "./topology-connect-token";
