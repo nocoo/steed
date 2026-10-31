@@ -845,6 +845,8 @@ The former open questions, answered in order:
 - The topology metadata and all six entity tables have a nullable provenance
   column. AttrDef provenance is stored in the type's JSON schema. The change
   revert foreign key also has an index for retention and delete checks.
+- Snapshot collections are returned in ID order, and node boundary memberships
+  are returned in boundary ID order; membership order has no independent meaning.
 
 Delivery: Phase 1 and Phase 2 in one PR (#104), release `0.5.0`, developed
 through herdr (see the implementation path above).
