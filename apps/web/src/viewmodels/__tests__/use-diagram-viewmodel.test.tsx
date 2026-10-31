@@ -10,8 +10,8 @@ const record = (): DiagramRecord => ({ id: "example", document: emptyDiagram("Or
   nodeCount: 0, edgeCount: 0, createdAt: "2026-09-12T00:00:00Z", updatedAt: "2026-09-12T00:00:00Z" });
 let vm: ReturnType<typeof useDiagramViewModel>;
 function Probe() { vm = useDiagramViewModel(); return <p>{vm.draft?.title ?? "List"}</p>; }
-function setup(path = "/diagrams/example") {
-  const router = createMemoryRouter([{ path: "/diagrams/:id?", element: <Probe /> }, { path: "/other", element: <p>Other</p> }], { initialEntries: [path] });
+function setup(path = "/topology/example") {
+  const router = createMemoryRouter([{ path: "/topology/:id?", element: <Probe /> }, { path: "/other", element: <p>Other</p> }], { initialEntries: [path] });
   const view = render(<RouterProvider router={router} />);
   return { ...view, router };
 }
@@ -61,7 +61,7 @@ describe("diagram view model", () => {
     await act(() => router.navigate("/other"));
     expect(vm.blocker.state).toBe("blocked");
     await act(() => vm.blocker.reset?.());
-    expect(router.state.location.pathname).toBe("/diagrams/example");
+    expect(router.state.location.pathname).toBe("/topology/example");
   });
 
   it("keeps navigation protection active during a pending save", async () => {
@@ -76,22 +76,22 @@ describe("diagram view model", () => {
     expect(vm.blocker.state).toBe("blocked");
     await act(() => vm.blocker.reset?.());
     await act(async () => { reject(new Error("Disconnected")); await saving; });
-    expect(router.state.location.pathname).toBe("/diagrams/example");
+    expect(router.state.location.pathname).toBe("/topology/example");
     expect(vm.draft?.title).toBe("Unsaved");
   });
 
   it("creates and deletes documents, and treats the list as having no editable record", async () => {
-    const { router } = setup("/diagrams"); await waitFor(() => expect(vm.loading).toBe(false));
+    const { router } = setup("/topology"); await waitFor(() => expect(vm.loading).toBe(false));
     await act(() => vm.save()); await act(() => vm.remove()); expect(client.save).not.toHaveBeenCalled();
     client.save.mockResolvedValueOnce(record());
     await act(() => vm.create());
     await waitFor(() => expect(vm.record?.id).toBe("example"));
-    expect(router.state.location.pathname).toBe("/diagrams/example");
+    expect(router.state.location.pathname).toBe("/topology/example");
     expect(client.save).toHaveBeenCalledWith(expect.any(String), emptyDiagram(), null);
     client.delete.mockResolvedValueOnce(undefined);
     await act(() => vm.remove());
     await waitFor(() => expect(vm.loading).toBe(false));
-    expect(router.state.location.pathname).toBe("/diagrams");
+    expect(router.state.location.pathname).toBe("/topology");
   });
 
   it.each([new Error("Unavailable"), "Unavailable"])("reports loading failures", async (cause) => {
@@ -103,7 +103,7 @@ describe("diagram view model", () => {
     let finish!: (value: DiagramRecord) => void;
     client.get.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
     const { router } = setup(); await waitFor(() => expect(client.get).toHaveBeenCalled());
-    await act(() => router.navigate("/diagrams")); await waitFor(() => expect(vm.loading).toBe(false));
+    await act(() => router.navigate("/topology")); await waitFor(() => expect(vm.loading).toBe(false));
     await act(() => finish(record())); expect(vm.draft).toBeNull();
   });
 });

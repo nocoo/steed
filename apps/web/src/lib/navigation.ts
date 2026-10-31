@@ -1,4 +1,4 @@
-import { Shapes, Plug, type LucideIcon } from "lucide-react";
+import { Network, Plug, type LucideIcon } from "lucide-react";
 
 export interface NavItem {
   title: string;
@@ -14,7 +14,7 @@ export interface NavGroup {
 export const NAV_GROUPS: NavGroup[] = [
   {
     title: "Workspace",
-    items: [{ title: "Diagrams", href: "/diagrams", icon: Shapes }, { title: "Connect", href: "/connect", icon: Plug }],
+    items: [{ title: "Topology", href: "/topology", icon: Network }, { title: "Connect", href: "/connect", icon: Plug }],
   },
 ];
 
@@ -32,7 +32,7 @@ export interface HeaderTrail {
 }
 
 export function getHeaderTrail(pathname: string): HeaderTrail {
-  if (pathname.startsWith("/diagrams/")) return { breadcrumbs: [{ href: "/diagrams", label: "Diagrams" }], title: "Architecture diagram" };
+  if (pathname.startsWith("/topology/")) return { breadcrumbs: [{ href: "/topology", label: "Topology" }], title: "Topology diagram" };
   const segments = pathname.split("/").filter(Boolean);
   if (segments.length === 0) return { breadcrumbs: [], title: "Steed" };
 

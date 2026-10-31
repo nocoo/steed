@@ -37,7 +37,7 @@ function mockViewport(isMobile: boolean) {
   };
 }
 
-function renderFrame(path = "/diagrams", isMobile = false) {
+function renderFrame(path = "/topology", isMobile = false) {
   const viewport = mockViewport(isMobile);
 
   const router = createMemoryRouter(
@@ -50,8 +50,8 @@ function renderFrame(path = "/diagrams", isMobile = false) {
           </ShellProviders>
         ),
         children: [
-          { path: "diagrams", element: <div data-testid="child-content">Page content</div> },
-          { path: "diagrams/:id", element: <div data-testid="child-content">Diagram</div> },
+          { path: "topology", element: <div data-testid="child-content">Page content</div> },
+          { path: "topology/:id", element: <div data-testid="child-content">Diagram</div> },
           { path: "connect", element: <div data-testid="child-content">Connect page</div> },
         ],
       },
@@ -94,10 +94,10 @@ describe("AppFrame", () => {
     expect(screen.queryByRole("link", { name: "Overview" })).not.toBeInTheDocument();
   });
 
-  it("links diagram details back to the diagram list", () => {
-    renderFrame("/diagrams/example");
-    expect(screen.getByText("Architecture diagram")).toBeInTheDocument();
-    expect(screen.getAllByRole("link", { name: "Diagrams" }).length).toBeGreaterThan(0);
+  it("links topology details back to the topology list", () => {
+    renderFrame("/topology/example");
+    expect(screen.getByText("Topology diagram")).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "Topology" }).length).toBeGreaterThan(0);
   });
 
   it("renders theme toggle", () => {
@@ -114,21 +114,21 @@ describe("AppFrame", () => {
   });
 
   it("shows mobile menu button on mobile viewport", () => {
-    renderFrame("/diagrams", true);
+    renderFrame("/topology", true);
     expect(
       screen.getByRole("button", { name: "Open navigation" })
     ).toBeInTheDocument();
   });
 
   it("hides mobile menu button on desktop viewport", () => {
-    renderFrame("/diagrams", false);
+    renderFrame("/topology", false);
     expect(
       screen.queryByRole("button", { name: "Open navigation" })
     ).not.toBeInTheDocument();
   });
 
   it("returns focus to the menu button after Escape", async () => {
-    renderFrame("/diagrams", true);
+    renderFrame("/topology", true);
     const menu = screen.getByRole("button", { name: "Open navigation" });
 
     act(() => {
@@ -147,7 +147,7 @@ describe("AppFrame", () => {
   });
 
   it("clears the sheet and overflow after leaving the mobile breakpoint", async () => {
-    const { viewport } = renderFrame("/diagrams", true);
+    const { viewport } = renderFrame("/topology", true);
 
     act(() => {
       fireEvent.click(screen.getByRole("button", { name: "Open navigation" }));

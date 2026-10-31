@@ -15,8 +15,8 @@ describe("navigation", () => {
   });
 
   describe("getAllNavItems", () => {
-    it("returns only diagrams and connect", () => {
-      expect(getAllNavItems().map((item) => item.href)).toEqual(["/diagrams", "/connect"]);
+    it("returns only topology and connect", () => {
+      expect(getAllNavItems().map((item) => item.href)).toEqual(["/topology", "/connect"]);
     });
   });
 
@@ -33,7 +33,7 @@ describe("navigation", () => {
 
   describe("getHeaderTrail", () => {
     it("links diagram details back to the workspace", () => {
-      expect(getHeaderTrail("/diagrams/example")).toEqual({ breadcrumbs: [{ href: "/diagrams", label: "Diagrams" }], title: "Architecture diagram" });
+      expect(getHeaderTrail("/topology/example")).toEqual({ breadcrumbs: [{ href: "/topology", label: "Topology" }], title: "Topology diagram" });
     });
 
     it("uses the app name for the root path", () => {

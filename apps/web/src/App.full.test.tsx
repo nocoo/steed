@@ -8,12 +8,12 @@ import { router } from "./router";
 
 describe("App", () => {
   it("renders the live router", async () => {
-    await act(() => router.navigate("/diagrams"));
+    await act(() => router.navigate("/topology"));
 
     render(<App />);
 
     await waitFor(() => {
-      expect(screen.getAllByRole("heading", { name: "Diagrams" })[0]).toBeInTheDocument();
+      expect(screen.getAllByRole("heading", { name: "Topology" })[0]).toBeInTheDocument();
     });
   });
 });

@@ -9,7 +9,7 @@ vi.mock("@/hooks/use-profile", () => ({ useProfile: profile }));
 
 const originalMatchMedia = window.matchMedia;
 
-function renderSidebar(path = "/diagrams", collapsed = false) {
+function renderSidebar(path = "/topology", collapsed = false) {
   window.matchMedia = vi.fn().mockReturnValue({
     matches: false,
     addEventListener: vi.fn(),
@@ -43,7 +43,7 @@ describe("AppSidebar", () => {
 
   it("keeps the profile avatar in the collapsed footer", () => {
     profile.mockReturnValue({ name: "Example User", email: "user@example.com", avatar: null });
-    renderSidebar("/diagrams", true);
+    renderSidebar("/topology", true);
     expect(screen.getByLabelText("Example User")).toBeInTheDocument();
     expect(screen.queryByText("user@example.com")).not.toBeInTheDocument();
   });
@@ -79,9 +79,9 @@ describe("AppSidebar", () => {
       expect(screen.queryByText("Infrastructure")).not.toBeInTheDocument();
     });
 
-    it("renders diagrams and connect controls only", () => {
+    it("renders topology and connect controls only", () => {
       renderSidebar();
-      expect(screen.getByRole("button", { name: /diagrams/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /topology/i })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /connect/i })).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: /hosts/i })).not.toBeInTheDocument();
     });
@@ -129,20 +129,20 @@ describe("AppSidebar", () => {
 
   describe("collapsed", () => {
     it("keeps the brand mark without the app name", () => {
-      renderSidebar("/diagrams", true);
+      renderSidebar("/topology", true);
       expect(screen.getByAltText("Steed")).toBeInTheDocument();
       expect(screen.queryByText("Steed")).not.toBeInTheDocument();
     });
 
     it("shows expand button", () => {
-      renderSidebar("/diagrams", true);
+      renderSidebar("/topology", true);
       expect(
         screen.getByRole("button", { name: "Expand sidebar" })
       ).toBeInTheDocument();
     });
 
     it("notifies toggle on expand", () => {
-      const { onToggle } = renderSidebar("/diagrams", true);
+      const { onToggle } = renderSidebar("/topology", true);
       act(() => {
         fireEvent.click(screen.getByRole("button", { name: "Expand sidebar" }));
       });
@@ -150,7 +150,7 @@ describe("AppSidebar", () => {
     });
 
     it("navigates from icon items", () => {
-      renderSidebar("/diagrams", true);
+      renderSidebar("/topology", true);
       fireEvent.click(screen.getByRole("button", { name: "Connect" }));
       expect(screen.getByRole("button", { name: "Connect" })).toBeInTheDocument();
     });
@@ -159,7 +159,7 @@ describe("AppSidebar", () => {
   it("closes the mobile sheet after choosing a section", () => {
     const onToggle = vi.fn();
     render(
-      <MemoryRouter initialEntries={["/diagrams"]}>
+      <MemoryRouter initialEntries={["/topology"]}>
         <ShellProviders>
           <AppSidebar collapsed={false} onToggle={onToggle} hideCollapse />
         </ShellProviders>

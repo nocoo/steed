@@ -11,13 +11,13 @@ function renderApp(initialPath = "/") {
 }
 
 describe("App", () => {
-  it("renders the diagrams workspace", () => {
-    renderApp("/diagrams");
-    expect(screen.getAllByRole("heading", { name: "Diagrams" }).length).toBeGreaterThan(0);
+  it("renders the topology workspace", () => {
+    renderApp("/topology");
+    expect(screen.getAllByRole("heading", { name: "Topology" }).length).toBeGreaterThan(0);
   });
 
   it("renders sidebar navigation", () => {
-    renderApp("/diagrams");
+    renderApp("/topology");
     expect(screen.getByText("Steed")).toBeInTheDocument();
   });
 });
