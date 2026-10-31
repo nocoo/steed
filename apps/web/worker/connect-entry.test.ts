@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ConnectToken } from "@steed/api/shared";
+import type { TopologyConnectToken } from "@steed/api/shared";
 import { randomSecret } from "./connect-crypto";
-import { connectManagementApi } from "./connect-management";
+import { topologyConnectManagementApi } from "./topology-connect-management";
 import { testDatabase } from "./__tests__/db";
 
 const mocks = vi.hoisted(() => ({ access: vi.fn() }));
@@ -31,18 +31,18 @@ describe("active Worker Connect authentication boundary", () => {
 
   it("dispatches every v1 route to Connect Bearer authentication, separate from the browser", async () => {
     const env = environment();
-    const manage = (path: string, body: unknown, token?: ConnectToken) => connectManagementApi(new Request(`${origin}/api/connect${path}`, {
+    const manage = (path: string, body: unknown, token?: TopologyConnectToken) => topologyConnectManagementApi(new Request(`${origin}/api/connect${path}`, {
       method: "POST", headers: { "Content-Type": "application/json", Origin: origin, "X-Steed-Request": "1", ...(token ? { "If-Match": `"${token.id}:${token.version}"` } : {}) }, body: JSON.stringify(body),
     }), env, user);
-    const created = await manage("/tokens", { name: "Entry test", scope: "read" });
-    const token = (await created.json() as { data: ConnectToken }).data;
+    const created = await manage("/tokens", { name: "Entry test", scope: "topology:read" });
+    const token = (await created.json() as { data: TopologyConnectToken }).data;
     const proof = await manage(`/tokens/${token.id}/challenge`, { action: "reveal" }, token);
     const challenge = (await proof.json() as { data: { challenge: string } }).data.challenge;
     const revealed = await manage(`/tokens/${token.id}/reveal`, { challenge, confirmation: token.name }, token);
     const credential = (await revealed.json() as { data: { token: string } }).data.token;
     const headers = { Authorization: `Bearer ${credential}` };
     const call = (path: string, authenticated = true) => worker.fetch(new Request(`${origin}${path}`, { headers: authenticated ? headers : {} }), env, {} as ExecutionContext);
-    for (const path of ["/api/v1/diagrams", "/api/v1/capabilities", "/api/v1/openapi.json"]) {
+    for (const path of ["/api/v1/topology", "/api/v1/capabilities", "/api/v1/openapi.json"]) {
       expect((await call(path, false)).status).toBe(401);
       expect((await call(path)).status).toBe(200);
     }

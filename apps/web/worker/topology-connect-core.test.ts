@@ -11,7 +11,7 @@ const user = { email: "manager@example.com", sub: "manager" };
 const row: TokenRow = { id: "fixture", name: "Fixture", scope: "topology:read", prefix: "steedc_fixture", token_hash: null, ciphertext: null,
   owner: "email:manager@example.com", version: 1, created_at: 1, expires_at: null, last_used_at: null, revoked_at: null };
 beforeEach(async () => {
-  database = testDatabase();
+  database = testDatabase(9);
   database.sqlite.exec(`DROP TABLE connect_confirmations; DROP TABLE connect_requests; DROP TABLE connect_tokens;
     CREATE TABLE connect_tokens (id TEXT PRIMARY KEY, name TEXT, scope TEXT, prefix TEXT, token_hash TEXT, ciphertext TEXT,
       owner TEXT, version INTEGER, created_at INTEGER, expires_at INTEGER, last_used_at INTEGER, revoked_at INTEGER);

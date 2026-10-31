@@ -960,6 +960,9 @@ The former open questions, answered in order:
   Token listing is global, audit listing has no diagram filter, and token
   version ETags retain their existing format. Old scope and diagram fields are
   rejected rather than translated. Preparation remains unrouted until migration.
+- The Connect page lists topology tokens globally, preserving the existing
+  confirmation and secret-hiding behavior. Its instructions show the canonical
+  topology endpoint and never place credentials in URLs or browser storage.
 
 ### Implementation decisions (read-only topology page)
 - Layout the complete canonical snapshot before applying view/client filters; canvas projection then uses only visible node IDs and edges whose endpoints remain visible, so a visible satellite keeps its canonical host/block geometry. The selected view supplies layout pins.

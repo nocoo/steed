@@ -5,7 +5,7 @@ import { topologyConnectWriteStatements, type TopologyConnectWrite } from "./top
 
 let database: ReturnType<typeof testDatabase>;
 beforeEach(() => {
-  database = testDatabase();
+  database = testDatabase(9);
   database.sqlite.exec(`DROP TABLE connect_confirmations; DROP TABLE connect_requests; DROP TABLE connect_tokens;
     CREATE TABLE connect_tokens (id TEXT PRIMARY KEY, token_hash TEXT, scope TEXT, revoked_at INTEGER, expires_at INTEGER);
     CREATE TABLE connect_requests (token_id TEXT, key_hash TEXT, request_hash TEXT, request_id TEXT UNIQUE, operation TEXT,

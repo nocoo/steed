@@ -8,8 +8,8 @@ const mocks = vi.hoisted(() => ({
   topologyFetch: vi.fn(),
 }));
 
-vi.mock("./connect-api", () => ({
-  connectMachineApi: (...args: unknown[]) => mocks.connectFetch(...args),
+vi.mock("./topology-connect-machine", () => ({
+  topologyConnectMachineApi: (...args: unknown[]) => mocks.connectFetch(...args),
 }));
 
 vi.mock("./access-jwt", () => ({

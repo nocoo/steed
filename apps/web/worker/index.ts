@@ -2,8 +2,8 @@ import { verifyAccessJwt, type VerifyResult } from "./access-jwt";
 import pkg from "../../../package.json" with { type: "json" };
 import { getUserProfile } from "./author-profile";
 import { diagramBrowserApi } from "./diagram-api";
-import { connectMachineApi } from "./connect-api";
-import { connectManagementApi } from "./connect-management";
+import { topologyConnectMachineApi } from "./topology-connect-machine";
+import { topologyConnectManagementApi } from "./topology-connect-management";
 import { topologyBrowserApi } from "./topology-api";
 
 type Env = Pick<Cloudflare.ProductionEnv, "DB" | "CF_ACCESS_TEAM" | "CF_ACCESS_AUD">
@@ -23,7 +23,7 @@ export default {
 
     // /api/v1/* — Connect machine API only. The handler authenticates the
     // Bearer token first (401 without one) and answers unknown routes with 404.
-    if (url.pathname === "/api/v1" || url.pathname.startsWith("/api/v1/")) return connectMachineApi(req, env);
+    if (url.pathname === "/api/v1" || url.pathname.startsWith("/api/v1/")) return topologyConnectMachineApi(req, env);
 
     // /api/* — Browser-facing API. Requires CF Access JWT.
     if (url.pathname.startsWith("/api/")) {
@@ -33,7 +33,7 @@ export default {
         devBypass: env.CF_ACCESS_DEV_BYPASS === "true",
       });
       if (url.pathname === "/api/connect" || url.pathname.startsWith("/api/connect/")) {
-        return connectManagementApi(req, env, verifyResult.ok ? verifyResult.user : undefined);
+        return topologyConnectManagementApi(req, env, verifyResult.ok ? verifyResult.user : undefined);
       }
       if (!verifyResult.ok) {
         return new Response("Unauthorized", { status: 401 });

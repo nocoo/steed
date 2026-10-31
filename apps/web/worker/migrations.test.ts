@@ -186,6 +186,23 @@ describe("D1 Migrations", () => {
     sqlite.close();
   });
 
+  it("0010 rebuilds Connect and preserves audit history", () => {
+    const sqlite = new DatabaseSync(":memory:");
+    sqlite.exec("PRAGMA foreign_keys = ON");
+    applyMigrations(sqlite, 1, 9);
+    sqlite.exec(`INSERT INTO connect_tokens (id, name, scope, prefix, owner, created_at) VALUES ('old', 'Old', 'read', 'old', 'owner', 1);
+      INSERT INTO connect_confirmations VALUES ('c', 'old', 1, 'owner', 'reveal', 1);
+      INSERT INTO connect_requests (token_id, key_hash, request_hash, request_id, diagram_id, operation, created_at, expires_at) VALUES ('old', 'k', 'h', 'r', 'g', 'read', 1, 2);
+      INSERT INTO connect_audit (request_id, diagram_id, actor, operation, status, created_at) VALUES ('audit', 'g', 'owner', 'read', 200, 1);`);
+    applyMigrations(sqlite, 10, 10);
+    expect(sqlite.prepare("SELECT target FROM connect_audit WHERE request_id = 'audit'").get()?.target).toBe("g");
+    for (const table of ["connect_tokens", "connect_confirmations", "connect_requests"]) expect(sqlite.prepare(`SELECT count(*) AS n FROM ${table}`).get()?.n).toBe(0);
+    sqlite.exec("INSERT INTO connect_tokens (id, name, scope, prefix, owner, created_at) VALUES ('new', 'New', 'topology:write', 'new', 'owner', 1)");
+    expect(() => sqlite.exec("INSERT INTO connect_tokens (id, name, scope, prefix, owner, created_at) VALUES ('bad', 'Bad', 'write', 'bad', 'owner', 1)")).toThrow();
+    expect(sqlite.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+    sqlite.close();
+  });
+
   it("applies every migration to an empty database", () => {
     const sqlite = new DatabaseSync(":memory:");
     applyMigrations(sqlite, 1, Number.MAX_SAFE_INTEGER);

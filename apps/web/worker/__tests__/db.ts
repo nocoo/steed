@@ -3,10 +3,10 @@ import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-export function testDatabase() {
+export function testDatabase(maxMigration = Infinity) {
   const sqlite = new DatabaseSync(":memory:");
   const directory = join(dirname(fileURLToPath(import.meta.url)), "../../migrations");
-  for (const name of readdirSync(directory).filter((name) => name.endsWith(".sql")).sort()) {
+  for (const name of readdirSync(directory).filter((name) => name.endsWith(".sql") && Number(name.split("_")[0]) <= maxMigration).sort()) {
     sqlite.exec(readFileSync(join(directory, name), "utf8"));
   }
   const executors = new WeakMap<object, () => D1Result<Record<string, unknown>>>();

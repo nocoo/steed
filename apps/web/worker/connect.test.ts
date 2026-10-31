@@ -13,7 +13,7 @@ const user = { email: "manager@example.com", sub: "human" };
 let database: ReturnType<typeof testDatabase>;
 let env: ConnectEnv;
 beforeEach(async () => {
-  database = testDatabase();
+  database = testDatabase(9);
   env = { DB: database.db, CONNECT_DEPLOYMENT_ID: "steed-test", CONNECT_MANAGERS: "email:manager@example.com", CONNECT_TOKEN_KEYS: JSON.stringify({ active: "test", keys: { test: randomSecret() } }) };
   await putDiagram(database.db, "example", diagramSchema.parse(example), null);
 });
