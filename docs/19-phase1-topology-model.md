@@ -867,6 +867,11 @@ The former open questions, answered in order:
   that suffix keeps its ancestors, so an accepted `since` can never silently
   cross a pruned history gap. A `since` value is ASCII decimal digits within
   JavaScript's safe integer range; leading zeroes are accepted.
+- A delta returns `since`, `revision`, per-collection `changed` entities and
+  `deleted` IDs. It also returns complete metadata when revision advanced,
+  including for an empty replacement; at the current revision metadata is
+  omitted and all collection arrays are empty. A later recreation cancels an
+  earlier deletion of the same ID in the delta.
 
 Delivery: Phase 1 and Phase 2 in one PR (#104), release `0.5.0`, developed
 through herdr (see the implementation path above).

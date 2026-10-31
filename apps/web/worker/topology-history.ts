@@ -18,6 +18,14 @@ export function parseTopologySince(value: string | null): number | undefined {
   return revision;
 }
 
+export function requireRetainedTopologySince(since: number, currentRevision: number, oldest: number | null): number {
+  const oldestRetainedRevision = oldest ?? currentRevision;
+  if (since > currentRevision || since < oldestRetainedRevision) {
+    throw new TopologyResyncRequired(currentRevision, oldestRetainedRevision);
+  }
+  return oldestRetainedRevision;
+}
+
 interface ChangeRow {
   id: number; revision: number; requestId: string; actor: string; tokenId: string | null;
   provenance: string | null; kind: "operations" | "replace" | "revert";
@@ -51,9 +59,7 @@ export async function listTopologyChanges(db: D1Database, options: { since?: num
   const oldest = rows(result[1] as D1Result<OldestRow> | undefined)[0];
   if (!meta || !oldest) throw new Error("Topology history metadata is missing.");
   const oldestRetainedRevision = oldest.oldest ?? meta.revision;
-  if (since !== undefined && (since > meta.revision || since < oldestRetainedRevision)) {
-    throw new TopologyResyncRequired(meta.revision, oldestRetainedRevision);
-  }
+  if (since !== undefined) requireRetainedTopologySince(since, meta.revision, oldest.oldest);
   const changes = rows(result[2] as D1Result<ChangeRow> | undefined);
   const data = changes.slice(0, limit).map(summary);
   return {
