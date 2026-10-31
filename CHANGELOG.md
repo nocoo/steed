@@ -1,5 +1,39 @@
 # Changelog
 
+## [0.4.0] - 2026-10-31
+
+Phase 0 of the topology platform: Steed no longer inventories agent assets.
+See `docs/18-phase0-topology-cleanup.md`.
+
+### Added
+
+- Migration `0007` drops the inventory tables (`lanes`, `hosts`, `agents`,
+  `data_sources`, `data_source_lanes`, `agent_data_source_bindings`).
+- Migration `0008` clears every diagram and all Connect tokens, requests,
+  confirmations and rate-limit windows; `connect_audit` is kept.
+
+### Changed
+
+- The Diagrams entry is now Topology at `/topology`; `/diagrams` links
+  redirect, and the root opens Topology.
+- `/api/v1/*` is served only by the Connect API with Bearer authentication;
+  unknown browser API paths return a JSON 404.
+- D1 migrations move to `apps/web/migrations`.
+- README and `AGENTS.md` describe the topology platform.
+- HTTP E2E runners stop the whole Wrangler process group, so pre-push no
+  longer hangs on orphaned children.
+
+### Removed
+
+- The Overview, Hosts, Agents, Data Sources and Map pages.
+- `packages/cli` (CLI and Host Service), `packages/worker` (Hono API and Host
+  API), `packages/shared`, and the inventory client and server in
+  `packages/api`.
+- The `DASHBOARD_SERVICE_TOKEN` binding, the root `dev:worker` and
+  `deploy:worker` scripts and the legacy API E2E runner.
+- Dependencies `react-hook-form`, `@hookform/resolvers`, `hono`,
+  `commander`, `chalk`, `ora`, `cli-table3` and `urlpattern-polyfill`.
+
 ## [0.3.6] - 2026-10-31
 
 ### Changed

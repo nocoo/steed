@@ -69,7 +69,7 @@ describe("AppSidebar", () => {
     it("renders app name and version", () => {
       renderSidebar();
       expect(screen.getByText("Steed")).toBeInTheDocument();
-      expect(screen.getAllByText(/v0\.3\.6/).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/v0\.4\.0/).length).toBeGreaterThan(0);
     });
 
     it("renders only the workspace group", () => {
