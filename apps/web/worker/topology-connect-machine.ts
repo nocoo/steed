@@ -1,13 +1,15 @@
-import { idempotencyKeySchema, matchTopologyConnectOperation, TOPOLOGY_LIMITS } from "@steed/api/shared";
+import { idempotencyKeySchema, matchTopologyConnectOperation, revertTopologyChange, TOPOLOGY_LIMITS } from "@steed/api/shared";
 import { fingerprint } from "./connect-crypto";
 import { HttpError, readJson, readText } from "./http";
-import { topologyQuery } from "./topology-api";
+import { topologyPositiveInteger, topologyQuery } from "./topology-api";
 import { topologyConnectCapabilities, topologyConnectOpenApi } from "./topology-connect-contract";
 import { nowSeconds, requireToken, runConnect, type ConnectContext, type ConnectEnv } from "./topology-connect-core";
 import { planTopologyConnectMutation } from "./topology-connect-mutation";
 import { topologyConnectRead } from "./topology-connect-read";
 import { topologyIfMatch } from "./topology-connect-request";
 import { topologyConnectWriteStatements } from "./topology-connect-write";
+import { getTopologyChange, laterTopologyChangeIdentities } from "./topology-history";
+import { planTopologyReplacement } from "./topology-mutation-plan";
 import { loadTopology } from "./topology-store";
 
 type Route = NonNullable<ReturnType<typeof matchTopologyConnectOperation>>;
@@ -36,19 +38,28 @@ async function mutate(ctx: ConnectContext, route: Route) {
   const { request, env } = ctx;
   const token = requireToken(ctx);
   const keyHash = await fingerprint(idempotencyKey(request.headers.get("Idempotency-Key")));
-  const input = request.method === "DELETE" ? null : await readJson(request, TOPOLOGY_LIMITS.bytes);
-  if (request.method === "DELETE" && await readText(request, TOPOLOGY_LIMITS.bytes)) throw new HttpError(400, "unexpected_body", "DELETE does not accept a body.");
+  const bodyless = request.method === "DELETE" || route.operation.id === "changes.revert";
+  const input = bodyless ? null : await readJson(request, TOPOLOGY_LIMITS.bytes);
+  if (bodyless && await readText(request, TOPOLOGY_LIMITS.bytes)) throw new HttpError(400, "unexpected_body", "This operation does not accept a body.");
   const hash = await fingerprint(JSON.stringify([request.method, new URL(request.url).pathname, request.headers.get("If-Match"), request.headers.get("If-None-Match"), request.headers.get("X-Steed-Confirm"), input]));
   const previous = await findRequest(ctx, keyHash);
   if (previous) return replay(ctx, previous, hash);
   let revision: number;
   let before: Awaited<ReturnType<typeof loadTopology>>["topology"];
   let plan: ReturnType<typeof planTopologyConnectMutation>;
+  let revertsChangeId: number | null = null;
   try {
     revision = topologyIfMatch(request);
     before = (await loadTopology(env.DB)).topology;
     if (before.revision !== revision) throw new HttpError(412, "version_conflict", "The topology changed. Read its current state before retrying.");
-    plan = planTopologyConnectMutation(before, route.operation, route.params, input);
+    if (route.operation.id === "changes.revert") {
+      revertsChangeId = topologyPositiveInteger(route.params.changeId, 0, Number.MAX_SAFE_INTEGER);
+      if (!revertsChangeId) throw new HttpError(400, "invalid_query", "The topology change ID is invalid.");
+      const change = await getTopologyChange(env.DB, revertsChangeId);
+      if (!change) throw new HttpError(404, "not_found", "Topology change not found.");
+      const later = await laterTopologyChangeIdentities(env.DB, change.revision);
+      plan = { ...planTopologyReplacement(before, revertTopologyChange(before, change.items, later)), dangerous: true };
+    } else plan = planTopologyConnectMutation(before, route.operation, route.params, input);
     if (plan.dangerous && request.headers.get("X-Steed-Confirm") !== "topology") throw new HttpError(428, "confirmation_required", "Confirm removals with X-Steed-Confirm: topology.");
   } catch (error) {
     const completed = await findRequest(ctx, keyHash);
@@ -59,7 +70,7 @@ async function mutate(ctx: ConnectContext, route: Route) {
   const now = nowSeconds();
   const statements = topologyConnectWriteStatements(env.DB, { before, after: plan.after, revision, requestId: ctx.requestId,
     actor: ctx.actor, tokenId: token.id, tokenHash: token.token_hash, keyHash, requestHash: hash, operation: route.operation.id,
-    kind: route.operation.id === "topology.put" ? "replace" : "operations", revertsChangeId: null,
+    kind: route.operation.id === "changes.revert" ? "revert" : route.operation.id === "topology.put" ? "replace" : "operations", revertsChangeId,
     warnings: plan.warnings, createdAt: now, updatedAt: new Date().toISOString() });
   const results = await env.DB.batch<RequestRow>(statements);
   const row = results.at(-1)?.results[0];

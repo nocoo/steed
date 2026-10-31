@@ -33,13 +33,13 @@ export function topologyConnectOpenApi(origin: string) {
     }
     if (operation.collection === "nodes" && operation.id.endsWith(".list")) for (const filter of ["layer", "type", "tag", "boundary", "parent"]) parameters.push(query(filter, { type: "string" }));
     if (operation.collection === "edges" && operation.id.endsWith(".list")) for (const filter of ["node", "kind"]) parameters.push(query(filter, { type: "string" }));
-    if (operation.id === "topology.get" || operation.id.startsWith("changes.") || (operation.collection && !operation.mutates)) {
+    if (operation.id === "topology.get" || (operation.id.startsWith("changes.") && !operation.mutates) || (operation.collection && !operation.mutates)) {
       parameters.push(header("If-None-Match", false, { type: "string" }, "Return 304 when the current ETag matches."));
     }
     if (operation.mutates) {
       parameters.push(header("If-Match", true, { type: "string" }, 'Current topology ETag, for example "topology:0".'),
         header("Idempotency-Key", true, schema(idempotencyKeySchema), "Use one persisted key per exact intent."),
-        header("X-Steed-Confirm", Boolean(operation.dangerous), { const: "topology" }, "Required for removals and replacements that remove entities."));
+        header("X-Steed-Confirm", Boolean(operation.dangerous), { const: "topology" }, "Required for removals, reverts and replacements that remove entities."));
     }
     const input = operation.id === "topology.put" ? ref("Topology") : operation.id === "topology.operations" ? ref("OperationBatch")
       : operation.id === "topology.validate" ? { oneOf: [ref("Topology"), ref("OperationBatch")] }

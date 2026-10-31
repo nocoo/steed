@@ -938,6 +938,9 @@ The former open questions, answered in order:
   issues. In-use and satellite-removal conflicts return 409 with their
   operation code. An invalid idempotency-key format returns 400. A stored
   matching receipt is checked before the revision precondition for replay.
+- Revert takes no request body and always requires explicit topology
+  confirmation. It uses the same revision guard and idempotent receipt as
+  other writes; invalid or missing change IDs fail before any write.
 
 ### Implementation decisions (Connect operation registry)
 

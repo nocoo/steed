@@ -21,6 +21,7 @@ export const TOPOLOGY_CONNECT_OPERATIONS: TopologyConnectOperation[] = [
   { id: "topology.operations", method: "POST", path: "/topology/operations", summary: "Apply a batch of topology operations", write: true, mutates: true },
   { id: "changes.list", method: "GET", path: "/topology/changes", summary: "List topology changes", write: false, mutates: false },
   { id: "changes.get", method: "GET", path: "/topology/changes/{changeId}", summary: "Read a topology change and its images", write: false, mutates: false },
+  { id: "changes.revert", method: "POST", path: "/topology/changes/{changeId}/revert", summary: "Revert a topology change", write: true, mutates: true, dangerous: true },
 ];
 
 for (const collection of TOPOLOGY_COLLECTIONS) {

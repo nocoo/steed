@@ -112,4 +112,31 @@ describe("prepared topology Connect machine API", () => {
     expect(database.sqlite.prepare("SELECT revision FROM topology_meta").get()?.revision).toBe(1);
     expect(database.sqlite.prepare("SELECT COUNT(*) AS n FROM topo_changes").get()?.n).toBe(1);
   });
+
+  it("reverts a change with confirmation and an idempotent receipt", async () => {
+    const graph = { ...emptyTopology(), layers: [{ id: "cloud", label: "Cloud", provider: "Cloud", order: 0 }] };
+    expect((await api("/topology", "PUT", graph, intent("setup-revert", 0))).status).toBe(200);
+    expect((await api("/topology/changes/1/revert", "POST", undefined, intent("missing-confirm", 1))).status).toBe(428);
+    expect((await api("/topology/changes/1/revert", "POST", {}, { ...intent("body-revert", 1), "X-Steed-Confirm": "topology" })).status).toBe(400);
+    const headers = { ...intent("revert-0001", 1), "X-Steed-Confirm": "topology" };
+    const response = await api("/topology/changes/1/revert", "POST", undefined, headers);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ data: { revision: 2, changed: { layers: 1 } } });
+    const replay = await api("/topology/changes/1/revert", "POST", undefined, headers);
+    expect(replay.status).toBe(200);
+    expect(replay.headers.get("Idempotency-Replayed")).toBe("true");
+    expect(await (await api("/topology/layers")).json()).toMatchObject({ data: [] });
+    expect(await (await api("/topology/changes/2")).json()).toMatchObject({ data: { kind: "revert", revertsChangeId: 1 } });
+    expect((await api("/topology/changes/999/revert", "POST", undefined, { ...intent("missing-change", 2), "X-Steed-Confirm": "topology" })).status).toBe(404);
+  });
+
+  it("rejects reverts when a touched entity changed later", async () => {
+    const graph = { ...emptyTopology(), layers: [{ id: "cloud", label: "Cloud", provider: "Cloud", order: 0 }] };
+    await api("/topology", "PUT", graph, intent("conflict-setup", 0));
+    await api("/topology/layers/cloud", "PUT", { ...graph.layers[0], label: "Updated" }, intent("conflict-update", 1));
+    const response = await api("/topology/changes/1/revert", "POST", undefined, { ...intent("conflict-revert", 2), "X-Steed-Confirm": "topology" });
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ error: { code: "revert_conflict" } });
+    expect(database.sqlite.prepare("SELECT revision FROM topology_meta").get()?.revision).toBe(2);
+  });
 });

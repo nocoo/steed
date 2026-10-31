@@ -127,6 +127,15 @@ try {
     await status(await api(reader, "/topology?since=bad"), 400);
     await status(await api(credential, "/topology", "PUT", "x".repeat(4 * 1024 * 1024 + 1), intent("large-001", 1)), 413);
   });
+  await check("revert, idempotent retry and conflict", async () => {
+    await status(await api(credential, "/topology/operations", "POST", { operations: [{ op: "set_metadata", title: "Changed" }] }, intent("change-0001", 1)), 200);
+    const headers = { ...intent("revert-0001", 2), "X-Steed-Confirm": "topology" };
+    await status(await api(credential, "/topology/changes/2/revert", "POST", undefined, headers), 200);
+    const retry = await api(credential, "/topology/changes/2/revert", "POST", undefined, headers);
+    await status(retry, 200); assert.equal(retry.headers.get("Idempotency-Replayed"), "true");
+    const conflict = await api(credential, "/topology/changes/2/revert", "POST", undefined, { ...intent("revert-0002", 3), "X-Steed-Confirm": "topology" });
+    await status(conflict, 409); assert.equal((await parse<{ error: { code: string } }>(conflict)).error.code, "revert_conflict");
+  });
   await check("token rename, rotate and revoke", async () => {
     const renamed = await manage(`/tokens/${token.id}`, "PATCH", { name: "Renamed agent" }, version(token)); await status(renamed, 200);
     token = (await parse<{ data: TopologyConnectToken }>(renamed)).data;
