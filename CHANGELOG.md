@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.6] - 2026-10-31
+
+### Changed
+
+- Override `minimatch` to 11.0.1 (GHSA-g3hv-75wg-m249).
+- Upgrade `react-router` to 8.5.1.
+- Upgrade `typescript-eslint` to 8.72.1.
+- Upgrade `hono` to 4.13.14.
+
 ## [0.3.5] - 2026-10-24
 
 ### Changed
