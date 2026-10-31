@@ -917,6 +917,13 @@ The former open questions, answered in order:
   detail and its revision are read in one batch, so its snapshot ETag and
   images describe the same database state.
 
+### Implementation decisions (local Connect acceptance)
+
+- The real-HTTP runner uses a per-run owned local D1 directory, synthetic
+  credentials, loopback ports and process-group cleanup. It checks every
+  registered machine endpoint and graph operation, then builds 201 nodes
+  across seven layers and reverts the last node to leave 200.
+
 ### Implementation decisions (Connect mutation plans)
 
 - Operation batches containing any removal require confirmation, including a
