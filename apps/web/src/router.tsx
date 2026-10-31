@@ -1,17 +1,14 @@
 import {
   createBrowserRouter,
   Navigate,
-  useParams,
   type RouteObject,
 } from "react-router";
 import { Layout } from "./routes/_layout";
-import { DiagramsPage } from "./routes/diagrams";
 import { ConnectPage } from "./routes/connect";
+import { TopologyPage } from "./routes/topology";
 
-/** Former `/diagrams/:id` links keep working after the Topology rename. */
-function LegacyDiagramRedirect() {
-  const { id } = useParams();
-  return <Navigate to={id ? `/topology/${encodeURIComponent(id)}` : "/topology"} replace />;
+function LegacyTopologyRedirect() {
+  return <Navigate to="/topology" replace />;
 }
 
 const routes: RouteObject[] = [
@@ -20,10 +17,10 @@ const routes: RouteObject[] = [
     element: <Layout />,
     children: [
       { index: true, element: <Navigate to="/topology" replace /> },
-      { path: "topology", element: <DiagramsPage /> },
-      { path: "topology/:id", element: <DiagramsPage /> },
-      { path: "diagrams", element: <LegacyDiagramRedirect /> },
-      { path: "diagrams/:id", element: <LegacyDiagramRedirect /> },
+      { path: "topology", element: <TopologyPage /> },
+      { path: "topology/:id", element: <LegacyTopologyRedirect /> },
+      { path: "diagrams", element: <LegacyTopologyRedirect /> },
+      { path: "diagrams/:id", element: <LegacyTopologyRedirect /> },
       { path: "connect", element: <ConnectPage /> },
     ],
   },

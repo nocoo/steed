@@ -225,7 +225,7 @@ describe("interim topology lane layout", () => {
     } });
     expect(result.positions.service).toMatchObject({ x: 964, y: 180 });
     expect(result.positions["port-a"]?.x).toBe(996);
-    expect(result.positions["port-a"]?.y).toBe(268);
+    expect(result.positions["port-a"]?.y).toBe(180 + TOPOLOGY_SATELLITE_HEIGHT + TOPOLOGY_LAYOUT_GAP_Y);
   });
 
   it("gives a direct satellite pin precedence over child pins", () => {
@@ -236,7 +236,7 @@ describe("interim topology lane layout", () => {
     } });
     expect(direct.positions.service).toMatchObject({ x: 1000, y: 350 });
     expect(direct.positions["port-a"]?.x).toBe(1032);
-    expect(direct.positions["port-a"]?.y).toBe(438);
+    expect(direct.positions["port-a"]?.y).toBe(350 + TOPOLOGY_SATELLITE_HEIGHT + TOPOLOGY_LAYOUT_GAP_Y);
   });
 
   it("moves a satellite pin with all of its sub-satellites and accepts direct pins", () => {
@@ -249,11 +249,12 @@ describe("interim topology lane layout", () => {
 
   it("supports pins on sub-satellites by translating their containing satellite block", () => {
     const result = layoutTopology(sample(), { pins: { "port-a": { x: 1100, y: 400 } } });
-    expect(result.positions.service).toMatchObject({ x: 1068, y: 312 });
+    const satelliteY = 400 - TOPOLOGY_SATELLITE_HEIGHT - TOPOLOGY_LAYOUT_GAP_Y;
+    expect(result.positions.service).toMatchObject({ x: 1068, y: satelliteY });
     expect(result.positions["port-a"]?.x).toBe(1100);
     expect(result.positions["port-a"]?.y).toBe(400);
     expect(result.positions["port-b"]?.x).toBe(1100);
-    expect(result.positions["port-b"]?.y).toBe(488);
+    expect(result.positions["port-b"]?.y).toBe(satelliteY + TOPOLOGY_SATELLITE_HEIGHT + TOPOLOGY_LAYOUT_GAP_Y + TOPOLOGY_SATELLITE_HEIGHT + TOPOLOGY_LAYOUT_GAP_Y);
   });
 
   it("puts the lowest-ID sub-satellite pin exactly at its coordinates when multiple children are pinned", () => {
@@ -261,18 +262,20 @@ describe("interim topology lane layout", () => {
       "port-a": { x: 1100, y: 400 },
       "port-b": { x: 1080, y: 500 },
     } });
+    const satelliteY = 400 - TOPOLOGY_SATELLITE_HEIGHT - TOPOLOGY_LAYOUT_GAP_Y;
     expect(result.positions["port-a"]?.x).toBe(1100);
     expect(result.positions["port-a"]?.y).toBe(400);
-    expect(result.positions.service).toMatchObject({ x: 1068, y: 312 });
+    expect(result.positions.service).toMatchObject({ x: 1068, y: satelliteY });
     expect(result.positions["port-b"]?.x).toBe(1100);
-    expect(result.positions["port-b"]?.y).toBe(488);
+    expect(result.positions["port-b"]?.y).toBe(satelliteY + TOPOLOGY_SATELLITE_HEIGHT + TOPOLOGY_LAYOUT_GAP_Y + TOPOLOGY_SATELLITE_HEIGHT + TOPOLOGY_LAYOUT_GAP_Y);
   });
 
   it("translates the block from the requested second child offset", () => {
     const result = layoutTopology(sample(), { pins: { "port-b": { x: 1200, y: 500 } } });
-    expect(result.positions.service).toMatchObject({ x: 1168, y: 324 });
+    const satelliteY = 500 - TOPOLOGY_SATELLITE_HEIGHT - TOPOLOGY_LAYOUT_GAP_Y - TOPOLOGY_SATELLITE_HEIGHT - TOPOLOGY_LAYOUT_GAP_Y;
+    expect(result.positions.service).toMatchObject({ x: 1168, y: satelliteY });
     expect(result.positions["port-a"]?.x).toBe(1200);
-    expect(result.positions["port-a"]?.y).toBe(412);
+    expect(result.positions["port-a"]?.y).toBe(satelliteY + TOPOLOGY_SATELLITE_HEIGHT + TOPOLOGY_LAYOUT_GAP_Y);
     expect(result.positions["port-b"]?.x).toBe(1200);
     expect(result.positions["port-b"]?.y).toBe(500);
   });

@@ -1,9 +1,9 @@
 import type { Topology, TopologyPoint, TopologyView } from "@steed/api/shared";
 
 export const TOPOLOGY_HOST_WIDTH = 240;
-export const TOPOLOGY_HOST_HEIGHT = 96;
+export const TOPOLOGY_HOST_HEIGHT = 152;
 export const TOPOLOGY_SATELLITE_WIDTH = 220;
-export const TOPOLOGY_SATELLITE_HEIGHT = 72;
+export const TOPOLOGY_SATELLITE_HEIGHT = 152;
 export const TOPOLOGY_SUB_SATELLITE_INDENT = 32;
 export const TOPOLOGY_LAYOUT_GAP_X = 24;
 export const TOPOLOGY_LAYOUT_GAP_Y = 16;

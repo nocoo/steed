@@ -896,10 +896,17 @@ The former open questions, answered in order:
 - Bidirectional edges are traversed in either direction by relationship traces.
   A view's focus layer is exposed separately rather than hiding other layers.
 
+### Implementation decisions (read-only topology page)
+- Layout the complete canonical snapshot before applying view/client filters; canvas projection then uses only visible node IDs and edges whose endpoints remain visible, so a visible satellite keeps its canonical host/block geometry. The selected view supplies layout pins.
+- Search is independent of canvas filtering; selecting a search result selects it but does not add a filter, and relationship trace is explicit. Satellite boundary chips and inspector boundaries include inherited root-host memberships and boundary ancestors.
+- Badge cards show at most six declared `badge` attributes in attr definition order; string, number, boolean, and array values are rendered, so numeric zero and boolean false remain visible. Provenance displays `Not set` only when absent.
+- Card display budgets are finite and fixed: host and satellite cards use 152px height; each card shows at most six badge chips in a two-column grid and one boundary chip, followed by a `+N boundaries` accessible summary when more boundaries are inherited. Badge text uses an accessible tooltip/title rather than expanding the card; boundary summaries expose the complete comma-separated labels through `title` and `aria-label`. Enter/Space on the card and React Flow selection callbacks select the same inspector node. Selection changes pass only React Flow selection/dimension changes; position/remove/add changes are ignored, so keyboard selection never writes topology geometry. Fit is recomputed only when topology revision/view/pins/visible business-node geometry or canvas size change; ordinary node selection preserves pan/zoom. Automatic and explicit fit calculate bounds directly from the current projected visible business nodes, then call `setViewport(getViewportForBounds(...))` so stale React Flow store coordinates cannot drive a fit. Lane nodes and hidden pinned nodes are excluded. The inspector renders `↔` for every endpoint of a bidirectional edge and keeps source→target / target←source arrows for unidirectional edges.
+
 ### Implementation decisions (interim layout)
 
 - Lanes begin at `(0, 0)` with 32-pixel padding and pack host blocks in four
-  columns. Host cards are 240 by 96 pixels, satellite cards 220 by 72, with
+  columns. Host cards are 240 by 152 pixels and satellite cards 220 by 152, so
+  badge and boundary content has consistent finite geometry; cards keep
   horizontal and vertical gaps of 24 and 16 and a 32-pixel sub-satellite indent.
 - Pins are absolute canvas coordinates. A sub-satellite pin moves its complete
   satellite block, placing the pinned node at its requested coordinate. If
