@@ -862,6 +862,11 @@ The former open questions, answered in order:
   Boundary memberships are sorted before diffing and recording. Each write
   attempt gets its own guard ID in topology metadata, distinct from the
   request ID recorded in history, so a failed repeat cannot reuse a guard.
+- History pages use descending change IDs as cursors. Retention removes only
+  a contiguous prefix and extends the retained boundary until every revert in
+  that suffix keeps its ancestors, so an accepted `since` can never silently
+  cross a pruned history gap. A `since` value is ASCII decimal digits within
+  JavaScript's safe integer range; leading zeroes are accepted.
 
 Delivery: Phase 1 and Phase 2 in one PR (#104), release `0.5.0`, developed
 through herdr (see the implementation path above).
