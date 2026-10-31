@@ -19,6 +19,7 @@
 | 15 | [Local development through Caddy](./15-local-dev-domain.md) | Coordinated nmem ports, HTTPS dev-domain startup, and verification |
 | 16 | [Release v0.3.0](./16-release-0.3.0.md) | Architecture diagrams, Scoped Connect, sidebar profile, unified v0.3.0 release |
 | 17 | [Retire the legacy web application](./17-retire-legacy-web.md) | Remove retired Next.js, Docker and CLI login paths; publish patch v0.3.1 |
+| 18 | [Phase 0: topology platform cleanup](./18-phase0-topology-cleanup.md) | Remove the agent-asset inventory, clear diagrams and Connect state, reposition as a topology platform; v0.4.0 |
 
 ## 架构
 
