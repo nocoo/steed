@@ -14,7 +14,7 @@
     "lint": "eslint --max-warnings=0 .",
     "test": "vitest run --coverage",
     "test:watch": "vitest",
-    "test:e2e": "bun scripts/run-diagram-e2e.ts && bun scripts/run-connect-e2e.ts",
+    "test:e2e": "bun scripts/run-topology-e2e.ts && bun scripts/run-diagram-e2e.ts && bun scripts/run-connect-e2e.ts",
     "release": "bun scripts/release.ts",
     "check-coverage": "bun scripts/check-coverage.ts",
     "prepare": "husky"
