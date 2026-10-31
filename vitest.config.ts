@@ -28,6 +28,7 @@ export default defineConfig({
         "apps/web/src/main.tsx",
         "apps/web/src/vite-env.d.ts",
         "packages/cli/src/bin/**",
+        "**/test-setup.ts",
       ],
       thresholds: {
         statements: 95,
