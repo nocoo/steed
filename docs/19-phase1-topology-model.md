@@ -944,6 +944,14 @@ The former open questions, answered in order:
   Capabilities for a read token list only read operations; a write token lists
   both read and write operations. Active discovery changes with the switch.
 
+### Implementation decisions (Connect authentication)
+
+- Topology token encryption binds deployment, token ID, scope, owner and
+  expiry as associated data; the removed diagram ID is not included. The
+  existing manager and Bearer checks remain separate. Audit entries use the
+  fixed target `topology`, including failed authentication attempts. The
+  existing Connect sweep also prunes topology history under its retention rule.
+
 ### Implementation decisions (read-only topology page)
 - Layout the complete canonical snapshot before applying view/client filters; canvas projection then uses only visible node IDs and edges whose endpoints remain visible, so a visible satellite keeps its canonical host/block geometry. The selected view supplies layout pins.
 - Search is independent of canvas filtering; selecting a search result selects it but does not add a filter, and relationship trace is explicit. Satellite boundary chips and inspector boundaries include inherited root-host memberships and boundary ancestors.
