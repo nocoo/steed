@@ -102,7 +102,8 @@ Layer      id, label, provider, order (int, unique), color?, icon?, url?,
            description
 TypeDef    id, label, defaultLayerId?, shape, icon?, color?, description,
            attrs: AttrDef[]   (badge template and validation)
-AttrDef    key, label, valueType (string|number|boolean|enum), unit?,
+AttrDef    key, label, valueType (string|number|boolean|enum|public_key|
+           fingerprint|identifier), unit?,
            enumValues?, badge (bool), order, required (bool)
 Boundary   id, label, kind (trust|site|network|account), parentId?,
            style?, description
@@ -135,13 +136,37 @@ View       id, label, description, filter {layerIds[], typeIds[],
   `memory_gb` → `8G`, `region` → `jp`). Keys missing from the TypeDef are
   allowed and shown only in the inspector. Declared keys must match
   `valueType`/`enumValues`; `required` keys must be present.
+- **Allowlisted attr types.** `public_key`, `fingerprint` and `identifier`
+  exist so that legitimately high-entropy, non-secret values can be stored.
+  They have strict formats:
+  - `public_key`: OpenSSH (`ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp256|384|521
+    <base64> [comment]`), age (`age1…`) or WireGuard (44-character base64).
+  - `fingerprint`: `SHA256:<base64>`, `MD5:` colon-separated hex, or 40/64
+    hex characters.
+  - `identifier`: `^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$`, covering commit
+    SHAs, ARNs, resource IDs and similar.
+
+  The secret-scan exemption applies only to attrs whose key is declared in
+  the node's TypeDef with one of these types. Even there, only the
+  `high_entropy` rule is skipped: `private_key`, `known_prefix`, `jwt` and
+  `url_credentials` still apply. The same value in an undeclared key, a
+  label, a description, a tag or any other field is rejected as usual.
 - **Satellite nodes** are ordinary nodes with `parentId` and `role`:
   `service` (for example a Docker service on a VPS) or `subresource` (for
-  example a subdomain under a domain). They can be edge endpoints. Rules:
-  the parent exists and is not itself a satellite (depth 1); the satellite's
-  `layerId` equals its parent's; its `boundaryIds` are empty (it inherits the
-  parent's); there are no edges between a satellite and its own parent (the
-  attachment is implicit).
+  example a subdomain under a domain, or a port). They can be edge endpoints.
+  The maximum depth is 2: host → satellite → sub-satellite. Examples:
+  domain → subdomain, or VPS → Docker service → port or sub-service.
+  - **Parent.** The parent exists, and the chain to the root host has at most
+    two `parentId` hops. Parent cycles are rejected.
+  - **Layer.** Every satellite's `layerId` equals its root host's. Any
+    cross-layer relationship is an edge, never a parent link.
+  - **Boundaries.** A satellite's `boundaryIds` are empty; it inherits the
+    root host's.
+  - **Edges.** There are no edges between a satellite and any of its
+    ancestors (the attachment is implicit).
+  - **DNS records** normally go in the subdomain's `attrs` (for example
+    `dns_a`, `dns_cname`). Make one a node only when something must link to
+    it.
 - **Static only.** There is no `status`/health field. `lifecycle` is a
   declared state, not monitoring. Live metrics are out of scope until the
   owner decides otherwise.
@@ -196,8 +221,9 @@ Rules, each with a stable rule id:
 Allowed explicitly (checked before `high_entropy`): IPv4/IPv6 and CIDR,
 UUIDs, 32-character hex IDs (Cloudflare account/zone/database IDs), DNS
 names, plain URLs without credentials, semver, ISO dates and numbers.
-Public keys (for example `ssh-ed25519 AAAA…`) are rejected by
-`high_entropy`; see open questions.
+Public keys, fingerprints and commit SHAs are rejected by `high_entropy` unless
+they sit in a TypeDef-declared attr of type `public_key`, `fingerprint` or
+`identifier` and match that type's format (see allowlisted attr types).
 
 Errors are `422 invalid_topology` with issues
 `{ path, code: "secret_like_value", rule }`. The value is never echoed in
@@ -406,7 +432,8 @@ Operations: `set_metadata`, `put_layer|type|boundary|node|edge|view`,
 `remove_layer|type|boundary|node|edge|view`. Remove semantics:
 
 - `remove_node` removes its edges; it fails with `node_has_satellites`
-  unless `cascade: true`, which also removes the satellites and their edges;
+  unless `cascade: true`, which also removes the whole satellite subtree
+  (satellites and sub-satellites) and their edges;
   view pins and filters referencing it are dropped.
 - `remove_boundary` re-parents child boundaries to its parent and drops
   memberships (as `remove_group` does today).
@@ -440,8 +467,12 @@ Rate limits stay 120 reads and 30 writes per minute per token.
   boundary and tag applied client-side.
 - Interim layout until Phase 3 (ELK): a deterministic pure function places
   layers as horizontal lanes in `order`, nodes inside a lane sorted by first
-  boundary then ID on a fixed grid, satellites in a column beside their host;
-  view pins override positions. Boundaries appear as chips on nodes and as a
+  boundary then ID on a fixed grid. Each host forms a composite block: its
+  satellites sit in a column beside it, and each sub-satellite sits indented
+  under its satellite. The satellite and its sub-satellites move as one block.
+  Block size is computed before lanes are packed, so adding satellites never
+  shifts other hosts' blocks into overlap. View pins move a whole block when
+  set on a host, or a satellite block within its host. Boundaries appear as chips on nodes and as a
   filter; boundary frames are Phase 3.
 - Satellite badges: the node card shows up to six badge attrs from its
   TypeDef (`label` + value + unit); the inspector lists all attrs, tags,
@@ -473,8 +504,8 @@ Design point: 1000 nodes (≈30% satellites), 5000 edges, 30 layers,
   for the design point. Diffing is linear over IDs.
 - Targets, measured by `scripts/bench-topology.ts` on local Wrangler D1 with a
   synthetic 1000/5000 dataset (p95 of 20 runs): snapshot read < 300 ms;
-  100-operation write < 300 ms; validate < 300 ms; full replace < 1 s (see
-  open questions). Production is spot-checked once after the topology owner's
+  100-operation write < 300 ms; validate < 300 ms; full replace < 1 s
+  (decided). Incremental writes are < 300 ms. Production is spot-checked once after the topology owner's
   first bulk load.
 - Row-billing check: a full snapshot read costs ≈6200 rows; even 10 000
   reads a month are ≈62 M rows, inside the Workers Paid allowance.
@@ -486,7 +517,9 @@ L1 (Vitest, root gate 95/90/95/95 unchanged):
 - `secret-scan.test.ts`: every rule positive and negative, every allowlist
   class, path reporting, no value echo; fixtures assembled at runtime.
 - `topology.test.ts`: every validation branch (duplicates, each reference
-  type, boundary cycle, satellite depth/layer/boundary/parent-edge rules,
+  type, boundary cycle, satellite depth 1/2 accepted and 3 rejected, parent
+  cycle, layer/boundary/ancestor-edge rules, allowlisted attr types (format,
+  exemption only when TypeDef-declared, rejection elsewhere),
   self-loop, layer order, attr type/enum/required, limits, strict keys,
   style whitelist, warnings).
 - operations engine: each op, remove semantics (`cascade`, re-parenting,
@@ -499,7 +532,8 @@ L1 (Vitest, root gate 95/90/95/95 unchanged):
   new scopes; `connect_audit` rows kept and column renamed; `diagrams` gone.
 - worker routing, browser API (304, 405), management API without diagrams.
 - web: client, viewmodel, interim layout (deterministic, lane order, no
-  overlap, satellites beside host), read-only page (no edit controls
+  overlap, satellite and sub-satellite blocks contained and moved
+  together), read-only page (no edit controls
   rendered), Connect page scopes, router redirects.
 - coverage: count `apps/web/worker/**` in the root gate (gap from document
   18), excluding `bindings.d.ts` and test helpers.
@@ -535,13 +569,17 @@ bypassed, no force-push, no autofix.
 Phase 1:
 
 1. `docs: add phase 1 topology model plan` — this document and the docs
-   index.
-2. `feat(api): add secret-like value detector` — `shared/secret-scan.ts`
-   and tests.
+   index, followed by `docs: resolve phase 1 open questions` (both already on
+   the branch).
+2. `feat(api): add secret-like value detector` — `shared/secret-scan.ts`,
+   rules, allowlist and the format checkers for `public_key`, `fingerprint`
+   and `identifier`, with the exemption hook (`high_entropy` only); tests.
 3. `feat(api): add topology v2 schema` — `shared/topology.ts` (entities,
-   limits, validation, warnings) and tests.
-4. `feat(api): add topology operations engine` — ops, remove semantics,
-   diff, revert inverse, tests.
+   limits, depth-2 satellite rules, attr types and the TypeDef-scoped
+   exemption, validation, warnings) and tests.
+4. `feat(api): add topology operations engine` — ops, remove semantics
+   (subtree cascade over two satellite levels), diff, revert inverse with
+   409 conflicts, tests.
 5. `feat(db): add normalized topology tables` — `0009_create_topology.sql`
    and migration tests.
 6. `feat(worker): add topology store` — load, diff writer with guarded
@@ -551,7 +589,8 @@ Phase 1:
 8. `feat(web): add topology client and viewmodel` — client with ETag
    cache, viewmodel, tests.
 9. `feat(web): render read-only topology page` — page, interim lane
-   layout, badges, inspector, filters, router redirects; tests.
+   layout with nested host/satellite/sub-satellite blocks, badges,
+   inspector, filters, router redirects; tests.
 
 Phase 2:
 
@@ -583,9 +622,13 @@ one request per candidate path. Direct edit on the box and a cloud agent were
 not supported; the herdr flow on an allocated Mac had the strongest support
 (`proceed_inline` 0.54, information sufficient 0.75, high risk 0.10, request
 `bb43c880-51a8-434c-9875-5393bdf44fb2`), but every gate returned `ask_user`
-because confidence was below 0.70. Plan: herdr flow on a Mac from 机器管家
-with a Codex review loop, confirmed by the requirements owner before
-implementation starts.
+because confidence was below 0.70. Decided by the requirements owner
+(2026-10-31): implementation goes through the herdr flow on a Mac allocated by
+机器管家. One Codex controller works on the PR #104 branch. It picks its own
+workers and runs a review loop at reasoning `xhigh`: implement, then review
+until APPROVE, then rebase onto `origin/main` and re-review. All hooks stay
+on. There is no production deploy or release from the controller; the repo
+steward runs the production steps after merge.
 
 ## Risks
 
@@ -645,21 +688,28 @@ Executed by the repo steward after merge and a green release run:
    `/connect` and hands it to the topology owner privately; no Access change
    is needed. Tag `v0.5.0` and publish the GitHub Release.
 
-## Open questions for the requirements owner
+## Decisions (requirements owner, 2026-10-31)
 
-1. Satellite depth: is depth 1 enough (VPS → service, domain → subdomain),
-   or do you need satellites of satellites (domain → subdomain → record)?
-2. May a satellite live in a different provider layer than its host (for
-   example a third-party SaaS service "on" a VPS)? The design says no.
-3. Is `lifecycle` (active/planned/deprecated/retired) acceptable as the only
-   status-like field, given no live data?
-4. Public keys and 40-hex commit SHAs are rejected by the entropy rule. Do
-   you need an explicit `public_key` attr type that allows them?
-5. Full replace of the whole design point targets < 1 s rather than the
-   roadmap's 300 ms; incremental batches stay < 300 ms. Acceptable?
-6. Is revert limited to changes with no later conflicting edits (409
-   otherwise) acceptable, or do you need forced revert?
-7. Should the browser show change history now (read-only list), or wait for
-   Phase 4's history panel? The design includes only the read API.
-8. Rename `connect_audit.diagram_id` to `target` (planned), or keep the
-   historical name?
+The former open questions, answered in order:
+
+1. **Satellite depth 2.** host → satellite → sub-satellite (for example
+   domain → subdomain, or VPS → Docker service → port or sub-service). DNS
+   records normally live in the subdomain's `attrs`; they become nodes only
+   when something must link to them. In layout a sub-satellite moves with
+   its satellite as one composite block.
+2. **Same layer.** Satellites stay in their host's layer; cross-layer
+   relationships are edges.
+3. **Status.** `lifecycle` (active/planned/deprecated/retired) is the only
+   status field.
+4. **Allowlisted attr types.** `public_key`, `fingerprint` and `identifier`
+   (commit SHAs and similar). The exemption applies only to attrs that a
+   TypeDef explicitly declares with one of these types; every other field is
+   still rejected.
+5. **Performance.** Full replace < 1 s; incremental writes < 300 ms.
+6. **Revert.** No forced revert. A conflict returns 409 `revert_conflict`,
+   and the caller writes a corrective change.
+7. **History UI** waits for Phase 4; Phase 1 ships only the read API.
+8. **Audit column.** Rename `connect_audit.diagram_id` to `target`.
+
+Delivery: Phase 1 and Phase 2 in one PR (#104), release `0.5.0`, developed
+through herdr (see the implementation path above).
