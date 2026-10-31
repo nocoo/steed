@@ -40,10 +40,10 @@ const change = (label: string, value: string) => {
   option.focus();
   fireEvent.keyDown(option, { key: "Enter" });
 };
-async function open(path = "/diagrams/example") {
-  const router = createMemoryRouter([{ path: "/diagrams/:id?", element: <DiagramsPage /> }, { path: "/away", element: <p>Another page</p> }], { initialEntries: [path] });
+async function open(path = "/topology/example") {
+  const router = createMemoryRouter([{ path: "/topology/:id?", element: <DiagramsPage /> }, { path: "/away", element: <p>Another page</p> }], { initialEntries: [path] });
   render(<RouterProvider router={router} />);
-  await screen.findByRole("heading", { name: path === "/diagrams" ? "Diagrams" : "Service platform", exact: true });
+  await screen.findByRole("heading", { name: path === "/topology" ? "Topology" : "Service platform", exact: true });
   await waitFor(() => expect(screen.queryByText("Loading diagrams…")).not.toBeInTheDocument());
   return router;
 }
@@ -137,7 +137,7 @@ describe("diagram workspace", () => {
 
   it("handles loading, empty lists, creation, import failures and an imported document", async () => {
     vi.mocked(diagramClient.list).mockResolvedValue({ data: [], nextCursor: null });
-    await open("/diagrams");
+    await open("/topology");
     expect(screen.getByText("Your architecture starts here")).toBeInTheDocument();
     const input = screen.getByLabelText("Import diagram file");
     fireEvent.change(input, { target: { files: [] } });
@@ -151,8 +151,8 @@ describe("diagram workspace", () => {
   });
 
   it("lists diagrams, creates a blank document, and confirms deletion", async () => {
-    await open("/diagrams");
-    expect(screen.getByRole("link", { name: /Service platform/ })).toHaveAttribute("href", "/diagrams/example");
+    await open("/topology");
+    expect(screen.getByRole("link", { name: /Service platform/ })).toHaveAttribute("href", "/topology/example");
     click("New diagram");
     await waitFor(() => expect(diagramClient.save).toHaveBeenCalledWith(expect.any(String), emptyDiagram(), null));
     await screen.findByRole("button", { name: "Delete diagram", exact: true });

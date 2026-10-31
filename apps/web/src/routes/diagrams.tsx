@@ -220,7 +220,7 @@ export function DiagramsPage() {
 
   return <div className="space-y-basalt-layout-lg">
     <PageHeader
-      title={vm.record ? vm.draft?.title ?? "Diagrams" : "Diagrams"}
+      title={vm.record ? vm.draft?.title ?? "Topology" : "Topology"}
       description={vm.draft?.description || "Map services, infrastructure, and the connections between them."}
       actions={
         <>
@@ -240,7 +240,7 @@ export function DiagramsPage() {
     {vm.notice && <p role="status" className="flex items-center gap-2 text-sm text-basalt-muted-foreground"><Check className="h-4 w-4" />{vm.notice}</p>}
     {vm.loading ? <p role="status" className="py-12 text-center text-sm text-basalt-muted-foreground">Loading diagrams…</p>
       : vm.draft && vm.record ? <ArchitectureEditor key={vm.record.id} document={vm.draft} onChange={vm.setDraft} busy={vm.busy} />
-        : <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">{vm.list.map((diagram) => <Link key={diagram.id} to={`/diagrams/${diagram.id}`} className="rounded-xl focus-visible:outline-2 focus-visible:outline-basalt-ring">
+        : <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">{vm.list.map((diagram) => <Link key={diagram.id} to={`/topology/${diagram.id}`} className="rounded-xl focus-visible:outline-2 focus-visible:outline-basalt-ring">
           <LayerCard className="h-full transition-colors hover:bg-basalt-secondary/40"><Network className="mb-6 h-6 w-6 text-basalt-primary" /><h2 className="text-base font-semibold">{diagram.title}</h2>
             <p className="mt-2 line-clamp-3 text-sm text-basalt-muted-foreground">{diagram.description || "Architecture diagram"}</p>
             <div className="mt-6 flex items-center gap-4 font-mono text-xs text-basalt-muted-foreground"><span>{diagram.nodeCount} components</span><span>{diagram.edgeCount} connections</span></div>

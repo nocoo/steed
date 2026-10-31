@@ -2,20 +2,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   assetsFetch: vi.fn(),
-  routerFetch: vi.fn(),
-  honoFetch: vi.fn(),
+  connectFetch: vi.fn(),
   verifyAccessJwt: vi.fn(),
   getUserProfile: vi.fn(),
 }));
 
-vi.mock("@steed/api/server", () => ({
-  createApiRouter: () => ({
-    fetch: mocks.routerFetch,
-  }),
-}));
-
-vi.mock("@steed/worker", () => ({
-  default: { fetch: mocks.honoFetch },
+vi.mock("./connect-api", () => ({
+  connectMachineApi: (...args: unknown[]) => mocks.connectFetch(...args),
 }));
 
 vi.mock("./access-jwt", () => ({
@@ -32,7 +25,6 @@ describe("worker", () => {
     DB: {} as D1Database,
     CF_ACCESS_TEAM: "test-team",
     CF_ACCESS_AUD: "test-aud",
-    DASHBOARD_SERVICE_TOKEN: "token",
   };
 
   beforeEach(() => {
@@ -45,21 +37,18 @@ describe("worker", () => {
 
     expect(res.status).toBe(200);
     expect(res.headers.get("Cache-Control")).toBe("no-store");
-    expect(await res.json()).toEqual({ status: "ok", version: "0.3.6" });
+    expect(await res.json()).toEqual({ status: "ok", version: "0.4.0" });
     expect(mocks.verifyAccessJwt).not.toHaveBeenCalled();
   });
 
-  it("routes /api/v1/* directly to Hono app without CF Access check", async () => {
-    mocks.honoFetch.mockResolvedValueOnce(
-      new Response(JSON.stringify({ status: "ok" }), { status: 200 })
-    );
+  it.each(["/api/v1", "/api/v1/diagrams", "/api/v1/hosts", "/api/v1/health"])("routes %s only to the Connect handler without CF Access check", async (path) => {
+    mocks.connectFetch.mockResolvedValueOnce(new Response(null, { status: 401 }));
 
-    const req = new Request("https://example.com/api/v1/health");
-    const ctx = {} as ExecutionContext;
-    const res = await worker.fetch(req, baseEnv, ctx);
+    const req = new Request(`https://example.com${path}`);
+    const res = await worker.fetch(req, baseEnv, {} as ExecutionContext);
 
-    expect(res.status).toBe(200);
-    expect(mocks.honoFetch).toHaveBeenCalledWith(req, baseEnv, ctx);
+    expect(res.status).toBe(401);
+    expect(mocks.connectFetch).toHaveBeenCalledWith(req, baseEnv);
     expect(mocks.verifyAccessJwt).not.toHaveBeenCalled();
   });
 
@@ -105,29 +94,14 @@ describe("worker", () => {
     expect(mocks.getUserProfile).not.toHaveBeenCalled();
   });
 
-  it("routes /api/* to dashboard router with same-origin WORKER_API_URL when auth succeeds", async () => {
-    const mockUser = { email: "user@example.com", sub: "123" };
-    mocks.verifyAccessJwt.mockResolvedValueOnce({
-      ok: true,
-      user: mockUser,
-    });
-    mocks.routerFetch.mockResolvedValueOnce(
-      new Response(JSON.stringify({ data: "test" }), { status: 200 })
-    );
+  it("returns 404 for unknown Access-verified API routes", async () => {
+    mocks.verifyAccessJwt.mockResolvedValueOnce({ ok: true, user: { email: "user@example.com", sub: "123" } });
 
-    const req = new Request("https://example.com/api/overview");
-    const res = await worker.fetch(req, baseEnv, {} as ExecutionContext);
+    const res = await worker.fetch(new Request("https://example.com/api/overview"), baseEnv, {} as ExecutionContext);
 
-    expect(res.status).toBe(200);
-    expect(mocks.routerFetch).toHaveBeenCalledWith(
-      req,
-      expect.objectContaining({
-        WORKER_API_URL: "https://example.com",
-        DASHBOARD_SERVICE_TOKEN: "token",
-        fetcher: expect.any(Function),
-      }),
-      mockUser
-    );
+    expect(res.status).toBe(404);
+    expect(res.headers.get("Cache-Control")).toBe("no-store");
+    expect(await res.json()).toEqual({ error: { code: "not_found", message: "API route not found." } });
   });
 
   it("serves static assets for non-api routes without auth", async () => {
@@ -135,7 +109,7 @@ describe("worker", () => {
       new Response("<html>App</html>", { status: 200 })
     );
 
-    const req = new Request("https://example.com/overview");
+    const req = new Request("https://example.com/topology");
     const res = await worker.fetch(req, baseEnv, {} as ExecutionContext);
 
     expect(res.status).toBe(200);
@@ -148,10 +122,6 @@ describe("worker", () => {
       ok: true,
       user: { email: "dev@local", sub: "dev" },
     });
-    mocks.routerFetch.mockResolvedValueOnce(
-      new Response("{}", { status: 200 })
-    );
-
     const req = new Request("https://example.com/api/overview");
     await worker.fetch(
       req,

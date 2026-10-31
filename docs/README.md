@@ -4,12 +4,12 @@
 
 | 编号 | 文档 | 说明 |
 |------|------|------|
-| 01 | [项目概述](./01-overview.md) | 要解决的问题、核心概念、模块定义 |
+| 01 | [项目概述](./01-overview.md) | Historical: agent asset inventory concept, superseded by 18 |
 | 05 | [部署与本地 E2E 链路](./05-deployment.md) | Historical Next.js/Railway deployment record; not current instructions |
-| 05 | [Pilot Validation](./05-pilot-validation.md) | 真实环境验证清单、Host Service 24h 试运行记录 |
+| 05 | [Pilot Validation](./05-pilot-validation.md) | Historical: Host Service 24h pilot record |
 | 06 | [Logo identity](./06-logo-identity.md) | Artwork direction, asset roles, source adoption, and verification |
 | 07 | [Dependency security](./07-dependency-security.md) | Targeted advisory fixes required by the publication gate |
-| 08 | [README refresh and current entry points](./08-readme-refresh.md) | Current web / CLI entry points, behavior boundaries and README evidence |
+| 08 | [README refresh and entry points](./08-readme-refresh.md) | Historical: v0.1 web / CLI entry points and README evidence |
 | 09 | [Basalt component migration](./09-basalt-component-migration.md) | Replace local Basalt-styled chrome in `apps/web` with published `@nocoo/basalt@2.1.7` |
 | 10 | [Release v0.1.0](./10-release-0.1.0.md) | First tag: unify project version at root `0.1.0` |
 | 11 | [Basalt upgrade verification](./11-basalt-upgrade-verification.md) | Verify latest published Basalt, complete shell integration, and record regression checks and Codex sign-off |
@@ -19,8 +19,11 @@
 | 15 | [Local development through Caddy](./15-local-dev-domain.md) | Coordinated nmem ports, HTTPS dev-domain startup, and verification |
 | 16 | [Release v0.3.0](./16-release-0.3.0.md) | Architecture diagrams, Scoped Connect, sidebar profile, unified v0.3.0 release |
 | 17 | [Retire the legacy web application](./17-retire-legacy-web.md) | Remove retired Next.js, Docker and CLI login paths; publish patch v0.3.1 |
+| 18 | [Phase 0: topology platform cleanup](./18-phase0-topology-cleanup.md) | Remove the agent-asset inventory, clear diagrams and Connect state, reposition as a topology platform; v0.4.0 |
 
 ## 架构
+
+> Historical: these documents describe the retired inventory architecture (Hono worker, Host API, inventory tables), removed in v0.4.0.
 
 | 编号 | 文档 | 说明 |
 |------|------|------|
@@ -30,6 +33,8 @@
 | 04 | [Dashboard 架构](./architecture/04-dashboard.md) | Dashboard Bootstrap、Google Auth、MVVM、6DQ |
 
 ## Features
+
+> Historical: phases B–F built the retired inventory; only the Vite/Access shell from Phase F remains.
 
 | 编号 | 文档 | 说明 |
 |------|------|------|
@@ -43,4 +48,4 @@
 
 > Features 子目录详细状态见 [features/README.md](./features/README.md)。
 
-- [16 — Agent workflow and inventory constraints](16-agent-workflow.md)
+- [16 — Agent workflow and inventory constraints](16-agent-workflow.md) (historical; inventory constraints retired in v0.4.0)

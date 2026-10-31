@@ -80,13 +80,13 @@ export function useDiagramViewModel() {
   const create = (document: Diagram = emptyDiagram()) => perform(async () => {
     const current = generation.current;
     const saved = await diagramClient.save(crypto.randomUUID(), diagramSchema.parse(document), null);
-    if (current === generation.current) { allowNavigation.current = true; navigate(`/diagrams/${saved.id}`); }
+    if (current === generation.current) { allowNavigation.current = true; navigate(`/topology/${saved.id}`); }
   });
   const remove = () => perform(async () => {
     if (!record) return;
     const current = generation.current;
     await diagramClient.delete(record.id, record.revision);
-    if (current === generation.current) { allowNavigation.current = true; navigate("/diagrams"); }
+    if (current === generation.current) { allowNavigation.current = true; navigate("/topology"); }
   });
 
   return { id, list, record, draft, setDraft, loading, busy, dirty, error, setError, notice, save, create, remove, blocker };

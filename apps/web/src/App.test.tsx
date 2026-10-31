@@ -1,28 +1,23 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { routes } from "./router";
-import { ApiClientProvider } from "./contexts/api-client";
+
+vi.mock("@/lib/diagram-client", () => ({ diagramClient: { list: vi.fn().mockResolvedValue({ data: [], nextCursor: null }) } }));
 
 function renderApp(initialPath = "/") {
   const router = createMemoryRouter(routes, { initialEntries: [initialPath] });
-  return render(
-    <ApiClientProvider>
-      <RouterProvider router={router} />
-    </ApiClientProvider>
-  );
+  return render(<RouterProvider router={router} />);
 }
 
 describe("App", () => {
-  it("renders with ApiClientProvider and router", () => {
-    renderApp("/overview");
-    expect(
-      screen.getAllByRole("heading", { name: "Overview" }).length
-    ).toBeGreaterThan(0);
+  it("renders the topology workspace", () => {
+    renderApp("/topology");
+    expect(screen.getAllByRole("heading", { name: "Topology" }).length).toBeGreaterThan(0);
   });
 
   it("renders sidebar navigation", () => {
-    renderApp("/overview");
+    renderApp("/topology");
     expect(screen.getByText("Steed")).toBeInTheDocument();
   });
 });

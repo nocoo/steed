@@ -1,6 +1,6 @@
 {
   "name": "steed",
-  "version": "0.3.6",
+  "version": "0.4.0",
   "private": true,
   "workspaces": [
     "apps/web",
@@ -8,15 +8,13 @@
   ],
   "scripts": {
     "dev": "bun run --cwd apps/web dev",
-    "dev:worker": "bun run --cwd packages/worker dev",
     "build": "bun run --cwd apps/web build",
-    "deploy:worker": "bun run --cwd packages/worker deploy",
     "start": "bun run --cwd apps/web preview",
     "typecheck": "tsc --noEmit",
     "lint": "eslint --max-warnings=0 .",
     "test": "vitest run --coverage",
     "test:watch": "vitest",
-    "test:e2e": "bun scripts/run-e2e.ts && bun scripts/run-diagram-e2e.ts && bun scripts/run-connect-e2e.ts",
+    "test:e2e": "bun scripts/run-diagram-e2e.ts && bun scripts/run-connect-e2e.ts",
     "release": "bun scripts/release.ts",
     "check-coverage": "bun scripts/check-coverage.ts",
     "prepare": "husky"
