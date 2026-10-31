@@ -4,3 +4,4 @@ export * from "./connect";
 export * from "./secret-scan";
 export * from "./topology";
 export * from "./topology-operations";
+export * from "./topology-connect-operations";

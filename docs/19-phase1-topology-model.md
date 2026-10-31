@@ -916,6 +916,12 @@ The former open questions, answered in order:
   an entity. Planning ignores the submitted revision, normalizes boundary
   membership order, and reports whole-result warnings and per-collection diffs.
 
+### Implementation decisions (Connect operation registry)
+
+- The topology registry is prepared separately from the active diagram
+  registry; discovery remains unchanged until the atomic Connect switch.
+  The revert operation is registered with its endpoint in the following commit.
+
 ### Implementation decisions (read-only topology page)
 - Layout the complete canonical snapshot before applying view/client filters; canvas projection then uses only visible node IDs and edges whose endpoints remain visible, so a visible satellite keeps its canonical host/block geometry. The selected view supplies layout pins.
 - Search is independent of canvas filtering; selecting a search result selects it but does not add a filter, and relationship trace is explicit. Satellite boundary chips and inspector boundaries include inherited root-host memberships and boundary ancestors.
