@@ -885,5 +885,16 @@ The former open questions, answered in order:
   the top level beside the standard error object. Legacy diagram routes remain
   available only until the planned v1 removal commit.
 
+### Implementation decisions (topology browser client)
+
+- Snapshot caching is in memory per client instance; a 304 reuses its cached
+  snapshot captured when that request was sent. Newer requests cannot have
+  their cache entries overwritten by older completions, and clearing the cache
+  invalidates pending writes. Filters intersect across dimensions and match any
+  selected value within a view dimension. Boundary filters include a satellite's
+  root host's memberships. Search results are independent of the canvas projection.
+- Bidirectional edges are traversed in either direction by relationship traces.
+  A view's focus layer is exposed separately rather than hiding other layers.
+
 Delivery: Phase 1 and Phase 2 in one PR (#104), release `0.5.0`, developed
 through herdr (see the implementation path above).
