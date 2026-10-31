@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Topology } from "@steed/api/shared";
+import { topologySchema, type Topology } from "@steed/api/shared";
 import {
   TOPOLOGY_HOST_HEIGHT,
   TOPOLOGY_HOST_WIDTH,
@@ -54,6 +54,27 @@ function overlap(a: { x: number; y: number; width: number; height: number }, b: 
 }
 
 describe("interim topology lane layout", () => {
+  it.each(["host-alpha", "service", "port-a"])("treats a constructor ID as unpinned at %s", (originalId) => {
+    const topology = sample();
+    topology.nodes = topology.nodes.map((node) => ({
+      ...node,
+      id: node.id === originalId ? "constructor" : node.id,
+      ...(node.parentId === originalId ? { parentId: "constructor" } : {}),
+    }));
+    topology.views = [];
+    expect(topologySchema.safeParse(topology).success).toBe(true);
+
+    const unpinned = layoutTopology(topology);
+    for (const position of Object.values(unpinned.positions)) {
+      expect(Object.values(position).every(Number.isFinite)).toBe(true);
+    }
+    for (const lane of unpinned.lanes) {
+      expect([lane.x, lane.y, lane.width, lane.height].every(Number.isFinite)).toBe(true);
+    }
+    const pinned = layoutTopology(topology, { pins: { constructor: { x: 1200, y: 800 } } });
+    expect(pinned.positions.constructor).toMatchObject({ x: 1200, y: 800 });
+  });
+
   it("orders layers by order and root hosts by first boundary then ID", () => {
     const result = layoutTopology(sample());
     expect(result.lanes.map((lane) => lane.layerId)).toEqual(["first", "second"]);

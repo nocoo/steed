@@ -131,9 +131,9 @@ function childPositions(satelliteX: number, satelliteY: number, childIds: string
   }));
 }
 
-function movedSatelliteLayout(topology: Topology, satelliteId: string, pins: Record<string, TopologyPoint>): SatelliteLayout | null {
+function movedSatelliteLayout(topology: Topology, satelliteId: string, pins: Map<string, TopologyPoint>): SatelliteLayout | null {
   const children = satelliteChildren(topology, satelliteId);
-  const satellitePin = pins[satelliteId];
+  const satellitePin = pins.get(satelliteId);
   if (satellitePin) {
     const layoutChildren = childPositions(satellitePin.x, satellitePin.y, children);
     return {
@@ -146,9 +146,9 @@ function movedSatelliteLayout(topology: Topology, satelliteId: string, pins: Rec
     };
   }
 
-  const pinnedChild = [...children].sort(compareIds).find((id) => pins[id] !== undefined);
+  const pinnedChild = [...children].sort(compareIds).find((id) => pins.has(id));
   if (!pinnedChild) return null;
-  const pinned = pins[pinnedChild];
+  const pinned = pins.get(pinnedChild);
   if (!pinned) return null;
   const childIndex = children.indexOf(pinnedChild);
   const satelliteX = pinned.x - TOPOLOGY_SUB_SATELLITE_INDENT;
@@ -221,7 +221,7 @@ function computeComposite(hostX: number, hostY: number, satellites: SatelliteLay
 
 export function layoutTopology(topology: Topology, options: TopologyLayoutOptions = {}): TopologyLayoutResult {
   const selectedView = options.view ?? (options.viewId ? topology.views.find((view) => view.id === options.viewId) : undefined);
-  const pins = options.pins ?? selectedView?.pins ?? {};
+  const pins = new Map(Object.entries(options.pins ?? selectedView?.pins ?? {}));
   const columns = Math.max(1, options.columns ?? TOPOLOGY_DEFAULT_COLUMNS);
   const origin = options.origin ?? { x: 0, y: 0 };
   const positions: Record<string, TopologyLayoutPosition> = {};
@@ -231,11 +231,11 @@ export function layoutTopology(topology: Topology, options: TopologyLayoutOption
   let laneY = origin.y;
 
   const hostIds = new Set(topology.nodes.filter((node) => node.parentId === undefined).map((node) => node.id));
-  const pinnedHostIds = new Set([...hostIds].filter((hostId) => pins[hostId] !== undefined));
+  const pinnedHostIds = new Set([...hostIds].filter((hostId) => pins.has(hostId)));
 
   // Pre-reserve every pinned host composite before any unpinned host is packed.
   for (const hostId of pinnedHostIds) {
-    const pin = pins[hostId];
+    const pin = pins.get(hostId);
     if (!pin) continue;
     const satellites = satelliteLayouts(topology, hostId, pin.x, pin.y, new Map(), true);
     occupied.push({ ...computeComposite(pin.x, pin.y, satellites), ownerHostId: hostId, fixed: true });
@@ -269,7 +269,7 @@ export function layoutTopology(topology: Topology, options: TopologyLayoutOption
     for (let index = 0; index < hostIdsInLane.length; index++) {
       const hostId = hostIdsInLane[index];
       if (!hostId) continue;
-      const hostPin = pins[hostId];
+      const hostPin = pins.get(hostId);
       let hostX: number;
       let hostY: number;
 
