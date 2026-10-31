@@ -928,6 +928,11 @@ The former open questions, answered in order:
   rejects nodes with satellites; subtree removal uses the operation batch.
   Malformed operation envelopes and entity shapes return a generic
   `invalid_topology` without reflecting user-supplied values or keys.
+- The Connect write batch reserves its idempotency key before the guarded
+  topology write, then derives the receipt outcome from the unique write guard
+  in metadata rather than SQLite's last-statement `changes()`. The receipt,
+  history, topology and audit commit together; token hash, write scope,
+  revocation and expiry are checked again in the batch.
 
 ### Implementation decisions (Connect operation registry)
 
