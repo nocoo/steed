@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.5.0] - 2026-11-01
+
+Phase 1 and 2 introduce the canonical topology and its Connect API. See
+`docs/19-phase1-topology-model.md` for the model and API contract.
+
+### Added
+
+- Layers, types, boundaries, nodes with two satellite levels, edges and views,
+  with schema validation and a secret-like value safety net.
+- Normalized D1 topology storage, guarded writes, change history and
+  conflict-checked revert.
+- Topology-scoped Connect reads, validation, operations and replacement, with
+  revisions, idempotency, confirmation and auditing.
+- Local topology and Connect HTTP acceptance tests and a capacity benchmark.
+
+### Changed
+
+- The browser renders a read-only topology with filters and an interim lane
+  layout; structural writes use Connect.
+- Migrations `0009`-`0011` create topology tables, rebuild Connect scopes and
+  remove the retired diagrams table. Root coverage now counts Worker code.
+
+### Removed
+
+- The v1 diagram model, editing UI and diagram APIs.
+
 ## [0.4.0] - 2026-10-31
 
 Phase 0 of the topology platform: Steed no longer inventories agent assets.

@@ -3,10 +3,10 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { routes } from "./router";
 
-vi.mock("@/lib/diagram-client", () => ({ diagramClient: {
-  list: vi.fn().mockResolvedValue({ data: [], nextCursor: null }),
-  get: vi.fn().mockRejectedValue(new Error("missing")),
-} }));
+vi.mock("@/lib/topology-client", () => ({
+  topologyClient: { get: vi.fn().mockResolvedValue({ data: { schemaVersion: 2, title: "Topology", description: "", revision: 0, layers: [], types: [], boundaries: [], nodes: [], edges: [], views: [] }, updatedAt: "1970-01-01T00:00:00.000Z" }) },
+  downloadTopology: vi.fn(),
+}));
 
 function renderRoute(path: string) {
   const router = createMemoryRouter(routes, { initialEntries: [path] });
@@ -28,9 +28,14 @@ describe("router", () => {
     await waitFor(() => expect(router.state.location.pathname).toBe("/topology"));
   });
 
-  it("redirects a former diagram link to its topology page", async () => {
+  it("redirects former topology links to the canonical topology page", async () => {
+    const router = renderRoute("/topology/service%20platform");
+    await waitFor(() => expect(router.state.location.pathname).toBe("/topology"));
+  });
+
+  it("redirects former diagram links to the canonical topology page", async () => {
     const router = renderRoute("/diagrams/service%20platform");
-    await waitFor(() => expect(router.state.location.pathname).toBe("/topology/service%20platform"));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/topology"));
   });
 
   it("only routes the workspace pages", () => {

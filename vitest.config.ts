@@ -17,13 +17,17 @@ export default defineConfig({
       include: [
         "packages/*/src/**/*.{ts,tsx}",
         "apps/web/src/**/*.{ts,tsx}",
+        "apps/web/worker/**/*.ts",
       ],
       exclude: [
         "**/*.test.ts",
         "**/*.test.tsx",
-        "**/index.ts",
+        "packages/*/src/**/index.ts",
+        "apps/web/src/**/index.ts",
         "apps/web/src/main.tsx",
         "apps/web/src/vite-env.d.ts",
+        "apps/web/worker/bindings.d.ts",
+        "apps/web/worker/__tests__/**",
         "**/test-setup.ts",
       ],
       thresholds: {

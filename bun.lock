@@ -19,7 +19,7 @@
     },
     "apps/web": {
       "name": "@steed/web",
-      "version": "0.3.4",
+      "version": "0.5.0",
       "dependencies": {
         "@nocoo/basalt": "3.2.1",
         "@steed/api": "workspace:*",
@@ -50,7 +50,7 @@
     },
     "packages/api": {
       "name": "@steed/api",
-      "version": "0.3.4",
+      "version": "0.5.0",
       "dependencies": {
         "zod": "4.6.7",
       },

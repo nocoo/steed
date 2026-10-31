@@ -4,8 +4,8 @@ import { PageHeader } from "@nocoo/basalt/components/page-header";
 import { SectionRule } from "@nocoo/basalt/components/section-rule";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@nocoo/basalt/components/select";
 import { Check, Copy, Eye, EyeOff, KeyRound, Pencil, Plus, RefreshCw, RotateCw, ShieldCheck, Terminal, Trash2 } from "lucide-react";
-import { CONNECT_LIMITS, connectScopeSchema, type ConnectToken } from "@steed/api/shared";
-import { connectDate, connectExamples, tokenStatus } from "@/lib/connect-client";
+import { CONNECT_LIMITS, topologyConnectScopeSchema, type TopologyConnectToken } from "@steed/api/shared";
+import { connectDate, topologyConnectExamples, topologyTokenStatus } from "@/lib/topology-connect-client";
 import { useConnectViewModel } from "@/viewmodels/use-connect-viewmodel";
 
 const labels = { reveal: "Reveal key", rotate: "Rotate key", revoke: "Revoke token", rename: "Rename token" };
@@ -19,58 +19,42 @@ const descriptions = {
 export function ConnectPage() {
   const vm = useConnectViewModel();
   const [example, setExample] = useState<"curl" | "agent">("curl");
-  const examples = useMemo(() => connectExamples(vm.baseUrl, vm.target), [vm.baseUrl, vm.target]);
+  const examples = useMemo(() => topologyConnectExamples(vm.baseUrl), [vm.baseUrl]);
   const opener = useRef<HTMLButtonElement | null>(null);
-  const target = useRef<HTMLButtonElement | null>(null);
-  const restoreFocus = (event: Event) => { event.preventDefault(); (opener.current?.isConnected && !opener.current.disabled ? opener.current : target.current)?.focus(); };
-  const open = (button: HTMLButtonElement, token: ConnectToken, kind: keyof typeof labels) => { opener.current = button; vm.openAction(token, kind); };
+  const restoreFocus = (event: Event) => { event.preventDefault(); if (opener.current?.isConnected && !opener.current.disabled) opener.current.focus(); };
+  const open = (button: HTMLButtonElement, token: TopologyConnectToken, kind: keyof typeof labels) => { opener.current = button; vm.openAction(token, kind); };
   const used = vm.tokens.filter((token) => !token.revokedAt).length;
-  const selectedTarget = vm.diagrams.find((diagram) => diagram.id === vm.target);
-  const targetName = selectedTarget ? `${selectedTarget.title}${selectedTarget.deleted ? " (deleted)" : ""}` : vm.target || "All diagrams";
-  const targetUnavailable = Boolean(vm.target && (!selectedTarget || selectedTarget.deleted));
+
 
   return <div className="space-y-basalt-layout-lg">
     <PageHeader
       title="Connect"
-      description="Let your agents read and maintain architecture diagrams."
+      description="Let your agents read and maintain the topology."
       actions={<Badge variant="outline">API v1</Badge>}
     />
     {vm.error && <p role="alert" className="whitespace-pre-wrap rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-700 dark:bg-red-950/30">{vm.error}</p>}
     {vm.notice && <p role="status" className="flex items-center gap-2 text-sm text-basalt-muted-foreground"><Check className="h-4 w-4" />{vm.notice}</p>}
-    <LayerCard className="flex flex-col justify-between gap-6 sm:flex-row sm:items-center">
-      <div className="flex items-start gap-3"><ShieldCheck className="mt-0.5 h-6 w-6 shrink-0 text-basalt-primary" />
-        <div><h2 className="text-sm font-semibold">Choose what your agent can access</h2><p className="mt-2 max-w-lg text-sm text-basalt-muted-foreground">Bind a token to one diagram, or allow all diagrams so an agent can create new ones. Write permission includes read access.</p></div>
-      </div>
-      <div className="w-full shrink-0 space-y-2 sm:w-64"><Label htmlFor="connect-target">Target</Label>
-        <Select value={vm.target === "" ? "\u0000" : vm.target} onValueChange={(value) => vm.changeTarget(value === "\u0000" ? "" : value)}>
-          <SelectTrigger ref={target} id="connect-target" className="w-full"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value={"\u0000"}>All diagrams</SelectItem>
-            {vm.target && !vm.diagrams.some((diagram) => diagram.id === vm.target) && <SelectItem value={vm.target}>Unavailable diagram</SelectItem>}
-            {vm.diagrams.map((diagram) => <SelectItem key={diagram.id} value={diagram.id}>{diagram.title}{diagram.deleted ? " (deleted)" : ""}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </div>
-    </LayerCard>
+    <LayerCard><div className="flex items-start gap-3"><ShieldCheck className="mt-0.5 h-6 w-6 shrink-0 text-basalt-primary" />
+      <div><h2 className="text-sm font-semibold">One canonical topology</h2><p className="mt-2 text-sm text-basalt-muted-foreground">Grant an agent read access or permission to maintain the topology.</p></div>
+    </div></LayerCard>
     <SectionRule
       title="Tokens"
       actions={
         <>
           <Button size="sm" variant="outline" disabled={vm.loading || vm.busy} onClick={vm.reload}><RefreshCw className="h-3.5 w-3.5" />Refresh</Button>
-          <Button size="sm" disabled={vm.loading || vm.busy || targetUnavailable || used >= CONNECT_LIMITS.tokensPerTarget} onClick={(event) => { opener.current = event.currentTarget; vm.openCreate(); }}><Plus className="h-3.5 w-3.5" />Create token</Button>
+          <Button size="sm" disabled={vm.loading || vm.busy || used >= CONNECT_LIMITS.tokensPerTarget} onClick={(event) => { opener.current = event.currentTarget; vm.openCreate(); }}><Plus className="h-3.5 w-3.5" />Create token</Button>
         </>
       }
     >
       <div className="space-y-basalt-layout">
-      <p className="text-xs text-basalt-muted-foreground">{targetName} · {used} / {CONNECT_LIMITS.tokensPerTarget} slots used</p>
+      <p className="text-xs text-basalt-muted-foreground">Topology · {used} / {CONNECT_LIMITS.tokensPerTarget} slots used</p>
       {vm.loading && <p role="status" className="text-sm text-basalt-muted-foreground">Refreshing connections…</p>}
-      {targetUnavailable && <p className="text-sm text-basalt-muted-foreground">This diagram is unavailable. You can still revoke its existing tokens.</p>}
-      {!vm.tokens.length && !vm.loading && !vm.error && <LayerCard><LayerCard.Empty icon={<KeyRound />} title="No tokens for this target" description="Create a read token to explore the API, or a write token to maintain diagrams." /></LayerCard>}
+      {!vm.tokens.length && !vm.loading && !vm.error && <LayerCard><LayerCard.Empty icon={<KeyRound />} title="No topology tokens" description="Create a read token to explore the API, or a write token to maintain the topology." /></LayerCard>}
       {vm.tokens.map((token) => {
-        const status = tokenStatus(token);
+        const status = topologyTokenStatus(token);
         return <LayerCard key={token.id} className="space-y-4" aria-label={`Token ${token.name}`}>
           <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="break-words text-sm font-semibold">{token.name}</h3><Badge variant="outline">{token.scope === "write" ? "Read + write" : "Read"}</Badge><Badge variant="outline">{status}</Badge></div>
+            <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="break-words text-sm font-semibold">{token.name}</h3><Badge variant="outline">{token.scope === "topology:write" ? "Read + write" : "Read"}</Badge><Badge variant="outline">{status}</Badge></div>
               <p className="mt-2 font-mono text-xs text-basalt-muted-foreground">{token.prefix}</p></div>
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" size="sm" disabled={vm.busy || status !== "Active"} aria-label={`Reveal key for ${token.name}`} onClick={(event) => open(event.currentTarget, token, "reveal")}><Eye className="h-3.5 w-3.5" />Reveal</Button>
@@ -107,18 +91,18 @@ export function ConnectPage() {
     </LayerCard>
     <LayerCard><details><summary className="cursor-pointer text-sm font-semibold">Recent activity</summary>
       <ul className="mt-4 space-y-3">{vm.audit.map((entry) => <li key={entry.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-basalt-border pb-3 text-xs"><div><span className="font-mono">{entry.operation}</span><span className="ml-3 text-basalt-muted-foreground">{entry.status}{entry.code ? ` · ${entry.code}` : ""}</span><p className="mt-1 break-all font-mono text-[10px] text-basalt-muted-foreground">{entry.requestId}</p></div><time dateTime={entry.createdAt} className="text-basalt-muted-foreground">{connectDate(entry.createdAt)}</time></li>)}</ul>
-      {!vm.audit.length && <p className="mt-4 text-xs text-basalt-muted-foreground">No recorded activity for this target.</p>}
+      {!vm.audit.length && <p className="mt-4 text-xs text-basalt-muted-foreground">No recorded activity.</p>}
     </details></LayerCard>
-    <Dialog open={vm.creating} onOpenChange={vm.setCreating}><DialogContent onCloseAutoFocus={restoreFocus}><DialogHeader><DialogTitle>Create token</DialogTitle><DialogDescription>Give an agent access to {targetName}. You can reveal its key after creation.</DialogDescription></DialogHeader>
+    <Dialog open={vm.creating} onOpenChange={vm.setCreating}><DialogContent onCloseAutoFocus={restoreFocus}><DialogHeader><DialogTitle>Create token</DialogTitle><DialogDescription>Give an agent access to the topology. You can reveal its key after creation.</DialogDescription></DialogHeader>
       {vm.error && <p role="alert" className="whitespace-pre-wrap text-sm text-red-600">{vm.error}</p>}
       <form onSubmit={(event) => { event.preventDefault(); void vm.create(); }} className="space-y-4">
         <div><Label htmlFor="token-name">Name</Label><Input id="token-name" value={vm.name} maxLength={64} required disabled={vm.busy} onChange={(event) => vm.setName(event.target.value)} placeholder="Architecture assistant" /></div>
         <div><Label htmlFor="token-scope">Permission</Label>
-          <Select value={vm.scope} onValueChange={(value) => vm.setScope(connectScopeSchema.parse(value))}>
+          <Select value={vm.scope} onValueChange={(value) => vm.setScope(topologyConnectScopeSchema.parse(value))}>
             <SelectTrigger id="token-scope" className="w-full" disabled={vm.busy}><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="read">Read · view and export</SelectItem>
-              <SelectItem value="write">Read + write · create and maintain</SelectItem>
+              <SelectItem value="topology:read">Topology read · view and export</SelectItem>
+              <SelectItem value="topology:write">Topology write · read and maintain</SelectItem>
             </SelectContent>
           </Select>
         </div>

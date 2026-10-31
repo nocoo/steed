@@ -15,17 +15,17 @@
 
 Steed 是个人系统拓扑平台：把主机、服务、Agent、数据源和外部供应商画在同一张拓扑图里，按供应商或提供方分层，标注信任域。网页只负责浏览，图的结构通过带令牌的 Connect API 写入。
 
-v0.4.0 起移除了早期的 Agent 资产盘点（CLI、Host Service、主机/Agent/数据源页面与相关数据表），并清空了旧的架构图和 Connect 状态；新的单一拓扑在 Phase 1 引入。迁移计划见 [Phase 0 文档](docs/18-phase0-topology-cleanup.md)。
+v0.4.0 移除了早期的 Agent 资产盘点并清空了旧架构图和 Connect 状态；新的单一拓扑模型见 [Phase 1 和 Phase 2 设计](docs/19-phase1-topology-model.md)。
 
 ## 功能
 
-- Topology 页面：在 React Flow 画布上查看和编辑拓扑图（只读改造在 Phase 1 完成）。
-- Connect 页面：签发、查看、轮换和吊销 Connect 令牌，令牌按图授权读或写。
-- Connect API（`/api/v1`）：机器端使用 Bearer 令牌读取和修改拓扑，带修订号、幂等键、速率限制和审计记录。
+- Topology 页面：在只读 React Flow 画布上浏览层、节点、卫星、边界和关系，按视图或属性筛选并查看详情。
+- Connect 页面：签发、查看、轮换和吊销令牌，范围为 `topology:read` 或 `topology:write`。
+- Connect API（`/api/v1/topology*`）：机器端使用 Bearer 令牌读取、校验、替换或增量修改拓扑，也可读取变更历史并在无冲突时撤销；写入使用修订号、幂等键和审计记录。
 
 ## 使用
 
-[站点](https://steed.hexly.ai) 的网页和浏览器 API 使用 Cloudflare Access 控制访问，需要获准的身份。`/api/live` 和 `/api/v1/*` 不经过 Access，由 Worker 自行校验 Connect 令牌。自行部署时，需要配置自己的 Access 应用、D1 数据库和 Connect 密钥。
+[站点](https://steed.hexly.ai) 的网页和浏览器 API 使用 Cloudflare Access 控制访问，需要获准的身份。`/api/live` 不经过 Access；`/api/v1/*` 也不经过 Access，而由 Worker 校验 Connect 令牌。浏览器 `/api/topology` 只读，结构写入须使用 Connect API。自行部署时，需要配置自己的 Access 应用、D1 数据库和 Connect 密钥。API 路由与前置条件见[设计文档](docs/19-phase1-topology-model.md#api-shape)。
 
 ## 开发
 
@@ -42,7 +42,7 @@ bun run build
 
 ```bash
 cd apps/web
-bunx wrangler d1 migrations apply DB --local --persist-to .wrangler/state/web
+bunx wrangler d1 migrations apply DB --env dev --local --persist-to .wrangler/state/web
 cd ../..
 ```
 
@@ -65,7 +65,7 @@ Vite 把 `/api` 代理到本地 Web Worker。通过现有 Caddy 代理访问 `ht
 ```text
 apps/web/              React 页面、Web Worker、Access 校验、Connect API
 apps/web/migrations/   D1 迁移
-packages/api/          共享的拓扑图、Connect 与用户资料契约（zod）
+packages/api/          共享的拓扑、Connect 与用户资料契约（zod）
 ```
 
 生产部署构建 `apps/web`，使用其 `production` 环境发布到 Cloudflare Workers。
@@ -78,9 +78,10 @@ packages/api/          共享的拓扑图、Connect 与用户资料契约（zod�
 | --- | --- |
 | 全部单元与组件测试 | `bun run test` |
 | Web 组件与视图模型测试 | `bun run --cwd apps/web test` |
-| 拓扑图与 Connect HTTP 集成测试 | `bun run test:e2e` |
+| 拓扑与 Connect HTTP 集成测试 | `bun run test:e2e` |
+| 本地拓扑容量与延迟基准 | `bun run bench:topology` |
 
-`bun run test` 同时生成覆盖率报告；`bun run test:watch` 进入监听模式。Web 测试使用 jsdom 和 React Testing Library。`test:e2e` 依次运行拓扑图和 Connect 两个 HTTP 测试，每次启动本地 Wrangler，在临时 D1 状态目录中应用迁移并使用临时回环端口。
+`bun run test` 生成包含 Worker 的覆盖率报告，`bun run check-coverage` 检查门槛；`bun run test:watch` 进入监听模式。Web 测试使用 jsdom 和 React Testing Library。`test:e2e` 依次运行拓扑和 Connect 两个 HTTP 测试，每次启动本地 Wrangler，在临时 D1 状态目录中应用迁移并使用临时回环端口。基准使用合成的 1000 节点、5000 边拓扑，在本地 HTTP 和 D1 上测量各操作的 p95。
 
 当前没有已配置的浏览器端到端测试命令，浏览器完整操作链路仍需手动验证。
 
@@ -108,6 +109,7 @@ packages/api/          共享的拓扑图、Connect 与用户资料契约（zod�
 
 - [文档索引](docs/README.md)
 - [Phase 0：拓扑平台清理](docs/18-phase0-topology-cleanup.md)
+- [Phase 1 和 Phase 2：拓扑模型与 Connect](docs/19-phase1-topology-model.md)
 - [架构图与 Connect](docs/13-architecture-diagrams-and-connect.md)
 - [本地开发域名](docs/15-local-dev-domain.md)
 
