@@ -110,10 +110,10 @@ Boundary   id, label, kind (trust|site|network|account), parentId?,
 Node       id, type, label, layerId, boundaryIds[] (≤8), parentId?,
            role? (service|subresource; required iff parentId),
            lifecycle (active|planned|deprecated|retired, default active),
-           url?, description, tags[] (≤20), attrs{} (≤32), style?, source?
+           url?, description, tags[] (≤20), attrs{} (≤32), style?, provenance?
 Edge       id, source, target, kind, label, protocol?, port?,
            direction (uni|bi), evidence (documented|inferred), description,
-           tags[], style?, source?
+           tags[], style?, provenance?
 View       id, label, description, filter {layerIds[], typeIds[],
            boundaryIds[], tags[]}, focusLayerId?, pins {nodeId: {x,y}}
 ```
@@ -272,7 +272,7 @@ CREATE TABLE topo_nodes (
   lifecycle TEXT NOT NULL, url TEXT, description TEXT NOT NULL,
   tags TEXT NOT NULL CHECK (json_valid(tags)),
   attrs TEXT NOT NULL CHECK (json_valid(attrs)),
-  style TEXT CHECK (style IS NULL OR json_valid(style)), source TEXT,
+  style TEXT CHECK (style IS NULL OR json_valid(style)), provenance TEXT,
   updated_rev INTEGER NOT NULL,
   CHECK ((parent_id IS NULL) = (role IS NULL))
 );
@@ -290,7 +290,7 @@ CREATE TABLE topo_edges (
   direction TEXT NOT NULL CHECK (direction IN ('uni','bi')),
   evidence TEXT NOT NULL CHECK (evidence IN ('documented','inferred')),
   description TEXT NOT NULL, tags TEXT NOT NULL CHECK (json_valid(tags)),
-  style TEXT CHECK (style IS NULL OR json_valid(style)), source TEXT,
+  style TEXT CHECK (style IS NULL OR json_valid(style)), provenance TEXT,
   updated_rev INTEGER NOT NULL, CHECK (source_id <> target_id)
 );
 CREATE TABLE topo_views (
@@ -302,7 +302,7 @@ CREATE TABLE topo_views (
 CREATE TABLE topo_changes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   revision INTEGER NOT NULL UNIQUE, request_id TEXT NOT NULL UNIQUE,
-  actor TEXT NOT NULL, token_id TEXT, source TEXT,
+  actor TEXT NOT NULL, token_id TEXT, provenance TEXT,
   kind TEXT NOT NULL CHECK (kind IN ('operations','replace','revert')),
   reverts_change_id INTEGER REFERENCES topo_changes(id),
   summary TEXT NOT NULL CHECK (json_valid(summary)), created_at INTEGER NOT NULL
@@ -476,7 +476,7 @@ Rate limits stay 120 reads and 30 writes per minute per token.
   filter; boundary frames are Phase 3.
 - Satellite badges: the node card shows up to six badge attrs from its
   TypeDef (`label` + value + unit); the inspector lists all attrs, tags,
-  boundaries, satellites, edges and `source`.
+  boundaries, satellites, edges and `provenance` (labelled "Provenance").
 - Inspector and empty state: an empty topology explains that structure is
   written through the Connect API and links to `/connect`.
 - Connect page: no target picker; scope choice is "Topology read" or
@@ -736,6 +736,11 @@ The former open questions, answered in order:
       sets differ.
     - `edge.style.dash` is `solid|dashed|dotted`. `Boundary.style` allows only
       `color`, `border.color`, `border.style`, `border.width` and `icon`.
+11. **`provenance`, not `source`.** The optional provenance marker is named
+    `provenance` everywhere: the JSON field `provenance?` on every entity,
+    the DB column `provenance` (entity tables and `topo_changes`), and the
+    inspector label "Provenance". `Edge.source` and `Edge.target` are node
+    IDs only (DB `source_id` / `target_id`).
 
 ### Implementation decisions (detector)
 
