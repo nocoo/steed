@@ -136,4 +136,34 @@ describe("D1 Migrations", () => {
     ]));
     sqlite.close();
   });
+
+  it("0008 clears diagrams and Connect state and keeps the audit log", () => {
+    const sqlite = new DatabaseSync(":memory:");
+    applyMigrations(sqlite, 1, 7);
+    sqlite.exec(`
+      PRAGMA foreign_keys = ON;
+      INSERT INTO diagrams (id, title, description, document, created_at, updated_at) VALUES ('g1', 'Topology', '', '{}', 't', 't');
+      INSERT INTO connect_tokens (id, diagram_id, name, scope, prefix, token_hash, owner, created_at) VALUES ('t1', 'g1', 'token', 'write', 'stc_', 'hash', 'owner', 1);
+      INSERT INTO connect_confirmations (challenge_hash, token_id, token_version, principal, action, expires_at) VALUES ('c1', 't1', 1, 'owner', 'reveal', 1);
+      INSERT INTO connect_requests (token_id, key_hash, request_hash, request_id, diagram_id, operation, created_at, expires_at) VALUES ('t1', 'k1', 'r1', 'req1', 'g1', 'read', 1, 1);
+      INSERT INTO connect_rate_limits (key, window, count) VALUES ('t1', 1, 1);
+      INSERT INTO connect_audit (request_id, token_id, diagram_id, actor, operation, status, created_at) VALUES ('req1', 't1', 'g1', 'owner', 'read', 200, 1);
+    `);
+    applyMigrations(sqlite, 8, 8);
+    const count = (table: string) => Number(sqlite.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get()?.count);
+    for (const table of ["diagrams", "connect_tokens", "connect_confirmations", "connect_requests", "connect_rate_limits"]) {
+      expect(count(table)).toBe(0);
+    }
+    expect(count("connect_audit")).toBe(1);
+    sqlite.close();
+  });
+
+  it("applies every migration to an empty database", () => {
+    const sqlite = new DatabaseSync(":memory:");
+    applyMigrations(sqlite, 1, Number.MAX_SAFE_INTEGER);
+    expect(tableNames(sqlite)).toEqual([
+      "connect_audit", "connect_confirmations", "connect_rate_limits", "connect_requests", "connect_tokens", "diagrams",
+    ]);
+    sqlite.close();
+  });
 });
