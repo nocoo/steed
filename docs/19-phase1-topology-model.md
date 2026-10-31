@@ -97,16 +97,16 @@ Shared zod schemas live in `packages/api/src/shared/topology.ts`
 
 ```text
 Topology   schemaVersion: 2, title, description, revision (read-only),
-           layers[], types[], boundaries[], nodes[], edges[], views[]
+           layers[], types[], boundaries[], nodes[], edges[], views[], provenance?
 Layer      id, label, provider, order (int, unique), color?, icon?, url?,
-           description
+           description, provenance?
 TypeDef    id, label, defaultLayerId?, shape, icon?, color?, description,
-           attrs: AttrDef[]   (badge template and validation)
+           attrs: AttrDef[], provenance?   (badge template and validation)
 AttrDef    key, label, valueType (string|number|boolean|enum|public_key|
            fingerprint|identifier), unit?,
-           enumValues?, badge (bool), order, required (bool)
+           enumValues?, badge (bool), order, required (bool), provenance?
 Boundary   id, label, kind (trust|site|network|account), parentId?,
-           style?, description
+           style?, description, provenance?
 Node       id, type, label, layerId, boundaryIds[] (≤8), parentId?,
            role? (service|subresource; required iff parentId),
            lifecycle (active|planned|deprecated|retired, default active),
@@ -115,7 +115,7 @@ Edge       id, source, target, kind, label, protocol?, port?,
            direction (uni|bi), evidence (documented|inferred), description,
            tags[], style?, provenance?
 View       id, label, description, filter {layerIds[], typeIds[],
-           boundaryIds[], tags[]}, focusLayerId?, pins {nodeId: {x,y}}
+           boundaryIds[], tags[]}, focusLayerId?, pins {nodeId: {x,y}}, provenance?
 ```
 
 - **Node kinds** become open `type` IDs that must reference a `TypeDef`, so
@@ -176,7 +176,7 @@ View       id, label, description, filter {layerIds[], typeIds[],
   (`solid|dashed|dotted|double`), `border.width` (0–4), `icon` (icon key),
   edge `dash`, `width` (1–4), `animated`. Rendering of style is Phase 3; the
   fields are stored and validated now.
-- **source** (`^[a-z][a-z0-9-]{0,31}$`, optional) marks who owns a record
+- **provenance** (`^[a-z][a-z0-9-]{0,31}$`, optional) marks who owns a record
   (for example `manual`, `cloudflare-sync`) for later automated syncs.
 - **Limits** (enforced; design target is 1000/5000 with 2× headroom):
   layers 64, types 128, boundaries 256, nodes 2000, edges 10 000, views 64,
@@ -803,6 +803,31 @@ The former open questions, answered in order:
   blobs require the matching NIST curve name and an uncompressed SEC1 point
   with the exact curve-coordinate width that satisfies the curve equation.
   For P-521, coordinate widths are 66 bytes and the encoded point is 133 bytes.
+
+### Implementation decisions (topology schema)
+- Labels and descriptions use conservative fixed limits matching existing
+  schema conventions: labels 160 characters, descriptions 4000 (topology
+  description 12000), providers 160, URLs 2048, tags 100, and icons 64.
+- `revision` is accepted as a non-negative integer in full replace or validate
+  input and is preserved by parsing for export compatibility; the writer still
+  owns revision and concurrency uses `If-Match` only.
+- View filter arrays must contain unique IDs; duplicate layer, type, or
+  boundary filter IDs are rejected rather than de-duplicated in storage.
+- Structural validation issue codes are `custom` Zod issues carrying
+  `params.topologyCode`; secret-like issues additionally carry
+  `params.rule`. Paths and messages are redacted through the detector and never
+  echo the scanned value.
+- Arrays are allowed in attrs only for keys not declared by the node TypeDef;
+  declared keys use the scalar type or enum matching their AttrDef.
+- Provenance is an optional marker on the topology document and each top-level
+  entity, including AttrDef: the value uses `^[a-z][a-z0-9-]{0,31}$` and every
+  provenance string passes the same secret-like scanner as all other strings;
+  entity IDs, references and view pin keys also pass the same string scanner.
+  Every node attr map has at most 32 keys. Ordinary strings and unknown/declared
+  non-public-key strings are limited to 256 characters; a declared `public_key`
+  string may use up to 1024 characters. Arrays remain limited to 16 strings of
+  256 characters each. Edge `source` and `target` remain node IDs; provenance is only the separate
+  `provenance` field.
 
 Delivery: Phase 1 and Phase 2 in one PR (#104), release `0.5.0`, developed
 through herdr (see the implementation path above).
