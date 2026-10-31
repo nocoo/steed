@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   TOPOLOGY_LIMITS,
   emptyTopology,
-  topologyEtag,
+  topologyEtag, topologyChangesEtag,
   topologySchema,
   topologyWarnings,
   validateTopology,
@@ -61,6 +61,7 @@ describe("topology v2 schema", () => {
     expect(topologySchema.parse({ ...topology, revision: 99 }).revision).toBe(99);
     expect(emptyTopology("Fixture empty").schemaVersion).toBe(2);
     expect(topologyEtag(0)).toBe('"topology:0"');
+    expect(topologyChangesEtag(510, 11)).toBe('"topology-changes:510:11"');
   });
 
   it("supports provenance on every entity and rejects secret-like values without echo", () => {

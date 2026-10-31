@@ -878,6 +878,12 @@ The former open questions, answered in order:
   including for an empty replacement; at the current revision metadata is
   omitted and all collection arrays are empty. A later recreation cancels an
   earlier deletion of the same ID in the delta.
+- Browser snapshots return the topology in `data`, with `updatedAt` alongside
+  it; change pages return `data.changes` and `data.nextCursor`. Query integers
+  are decimal, history pages default to 50 and accept at most 500 entries.
+  A resync response puts `current_revision` and `oldest_retained_revision` at
+  the top level beside the standard error object. Legacy diagram routes remain
+  available only until the planned v1 removal commit.
 
 Delivery: Phase 1 and Phase 2 in one PR (#104), release `0.5.0`, developed
 through herdr (see the implementation path above).

@@ -4,6 +4,7 @@ import { getUserProfile } from "./author-profile";
 import { diagramBrowserApi } from "./diagram-api";
 import { connectMachineApi } from "./connect-api";
 import { connectManagementApi } from "./connect-management";
+import { topologyBrowserApi } from "./topology-api";
 
 type Env = Pick<Cloudflare.ProductionEnv, "DB" | "CF_ACCESS_TEAM" | "CF_ACCESS_AUD">
   & Pick<WorkerBindings, "CF_ACCESS_DEV_BYPASS" | "CONNECT_DEPLOYMENT_ID" | "CONNECT_MANAGERS" | "CONNECT_TOKEN_KEYS">
@@ -40,6 +41,10 @@ export default {
 
       if (url.pathname === "/api/diagrams" || url.pathname.startsWith("/api/diagrams/")) {
         return diagramBrowserApi(req, env.DB);
+      }
+
+      if (url.pathname === "/api/topology" || url.pathname.startsWith("/api/topology/")) {
+        return topologyBrowserApi(req, env.DB);
       }
 
       if (url.pathname === "/api/me") {

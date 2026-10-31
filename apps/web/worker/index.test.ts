@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   connectFetch: vi.fn(),
   verifyAccessJwt: vi.fn(),
   getUserProfile: vi.fn(),
+  topologyFetch: vi.fn(),
 }));
 
 vi.mock("./connect-api", () => ({
@@ -16,6 +17,7 @@ vi.mock("./access-jwt", () => ({
 }));
 
 vi.mock("./author-profile", () => ({ getUserProfile: mocks.getUserProfile }));
+vi.mock("./topology-api", () => ({ topologyBrowserApi: (...args: unknown[]) => mocks.topologyFetch(...args) }));
 
 import worker from "./index";
 
@@ -63,6 +65,18 @@ describe("worker", () => {
 
     expect(res.status).toBe(401);
     expect(await res.text()).toBe("Unauthorized");
+  });
+
+  it("routes topology reads only after Access authentication", async () => {
+    mocks.verifyAccessJwt.mockResolvedValueOnce({ ok: false, reason: "Missing JWT" });
+    const denied = new Request("https://example.com/api/topology");
+    expect((await worker.fetch(denied, baseEnv, {} as ExecutionContext)).status).toBe(401);
+    expect(mocks.topologyFetch).not.toHaveBeenCalled();
+    mocks.verifyAccessJwt.mockResolvedValueOnce({ ok: true, user: { email: "verified@example.com", sub: "123" } });
+    mocks.topologyFetch.mockResolvedValueOnce(new Response("ok"));
+    const allowed = new Request("https://example.com/api/topology/changes");
+    expect((await worker.fetch(allowed, baseEnv, {} as ExecutionContext)).status).toBe(200);
+    expect(mocks.topologyFetch).toHaveBeenCalledWith(allowed, baseEnv.DB);
   });
 
   it.each(["GET", "HEAD"])("serves %s /api/me using only the verified identity", async (method) => {

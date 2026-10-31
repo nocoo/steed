@@ -530,6 +530,8 @@ export function emptyTopology(title = "Untitled topology"): Topology {
 }
 
 export const topologyEtag = (revision: number) => `"topology:${revision}"`;
+export const topologyChangesEtag = (revision: number, oldestRetainedRevision: number) =>
+  `"topology-changes:${revision}:${oldestRetainedRevision}"`;
 
 export type Topology = z.infer<typeof topologySchema>;
 export type TopologyLayer = z.infer<typeof topologyLayerSchema>;
