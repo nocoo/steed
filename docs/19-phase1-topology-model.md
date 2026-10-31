@@ -887,6 +887,12 @@ The former open questions, answered in order:
 
 ### Implementation decisions (topology browser client)
 
+- Browser mutation transport preparation: `browserRequest` in the neutral
+  `browser-request` module owns JSON response handling, 204 handling, request
+  headers, same-origin credentials and HTTP error formatting. Diagram and
+  Connect clients share it; the topology snapshot client keeps its independent
+  ETag/304 cache. No Connect scope, database, route or machine API behavior
+  changes in this preparation split.
 - Snapshot caching is in memory per client instance; a 304 reuses its cached
   snapshot captured when that request was sent. Newer requests cannot have
   their cache entries overwritten by older completions, and clearing the cache

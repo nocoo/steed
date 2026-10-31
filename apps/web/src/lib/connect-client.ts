@@ -1,8 +1,8 @@
 import { diagramEtag, type ConnectToken } from "@steed/api/shared";
-import { diagramRequest } from "./diagram-client";
+import { browserRequest } from "./browser-request";
 
 export function connectRequest<T>(path: string, options: { method?: string; body?: unknown; token?: ConnectToken; signal?: AbortSignal } = {}) {
-  return diagramRequest<T>(path, { method: options.method, signal: options.signal,
+  return browserRequest<T>(path, { method: options.method, signal: options.signal,
     body: options.body === undefined ? undefined : JSON.stringify(options.body),
     headers: options.token ? { "If-Match": diagramEtag(options.token.id, options.token.version) } : undefined });
 }

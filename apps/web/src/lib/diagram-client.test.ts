@@ -1,13 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { emptyDiagram } from "@steed/api/shared";
-import { diagramClient, diagramRequest, downloadDiagram } from "./diagram-client";
+import { browserRequest } from "./browser-request";
+import { diagramClient, downloadDiagram } from "./diagram-client";
 
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe("diagram client", () => {
   async function expectDiagramError(body: unknown, message: string) {
     vi.stubGlobal("fetch", vi.fn().mockImplementation(async () => Response.json(body, { status: 412 })));
-    await expect(diagramRequest("/api/diagrams/example")).rejects.toMatchObject({ message });
+    await expect(browserRequest("/api/diagrams/example")).rejects.toMatchObject({ message });
   }
 
   it("preserves remote concurrency errors", async () => {
