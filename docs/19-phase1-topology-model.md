@@ -909,6 +909,13 @@ The former open questions, answered in order:
   host, while the boundary filter does not expand ancestor memberships.
   Collection projections use a validated snapshot and preserve its ID order.
 
+### Implementation decisions (Connect mutation plans)
+
+- Operation batches containing any removal require confirmation, including a
+  no-op removal. A replacement requires confirmation only if its diff removes
+  an entity. Planning ignores the submitted revision, normalizes boundary
+  membership order, and reports whole-result warnings and per-collection diffs.
+
 ### Implementation decisions (read-only topology page)
 - Layout the complete canonical snapshot before applying view/client filters; canvas projection then uses only visible node IDs and edges whose endpoints remain visible, so a visible satellite keeps its canonical host/block geometry. The selected view supplies layout pins.
 - Search is independent of canvas filtering; selecting a search result selects it but does not add a filter, and relationship trace is explicit. Satellite boundary chips and inspector boundaries include inherited root-host memberships and boundary ancestors.

@@ -122,6 +122,18 @@ describe("read-only topology page", () => {
     expect(screen.queryByLabelText("Topology inspector")).not.toBeInTheDocument();
   });
 
+  it("shows an empty search result and links a selected node URL", async () => {
+    const topology = sample();
+    topology.nodes[0]!.url = "https://example.com";
+    client.get.mockResolvedValue({ data: topology, updatedAt: "2026-10-31T00:00:00.000Z" });
+    setup();
+    await screen.findByRole("heading", { name: "Fixture topology" });
+    fireEvent.change(screen.getByLabelText("Find a node"), { target: { value: "no-matching-node" } });
+    expect(screen.getByText("No matching nodes.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Canvas root" }));
+    expect(screen.getByRole("link", { name: "https://example.com" })).toHaveAttribute("href", "https://example.com");
+  });
+
   it("shows a Connect empty state and never calls the canvas when topology has no nodes", async () => {
     client.get.mockResolvedValue({ data: { ...sample(), nodes: [], edges: [], views: [] }, updatedAt: "2026-10-31T00:00:00.000Z" });
     setup();
