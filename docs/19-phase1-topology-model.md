@@ -923,6 +923,11 @@ The former open questions, answered in order:
   no-op removal. A replacement requires confirmation only if its diff removes
   an entity. Planning ignores the submitted revision, normalizes boundary
   membership order, and reports whole-result warnings and per-collection diffs.
+- Single-entity DELETE returns 404 for an absent entity; batch removals retain
+  their documented no-op behavior. DELETE of a node without a cascade option
+  rejects nodes with satellites; subtree removal uses the operation batch.
+  Malformed operation envelopes and entity shapes return a generic
+  `invalid_topology` without reflecting user-supplied values or keys.
 
 ### Implementation decisions (Connect operation registry)
 
