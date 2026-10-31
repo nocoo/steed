@@ -10,6 +10,13 @@ traverse the excluded work workspace; no results from it were returned and no
 files were changed there. Future searches must name only approved roots, with
 the exclusion checked before running the command.
 
+A continuation repeated the same mistake while looking for the commit rules:
+it included the home directory in an `fd` search. No results from the excluded
+workspace appeared and no file contents there were read or changed, but the
+search could have traversed it. Before searching, use the known rule-file path
+or explicitly list only approved instruction directories, never a parent that
+contains excluded workspaces.
+
 ## 2026-10-31: Target Herdr panes explicitly
 
 While arranging the Phase 1 work panes, a resize using `--current` resolved to
