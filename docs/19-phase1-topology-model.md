@@ -722,6 +722,20 @@ The former open questions, answered in order:
    The 410 body carries `current_revision` and `oldest_retained_revision`;
    the client then does a full snapshot read. Never return a partial delta.
    E2E covers a stale rev, a future rev and a malformed value.
+10. **Model contract details.**
+    - Arrays (≤16 strings) are allowed only for attr keys the TypeDef does not
+      declare; a declared key takes only the scalar matching its `valueType`.
+    - The attr string limit is 256 characters, except `public_key` values,
+      which may be up to 1024 (fits RSA-4096 OpenSSH keys).
+    - A read-only `revision` in a full replace or validate body (for example
+      from an export) is accepted and ignored; concurrency is enforced only by
+      `If-Match`.
+    - Trust-boundary crossing warning: each endpoint's set is its
+      `boundaryIds` plus all their ancestors, filtered to `kind = trust`; a
+      satellite uses its root host's set; the warning fires when the two
+      sets differ.
+    - `edge.style.dash` is `solid|dashed|dotted`. `Boundary.style` allows only
+      `color`, `border.color`, `border.style`, `border.width` and `icon`.
 
 Delivery: Phase 1 and Phase 2 in one PR (#104), release `0.5.0`, developed
 through herdr (see the implementation path above).
