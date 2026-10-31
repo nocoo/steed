@@ -908,6 +908,10 @@ The former open questions, answered in order:
   filters intersect. A satellite matches the boundary memberships of its root
   host, while the boundary filter does not expand ancestor memberships.
   Collection projections use a validated snapshot and preserve its ID order.
+- Collection page size defaults to 50 and is limited to 1–500; unknown or
+  repeated query keys and malformed cursors are rejected. Mutation If-Match
+  accepts one exact strong `"topology:<revision>"` ETag, including revision
+  zero; a conflicting If-None-Match is rejected.
 
 ### Implementation decisions (Connect mutation plans)
 
