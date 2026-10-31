@@ -403,7 +403,7 @@ History retention: keep the most recent 500 changes and anything newer than
 
 Common: JSON responses `{ data, requestId }`; errors
 `{ error: { code, message, issues?, requestId } }`. ETag
-`"topology:<revision>"`; reads accept `If-None-Match` and return 304.
+`"topology:<revision>"` (history paging: `"topology-changes:<revision>:<oldest_retained_revision>"`, decision 12); reads accept `If-None-Match` and return 304.
 
 ### Browser API (Cloudflare Access, read-only)
 
@@ -747,6 +747,12 @@ The former open questions, answered in order:
     the DB column `provenance` (entity tables and `topo_changes`), and the
     inspector label "Provenance". `Edge.source` and `Edge.target` are node
     IDs only (DB `source_id` / `target_id`).
+12. **History ETag.** History paging (`/api/topology/changes` and
+    `/api/v1/topology/changes`) uses its own ETag
+    `"topology-changes:<revision>:<oldest_retained_revision>"`, so pruning
+    invalidates cached pages even when the revision is unchanged. The snapshot
+    and entity reads keep `"topology:<revision>"`. Both accept
+    `If-None-Match` and return 304 on match.
 
 ### Implementation decisions (detector)
 
