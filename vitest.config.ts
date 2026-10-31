@@ -5,7 +5,6 @@ export default defineConfig({
     maxWorkers: 2,
     projects: [
       "packages/shared",
-      "packages/worker",
       "packages/cli",
       "packages/api",
       "apps/web",

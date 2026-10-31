@@ -8,9 +8,7 @@
   ],
   "scripts": {
     "dev": "bun run --cwd apps/web dev",
-    "dev:worker": "bun run --cwd packages/worker dev",
     "build": "bun run --cwd apps/web build",
-    "deploy:worker": "bun run --cwd packages/worker deploy",
     "start": "bun run --cwd apps/web preview",
     "typecheck": "tsc --noEmit",
     "lint": "eslint --max-warnings=0 .",
