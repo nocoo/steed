@@ -2,6 +2,14 @@
 
 Accident narratives belong here. Keep only recurring project rules in `AGENTS.md`; cross-project lessons belong in global rules and deterministic checks in hooks/tests.
 
+## 2026-10-31: Bound rule-file searches to approved roots
+
+While locating the commit rules, the controller searched under the home
+directory instead of limiting the search to known instruction roots. This could
+traverse the excluded work workspace; no results from it were returned and no
+files were changed there. Future searches must name only approved roots, with
+the exclusion checked before running the command.
+
 ## 2026-10-31: Target Herdr panes explicitly
 
 While arranging the Phase 1 work panes, a resize using `--current` resolved to
