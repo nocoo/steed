@@ -3,10 +3,6 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { routes } from "./router";
 
-vi.mock("@/lib/diagram-client", () => ({ diagramClient: {
-  list: vi.fn().mockResolvedValue({ data: [], nextCursor: null }),
-  get: vi.fn().mockRejectedValue(new Error("missing")),
-} }));
 vi.mock("@/lib/topology-client", () => ({
   topologyClient: { get: vi.fn().mockResolvedValue({ data: { schemaVersion: 2, title: "Topology", description: "", revision: 0, layers: [], types: [], boundaries: [], nodes: [], edges: [], views: [] }, updatedAt: "1970-01-01T00:00:00.000Z" }) },
   downloadTopology: vi.fn(),

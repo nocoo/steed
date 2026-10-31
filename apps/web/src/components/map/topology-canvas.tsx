@@ -263,7 +263,7 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
         maxZoom={2}
         proOptions={{ hideAttribution: true }}
       >
-        <Background gap={24} size={1} color="var(--diagram-dot)" />
+        <Background gap={24} size={1} color="hsl(var(--basalt-border))" />
         <Controls showInteractive={false} showFitView={false}>
           <ControlButton onClick={fit} aria-label="Fit topology"><Maximize /></ControlButton>
         </Controls>

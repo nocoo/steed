@@ -962,12 +962,14 @@ The former open questions, answered in order:
 - The existing 50 non-revoked token limit now applies to the single topology.
   Token listing is global, audit listing has no diagram filter, and token
   version ETags retain their existing format. Old scope and diagram fields are
-  rejected rather than translated. Preparation remains unrouted until migration.
+  rejected rather than translated. The switch is routed with migration 0010.
 - The Connect page lists topology tokens globally, preserving the existing
   confirmation and secret-hiding behavior. Its instructions show the canonical
   topology endpoint and never place credentials in URLs or browser storage.
 
 ### Implementation decisions (read-only topology page)
+- The canvas background grid uses the Basalt border token so it remains
+  defined in both light and dark themes after removing legacy diagram CSS.
 - Layout the complete canonical snapshot before applying view/client filters; canvas projection then uses only visible node IDs and edges whose endpoints remain visible, so a visible satellite keeps its canonical host/block geometry. The selected view supplies layout pins.
 - Search is independent of canvas filtering; selecting a search result selects it but does not add a filter, and relationship trace is explicit. Satellite boundary chips and inspector boundaries include inherited root-host memberships and boundary ancestors.
 - Badge cards show at most six declared `badge` attributes in attr definition order; string, number, boolean, and array values are rendered, so numeric zero and boolean false remain visible. Provenance displays `Not set` only when absent.

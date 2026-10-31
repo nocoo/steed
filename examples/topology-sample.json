@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 2,
+  "title": "Synthetic topology",
+  "description": "A small example for local development.",
+  "layers": [
+    { "id": "cloud", "label": "Cloud", "provider": "Example", "order": 0 }
+  ],
+  "types": [
+    { "id": "host", "label": "Host", "shape": "rect" }
+  ],
+  "boundaries": [],
+  "nodes": [
+    { "id": "host-a", "type": "host", "label": "Example host", "layerId": "cloud" }
+  ],
+  "edges": [],
+  "views": []
+}

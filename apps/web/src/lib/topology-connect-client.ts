@@ -17,3 +17,5 @@ export function topologyConnectExamples(base: string) {
 export function topologyTokenStatus(token: TopologyConnectToken, now = Date.now()): "Active" | "Expired" | "Revoked" {
   return token.revokedAt ? "Revoked" : token.expiresAt && Date.parse(token.expiresAt) <= now ? "Expired" : "Active";
 }
+
+export const connectDate = (value: string | null) => value ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "Never used";

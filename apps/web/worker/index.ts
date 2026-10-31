@@ -1,7 +1,6 @@
 import { verifyAccessJwt, type VerifyResult } from "./access-jwt";
 import pkg from "../../../package.json" with { type: "json" };
 import { getUserProfile } from "./author-profile";
-import { diagramBrowserApi } from "./diagram-api";
 import { topologyConnectMachineApi } from "./topology-connect-machine";
 import { topologyConnectManagementApi } from "./topology-connect-management";
 import { topologyBrowserApi } from "./topology-api";
@@ -37,10 +36,6 @@ export default {
       }
       if (!verifyResult.ok) {
         return new Response("Unauthorized", { status: 401 });
-      }
-
-      if (url.pathname === "/api/diagrams" || url.pathname.startsWith("/api/diagrams/")) {
-        return diagramBrowserApi(req, env.DB);
       }
 
       if (url.pathname === "/api/topology" || url.pathname.startsWith("/api/topology/")) {

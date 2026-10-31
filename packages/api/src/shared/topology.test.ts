@@ -4,12 +4,25 @@ import {
   emptyTopology,
   topologyEtag, topologyChangesEtag,
   topologySchema,
+  topologyAttrDefSchema,
+  topologyNodeSchema,
   topologyWarnings,
   validateTopology,
   type Topology,
 } from "./topology";
 
 const runtime = (...parts: string[]) => parts.join("");
+
+it("rejects enum values on a non-enum attribute definition", () => {
+  const result = topologyAttrDefSchema.safeParse({ key: "region", label: "Region", valueType: "string", enumValues: ["test"], badge: false, order: 0, required: false });
+  expect(result.success).toBe(false);
+});
+
+it("rejects malformed attribute keys and a satellite role without a parent", () => {
+  const result = topologyNodeSchema.safeParse({ id: "fixture", type: "host", label: "Fixture", layerId: "cloud", role: "service", attrs: { "Invalid key": 1 } });
+  expect(result.success).toBe(false);
+  if (!result.success) expect(result.error.issues.map((issue) => issue.params?.topologyCode)).toEqual(expect.arrayContaining(["invalid_attr_key", "satellite_role_required"]));
+});
 
 function sample(): Topology {
   return {

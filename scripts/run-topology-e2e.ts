@@ -189,6 +189,13 @@ try {
     await expectStatus(await request("/api/topology/unknown"), 404);
   });
 
+  await check("retired diagram browser APIs return 404", async () => {
+    for (const path of ["/api/diagrams", "/api/diagrams/old"]) {
+      await expectStatus(await request(path), 404);
+      await expectStatus(await request(path, "PUT", {}), 404);
+    }
+  });
+
   await check("snapshot delta handles current and valid retained revisions", async () => {
     const delta = await request("/api/topology?since=1");
     await expectStatus(delta, 200);

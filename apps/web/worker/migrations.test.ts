@@ -203,11 +203,25 @@ describe("D1 Migrations", () => {
     sqlite.close();
   });
 
+  it("0011 drops seeded diagrams without affecting topology or audit", () => {
+    const sqlite = new DatabaseSync(":memory:");
+    sqlite.exec("PRAGMA foreign_keys = ON");
+    applyMigrations(sqlite, 1, 10);
+    sqlite.exec(`INSERT INTO diagrams (id, title, description, document, created_at, updated_at) VALUES ('old', 'Old', '', '{}', 't', 't');
+      INSERT INTO connect_audit (request_id, target, actor, operation, status, created_at) VALUES ('audit', 'old', 'owner', 'read', 200, 1);`);
+    applyMigrations(sqlite, 11, 11);
+    expect(tableNames(sqlite)).not.toContain("diagrams");
+    expect(sqlite.prepare("SELECT target FROM connect_audit WHERE request_id = 'audit'").get()?.target).toBe("old");
+    expect(sqlite.prepare("SELECT revision FROM topology_meta").get()?.revision).toBe(0);
+    expect(sqlite.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+    sqlite.close();
+  });
+
   it("applies every migration to an empty database", () => {
     const sqlite = new DatabaseSync(":memory:");
     applyMigrations(sqlite, 1, Number.MAX_SAFE_INTEGER);
     expect(tableNames(sqlite)).toEqual([
-      "connect_audit", "connect_confirmations", "connect_rate_limits", "connect_requests", "connect_tokens", "diagrams",
+      "connect_audit", "connect_confirmations", "connect_rate_limits", "connect_requests", "connect_tokens",
       "topo_boundaries", "topo_change_images", "topo_change_items", "topo_changes", "topo_edges", "topo_layers", "topo_node_boundaries", "topo_nodes", "topo_types", "topo_views", "topology_meta",
     ]);
     sqlite.close();

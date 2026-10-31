@@ -5,8 +5,7 @@ import { SectionRule } from "@nocoo/basalt/components/section-rule";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@nocoo/basalt/components/select";
 import { Check, Copy, Eye, EyeOff, KeyRound, Pencil, Plus, RefreshCw, RotateCw, ShieldCheck, Terminal, Trash2 } from "lucide-react";
 import { CONNECT_LIMITS, topologyConnectScopeSchema, type TopologyConnectToken } from "@steed/api/shared";
-import { connectDate } from "@/lib/connect-client";
-import { topologyConnectExamples, topologyTokenStatus } from "@/lib/topology-connect-client";
+import { connectDate, topologyConnectExamples, topologyTokenStatus } from "@/lib/topology-connect-client";
 import { useConnectViewModel } from "@/viewmodels/use-connect-viewmodel";
 
 const labels = { reveal: "Reveal key", rotate: "Rotate key", revoke: "Revoke token", rename: "Rename token" };
