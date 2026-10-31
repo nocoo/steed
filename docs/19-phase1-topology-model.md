@@ -902,6 +902,13 @@ The former open questions, answered in order:
 - Bidirectional edges are traversed in either direction by relationship traces.
   A view's focus layer is exposed separately rather than hiding other layers.
 
+### Implementation decisions (Connect collection reads)
+
+- Collection cursors are exclusive IDs, matching existing Connect pagination;
+  filters intersect. A satellite matches the boundary memberships of its root
+  host, while the boundary filter does not expand ancestor memberships.
+  Collection projections use a validated snapshot and preserve its ID order.
+
 ### Implementation decisions (read-only topology page)
 - Layout the complete canonical snapshot before applying view/client filters; canvas projection then uses only visible node IDs and edges whose endpoints remain visible, so a visible satellite keeps its canonical host/block geometry. The selected view supplies layout pins.
 - Search is independent of canvas filtering; selecting a search result selects it but does not add a filter, and relationship trace is explicit. Satellite boundary chips and inspector boundaries include inherited root-host memberships and boundary ancestors.
