@@ -829,5 +829,12 @@ The former open questions, answered in order:
   256 characters each. Edge `source` and `target` remain node IDs; provenance is only the separate
   `provenance` field.
 
+### Implementation decisions (topology operations)
+
+- Batches execute in order and validate the final graph. Removing an absent
+  entity is a no-op; an empty batch is rejected. Layer and type removal checks
+  all references that would otherwise become invalid, including view filters.
+- `set_metadata` changes only supplied fields; a null provenance clears it.
+
 Delivery: Phase 1 and Phase 2 in one PR (#104), release `0.5.0`, developed
 through herdr (see the implementation path above).
