@@ -27,11 +27,9 @@ const VERSION_TARGETS: VersionTarget[] = [
   { path: "package.json", pattern: "json-version" },
   { path: "apps/web/package.json", pattern: "json-version" },
   { path: "packages/api/package.json", pattern: "json-version" },
-  { path: "packages/cli/package.json", pattern: "json-version" },
   { path: "packages/shared/package.json", pattern: "json-version" },
   { path: "apps/web/src/lib/version.test.ts", pattern: "test-assertion" },
   { path: "apps/web/worker/index.test.ts", pattern: "test-assertion" },
-  { path: "packages/cli/src/index.test.ts", pattern: "test-assertion" },
   { path: "apps/web/src/components/layout/app-sidebar.test.tsx", pattern: "sidebar-test" },
 ];
 

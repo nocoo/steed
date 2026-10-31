@@ -23,7 +23,6 @@
   },
   "include": [
     "packages/shared/src/**/*",
-    "packages/cli/src/**/*",
     "packages/api/src/**/*",
     "apps/web/src/**/*",
     "apps/web/worker/**/*"

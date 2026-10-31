@@ -5,7 +5,6 @@ export default defineConfig({
     maxWorkers: 2,
     projects: [
       "packages/shared",
-      "packages/cli",
       "packages/api",
       "apps/web",
     ],
@@ -26,7 +25,6 @@ export default defineConfig({
         "**/index.ts",
         "apps/web/src/main.tsx",
         "apps/web/src/vite-env.d.ts",
-        "packages/cli/src/bin/**",
         "**/test-setup.ts",
       ],
       thresholds: {
