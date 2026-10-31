@@ -417,7 +417,7 @@ audit listing drops the diagram filter.
 | Method | Path | Scope | Notes |
 |---|---|---|---|
 | GET | `/capabilities`, `/openapi.json`, `/requests/{key}` | read | as today, regenerated for v2 |
-| GET | `/topology` | read | full snapshot; `?since=<rev>` returns entities with `updated_rev > rev` plus deleted IDs from the change log |
+| GET | `/topology` | read | full snapshot; `?since=<rev>` returns entities with `updated_rev > rev` plus deleted IDs from the change log; stale or future `rev` → `410 resync_required`, malformed → `400 invalid_since` (decision 9) |
 | GET | `/topology/{collection}` | read | `collection ∈ layers, types, boundaries, nodes, edges, views`; stable ID order, `cursor`, `limit ≤ 500`; nodes filter `layer`, `type`, `tag`, `boundary`, `parent`; edges filter `node`, `kind` |
 | GET | `/topology/{collection}/{id}` | read | one entity + topology ETag |
 | PUT | `/topology/{collection}/{id}` | write | upsert one entity |
@@ -710,6 +710,18 @@ The former open questions, answered in order:
    and the caller writes a corrective change.
 7. **History UI** waits for Phase 4; Phase 1 ships only the read API.
 8. **Audit column.** Rename `connect_audit.diagram_id` to `target`.
+9. **Resync and `since` validation.** Applies to `GET /api/topology?since=`,
+   `GET /api/v1/topology?since=` and `/changes?since=`:
+   - `since` older than the oldest retained change (pruning removed history
+     needed to list every deletion) → `410 resync_required`;
+   - `since` greater than the current revision → `410 resync_required`;
+   - malformed `since` (not a non-negative integer) → `400 invalid_since`;
+   - `since` equal to the current revision → empty delta (the only case that
+     is empty; stale, future and malformed values never are).
+
+   The 410 body carries `current_revision` and `oldest_retained_revision`;
+   the client then does a full snapshot read. Never return a partial delta.
+   E2E covers a stale rev, a future rev and a malformed value.
 
 Delivery: Phase 1 and Phase 2 in one PR (#104), release `0.5.0`, developed
 through herdr (see the implementation path above).
