@@ -191,7 +191,7 @@ describe("D1 Migrations", () => {
     applyMigrations(sqlite, 1, Number.MAX_SAFE_INTEGER);
     expect(tableNames(sqlite)).toEqual([
       "connect_audit", "connect_confirmations", "connect_rate_limits", "connect_requests", "connect_tokens", "diagrams",
-      "topo_boundaries", "topo_change_items", "topo_changes", "topo_edges", "topo_layers", "topo_node_boundaries", "topo_nodes", "topo_types", "topo_views", "topology_meta",
+      "topo_boundaries", "topo_change_images", "topo_change_items", "topo_changes", "topo_edges", "topo_layers", "topo_node_boundaries", "topo_nodes", "topo_types", "topo_views", "topology_meta",
     ]);
     sqlite.close();
   });

@@ -310,9 +310,15 @@ CREATE TABLE topo_changes (
 CREATE TABLE topo_change_items (
   change_id INTEGER NOT NULL REFERENCES topo_changes(id) ON DELETE CASCADE,
   seq INTEGER NOT NULL, collection TEXT NOT NULL, entity_id TEXT NOT NULL,
-  before_json TEXT, after_json TEXT,
   PRIMARY KEY (change_id, seq)
 );
+CREATE TABLE topo_change_images (
+  change_id INTEGER NOT NULL, seq INTEGER NOT NULL,
+  side TEXT NOT NULL CHECK (side IN ('before','after')),
+  image_json TEXT NOT NULL CHECK (json_valid(image_json)),
+  PRIMARY KEY (change_id, seq, side),
+  FOREIGN KEY (change_id, seq) REFERENCES topo_change_items(change_id, seq) ON DELETE CASCADE
+) WITHOUT ROWID;
 
 CREATE INDEX idx_topo_nodes_layer ON topo_nodes(layer_id, id);
 CREATE INDEX idx_topo_nodes_type ON topo_nodes(type_id, id);
@@ -381,8 +387,8 @@ code reads it (last code commit).
      (`INSERT … SELECT … FROM json_each(?) ON CONFLICT(id) DO UPDATE …`),
      chunked so each bound string stays under 1 MB and each statement under
      the 100 KB SQL length limit, with at most a few bound parameters;
-   - `topo_changes` row plus chunked `topo_change_items` (before/after
-     images) for history and revert;
+   - `topo_changes` row plus chunked `topo_change_items` and separate
+     `topo_change_images` (before/after images) for history and revert;
    - idempotency receipt and audit row, as today.
 6. Return a receipt `{ revision, counts, changed: {collection: n}, warnings }`
    with the new ETag.
@@ -847,6 +853,15 @@ The former open questions, answered in order:
   revert foreign key also has an index for retention and delete checks.
 - Snapshot collections are returned in ID order, and node boundary memberships
   are returned in boundary ID order; membership order has no independent meaning.
+- The guarded batch defers foreign-key checks until commit so valid reparenting
+  and removals can be applied together. Changed layer orders temporarily use
+  negative rowid-derived values inside that transaction to permit order swaps.
+  JSON batch arguments are capped at 900,000 UTF-8 bytes; larger individual
+  entities or images are bound as UTF-8-safe segments and concatenated in SQL.
+  Before and after images use separate rows to stay within D1's row limit.
+  Boundary memberships are sorted before diffing and recording. Each write
+  attempt gets its own guard ID in topology metadata, distinct from the
+  request ID recorded in history, so a failed repeat cannot reuse a guard.
 
 Delivery: Phase 1 and Phase 2 in one PR (#104), release `0.5.0`, developed
 through herdr (see the implementation path above).
