@@ -15,6 +15,7 @@
     "test": "vitest run --coverage",
     "test:watch": "vitest",
     "test:e2e": "bun scripts/run-topology-e2e.ts && bun scripts/run-connect-e2e.ts",
+    "bench:topology": "bun scripts/bench-topology.ts",
     "release": "bun scripts/release.ts",
     "check-coverage": "bun scripts/check-coverage.ts",
     "prepare": "husky"

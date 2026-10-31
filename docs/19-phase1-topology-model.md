@@ -929,6 +929,12 @@ The former open questions, answered in order:
   credentials, loopback ports and process-group cleanup. It checks every
   registered machine endpoint and graph operation, then builds 201 nodes
   across seven layers and reverts the last node to leave 200.
+- The capacity benchmark uses loopback HTTP and a fresh local Wrangler D1,
+  with 30 layers, 60 types, 100 boundaries, 20 views, 1000 nodes (300
+  satellites), and 5000 edges. After warmup, it measures 20 sequential
+  samples per lane, including response consumption; incremental samples
+  change 100 nodes and replacements change all 1000 nodes and 5000 edges.
+  It asserts the change counts and fails if any p95 misses its target.
 
 ### Implementation decisions (Connect mutation plans)
 
