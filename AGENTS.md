@@ -8,18 +8,18 @@ Direction: [current project scope](README.md). Frameworks must preserve this han
 
 - This file is the only project handbook; nested files do not compete with it. Do not create a `CLAUDE.md` alias or copy.
 - This file is the quality contract; hooks, CI and config are enforcement. Close implementation gaps without lowering the contract. Historical test results are not evidence of a current passing run.
-- Setup: [README.md](README.md). Current plan: [Phase 0 cleanup](docs/18-phase0-topology-cleanup.md). Current web/Connect: [architecture workspace](docs/13-architecture-diagrams-and-connect.md) and [dev domain](docs/15-local-dev-domain.md). Versions/dependencies: root and workspace manifests, `bun.lock`. Tests/deployment: `vitest.config.ts`, `scripts/run-*-e2e.ts`, `.husky`, CI/release workflows. Accidents: [Retrospective.md](Retrospective.md). Machine workflow: global `AGENTS.md` and Git rules.
+- Setup: [README.md](README.md). Current model and API: [Phase 1 and 2 topology](docs/19-phase1-topology-model.md); local Connect configuration: [architecture workspace](docs/13-architecture-diagrams-and-connect.md) and [dev domain](docs/15-local-dev-domain.md). Versions/dependencies: root and workspace manifests, `bun.lock`. Tests/deployment: `vitest.config.ts`, `scripts/run-*-e2e.ts`, `.husky`, CI/release workflows. Accidents: [Retrospective.md](Retrospective.md). Machine workflow: global `AGENTS.md` and Git rules.
 
 ## Project invariants
 
-- Steed is a topology platform, not an agent asset inventory or remote control. An agent is one node type in a single flat graph; the browser browses, and structure is written through the Connect API.
+- Steed is a topology platform, not an agent asset inventory or remote control. An agent is one node type in a single graph; the browser is read-only, and structure is written through the topology-scoped Connect API. Satellites have at most two nested levels.
 - Production uses the full `apps/web` Worker with Cloudflare Access and D1. The retired inventory (CLI, Host Service, Host API, inventory pages and tables) and the Next.js/Railway application are removed; do not reintroduce them. `/api/v1/*` is served only by Connect Bearer authentication.
 - Connect credentials and keyring stay ignored/private; preserve explicit managers, same-origin writes, revision/idempotency and confirmation/challenge boundaries.
-- Development starts with a reviewed numbered doc and atomic commit plan. Reuse healthy owned processes and existing Connect configuration. Diagram data is disposable until Phase 1 defines the canonical topology; clearing local or production data needs an owner decision recorded in a numbered doc and, for production, a D1 backup first.
+- Development starts with a reviewed numbered doc and atomic commit plan. Reuse healthy owned processes and existing Connect configuration. Clearing local or production topology data needs an owner decision recorded in a numbered doc and, for production, a D1 backup first.
 
 ## Setup and commands
 
-UI/Worker/Connect API: `apps/web`, Vite/React/React Flow + Access; D1 migrations in `apps/web/migrations`. Shared contracts: `packages/api` (`./shared`). Use Bun for package/scripts, Node 22.12+, gitleaks and OSV. Before starting dev, query nmem for Steed port reservations and inspect Caddy/listeners. Use document 13 for the existing dataset; tests use local Wrangler and synthetic credentials.
+UI/Worker/Connect API: `apps/web`, Vite/React/React Flow + Access; D1 migrations in `apps/web/migrations`. Shared contracts: `packages/api` (`./shared`). Use Bun for package/scripts, Node 22.12+, gitleaks and OSV. Before starting dev, query nmem for Steed port reservations and inspect Caddy/listeners. Tests use local Wrangler and synthetic credentials.
 
 ```bash
 bun install --frozen-lockfile
@@ -28,7 +28,8 @@ bun run lint
 bun run build
 bun run test                    # Vitest with coverage
 bun run check-coverage
-bun run test:e2e                # diagrams and Connect over local HTTP
+bun run test:e2e                # topology and Connect over local HTTP
+bun run bench:topology          # local HTTP/D1 capacity benchmark
 ```
 
 ## Testing and quality contract
@@ -39,11 +40,11 @@ G2 requires dependency and secret scans, with missing required scanners failing.
 
 | Dimension | Status | Required proof and current evidence/gap |
 |---|---|---|
-| L1 TypeScript | planned | Hooks/CI gate statements/functions/lines 95%, branches 90%. Missing-report success in `check-coverage` and the uncounted `apps/web/worker/**` leave all-four 95% incomplete. Hooks/CI run root strict types and ESLint `--max-warnings=0`; formatting and full index-snapshot checks remain incomplete. |
-| L2 API | planned | Two local real-HTTP runners cover diagrams and Connect, each with an isolated temporary D1 and process-group cleanup; require audited 100% endpoint/auth/error coverage. |
-| L3 browser | manual | No Playwright gate is configured. Verify full pages, rendered diagrams and Connect through trusted dev HTTPS with disposable data. |
+| L1 TypeScript | planned | Hooks/CI count Worker code and gate statements/functions/lines 95%, branches 90%. Missing-report success in `check-coverage` and the 90% branch floor leave all-four 95% incomplete. Hooks/CI run root strict types and ESLint `--max-warnings=0`; formatting and full index-snapshot checks remain incomplete. |
+| L2 API | planned | Two local real-HTTP runners cover topology and Connect, each with an isolated temporary D1 and process-group cleanup; Connect exercises all registered operations. Audited 100% endpoint/auth/error coverage remains required. |
+| L3 browser | manual | No Playwright gate is configured. Verify full pages, rendered topology and Connect through trusted dev HTTPS with disposable data. |
 | G2 | enforced | Pre-push and shared CI run OSV on Bun lock plus gitleaks; missing scanners must fail. |
-| D1 | planned | Diagram/Connect runners use mkdtemp local persist directories. Full marker/canonical-path cleanup guards and fail-closed initialization are incomplete. |
+| D1 | planned | Topology/Connect runners use marked mkdtemp local persist directories and canonical-path cleanup checks. Full fail-closed initialization remains incomplete. |
 
 Pre-commit runs types/lint/coverage in parallel, then the coverage-summary check. Pre-push runs local HTTP E2E and security in parallel; build happens inside newer E2E runners and in CI. Existing gates operate on the working tree rather than index/pushed refs.
 
@@ -56,7 +57,7 @@ Dev entry must be `https://steed.dev.hexly.ai`: Caddy → Vite 7035 → full Web
 
 ## Operations / release
 
-Keep authorized development releases prompt through the existing CI → `apps/web --env production` workflow. The release workflow does not apply D1 migrations; back up production D1, then apply them manually after deploy. Verify trusted HTTPS, `/api/live`, actual diagrams and Connect before claiming dev ready; record new reservations in nmem.
+Keep authorized development releases prompt through the existing CI → `apps/web --env production` workflow. The release workflow does not apply D1 migrations; back up production D1, then apply them manually after deploy. Verify trusted HTTPS, `/api/live`, actual topology and Connect before claiming dev ready; record new reservations in nmem.
 
 ## Retrospective
 

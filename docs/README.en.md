@@ -15,17 +15,17 @@
 
 Steed is a personal system topology platform. Hosts, services, agents, data sources and external providers sit in one graph, layered by vendor or provider and marked with trust domains. The web UI is for browsing; the graph structure is written through the token-scoped Connect API.
 
-Version 0.4.0 removes the earlier agent asset inventory (CLI, Host Service, host/agent/data-source pages and their tables) and clears the old architecture diagrams and Connect state. Phase 1 introduces the single canonical topology. See the [Phase 0 plan](18-phase0-topology-cleanup.md).
+Version 0.4.0 removed the earlier agent asset inventory and cleared the old diagrams and Connect state. The new canonical model is described in the [Phase 1 and Phase 2 design](19-phase1-topology-model.md).
 
 ## Features
 
-- Topology page: view and edit the topology on a React Flow canvas (the read-only rework lands in Phase 1).
-- Connect page: issue, reveal, rotate and revoke Connect tokens, each with read or write scope.
-- Connect API (`/api/v1`): machines read and change the topology with a Bearer token, with revisions, idempotency keys, rate limits and an audit log.
+- Topology page: browse layers, nodes, satellites, boundaries and relationships on a read-only React Flow canvas, filter by view or attributes, and inspect details.
+- Connect page: issue, reveal, rotate and revoke tokens with `topology:read` or `topology:write` scope.
+- Connect API (`/api/v1/topology*`): machines use Bearer tokens to read, validate, replace or incrementally change topology, read history and revert conflict-free changes; writes use revisions, idempotency keys and audit records.
 
 ## Usage
 
-The [website](https://steed.hexly.ai) pages and browser API sit behind Cloudflare Access and require an authorized identity. `/api/live` and `/api/v1/*` bypass Access; the Worker verifies Connect tokens itself. A separate deployment needs its own Access application, D1 database and Connect keyring.
+The [website](https://steed.hexly.ai) pages and browser API sit behind Cloudflare Access and require an authorized identity. `/api/live` bypasses Access; `/api/v1/*` also bypasses Access and the Worker verifies Connect tokens instead. The browser `/api/topology` is read-only; structural writes use the Connect API. A separate deployment needs its own Access application, D1 database and Connect keyring. See the [design](19-phase1-topology-model.md#api-shape) for routes and preconditions.
 
 ## Development
 
@@ -42,7 +42,7 @@ Initialize the local database used by the web Worker. Migrations live in `apps/w
 
 ```bash
 cd apps/web
-bunx wrangler d1 migrations apply DB --local --persist-to .wrangler/state/web
+bunx wrangler d1 migrations apply DB --env dev --local --persist-to .wrangler/state/web
 cd ../..
 ```
 
@@ -65,7 +65,7 @@ Vite proxies `/api` to the local web Worker. Use `https://steed.dev.hexly.ai` th
 ```text
 apps/web/              React pages, web Worker, Access verification, Connect API
 apps/web/migrations/   D1 migrations
-packages/api/          Shared diagram, Connect and profile contracts (zod)
+packages/api/          Shared topology, Connect and profile contracts (zod)
 ```
 
 The production workflow builds `apps/web` and deploys its `production` environment to Cloudflare Workers.
@@ -78,9 +78,10 @@ Run from the repository root:
 | --- | --- |
 | All unit and component tests | `bun run test` |
 | Web component and view-model tests | `bun run --cwd apps/web test` |
-| Diagram and Connect HTTP integration tests | `bun run test:e2e` |
+| Topology and Connect HTTP integration tests | `bun run test:e2e` |
+| Local topology capacity and latency benchmark | `bun run bench:topology` |
 
-`bun run test` also writes a coverage report; `bun run test:watch` runs in watch mode. Web tests use jsdom and React Testing Library. `test:e2e` runs the diagram and Connect HTTP runners in turn; each starts local Wrangler, applies migrations in a temporary D1 state directory and uses an ephemeral loopback port.
+`bun run test` writes a coverage report including the Worker, and `bun run check-coverage` checks its thresholds; `bun run test:watch` runs in watch mode. Web tests use jsdom and React Testing Library. `test:e2e` runs the topology and Connect HTTP runners in turn; each starts local Wrangler, applies migrations in a temporary D1 state directory and uses an ephemeral loopback port. The benchmark measures operation p95 over local HTTP and D1 using a synthetic 1000-node, 5000-edge topology.
 
 There is no configured browser end-to-end test command; complete browser journeys still need manual verification.
 
@@ -108,6 +109,7 @@ Dependency versions are recorded in the [workspace package manifests](../package
 
 - [Documentation index](README.md)
 - [Phase 0: topology platform cleanup](18-phase0-topology-cleanup.md)
+- [Phase 1 and Phase 2: topology model and Connect](19-phase1-topology-model.md)
 - [Architecture diagrams and Connect](13-architecture-diagrams-and-connect.md)
 - [Local development domain](15-local-dev-domain.md)
 
