@@ -835,6 +835,10 @@ The former open questions, answered in order:
   entity is a no-op; an empty batch is rejected. Layer and type removal checks
   all references that would otherwise become invalid, including view filters.
 - `set_metadata` changes only supplied fields; a null provenance clears it.
+- Diff compares object keys canonically while preserving array order and uses
+  collection plus ID as the change identity. Metadata uses `metadata/main`;
+  revision is not part of its image. Revert checks later change identities,
+  restores before-images without implicit cascades, then validates the graph.
 
 Delivery: Phase 1 and Phase 2 in one PR (#104), release `0.5.0`, developed
 through herdr (see the implementation path above).

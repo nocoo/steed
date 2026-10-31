@@ -117,3 +117,70 @@ export function applyTopologyOperations(topology: Topology, operations: Topology
   if (!result.data) throw new TopologyOperationError("invalid_topology", result.issues);
   return result.data;
 }
+
+export const TOPOLOGY_COLLECTIONS = ["layers", "types", "boundaries", "nodes", "edges", "views"] as const;
+export type TopologyCollection = typeof TOPOLOGY_COLLECTIONS[number];
+export type TopologyEntity = Topology[TopologyCollection][number];
+export type TopologyMetadata = Pick<Topology, "title" | "description" | "provenance">;
+export type TopologyChangeItem =
+  | { collection: "metadata"; id: "main"; before: TopologyMetadata; after: TopologyMetadata }
+  | { collection: TopologyCollection; id: string; before: TopologyEntity | null; after: TopologyEntity | null };
+
+function canonical(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+  if (value !== null && typeof value === "object") {
+    const object = value as Record<string, unknown>;
+    return `{${Object.keys(object).filter((key) => object[key] !== undefined).sort().map((key) => `${JSON.stringify(key)}:${canonical(object[key])}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function metadata(topology: Topology): TopologyMetadata {
+  return { title: topology.title, description: topology.description, ...(topology.provenance === undefined ? {} : { provenance: topology.provenance }) };
+}
+
+export function diffTopology(before: Topology, after: Topology): TopologyChangeItem[] {
+  const items: TopologyChangeItem[] = [];
+  const oldMetadata = metadata(before);
+  const newMetadata = metadata(after);
+  if (canonical(oldMetadata) !== canonical(newMetadata)) items.push({ collection: "metadata", id: "main", before: oldMetadata, after: newMetadata });
+  for (const collection of TOPOLOGY_COLLECTIONS) {
+    const oldItems = new Map(before[collection].map((item) => [item.id, item]));
+    const newItems = new Map(after[collection].map((item) => [item.id, item]));
+    const ids = [...new Set([...oldItems.keys(), ...newItems.keys()])].sort();
+    for (const id of ids) {
+      const oldItem = oldItems.get(id) ?? null;
+      const newItem = newItems.get(id) ?? null;
+      if (canonical(oldItem) !== canonical(newItem)) items.push({ collection, id, before: structuredClone(oldItem), after: structuredClone(newItem) });
+    }
+  }
+  return items;
+}
+
+export function revertTopologyChange(current: Topology, items: TopologyChangeItem[], laterItems: Pick<TopologyChangeItem, "collection" | "id">[]): Topology {
+  const laterKeys = new Set(laterItems.map((item) => `${item.collection}\0${item.id}`));
+  if (items.some((item) => laterKeys.has(`${item.collection}\0${item.id}`))) throw new TopologyOperationError("revert_conflict");
+  const next = structuredClone(current);
+  for (const item of items) {
+    if (item.collection === "metadata") {
+      next.title = item.before.title;
+      next.description = item.before.description;
+      if (item.before.provenance === undefined) delete next.provenance;
+      else next.provenance = item.before.provenance;
+      continue;
+    }
+    const restored = next[item.collection].filter((entity) => entity.id !== item.id);
+    if (item.before !== null) restored.push(structuredClone(item.before));
+    switch (item.collection) {
+      case "layers": next.layers = restored as Topology["layers"]; break;
+      case "types": next.types = restored as Topology["types"]; break;
+      case "boundaries": next.boundaries = restored as Topology["boundaries"]; break;
+      case "nodes": next.nodes = restored as Topology["nodes"]; break;
+      case "edges": next.edges = restored as Topology["edges"]; break;
+      case "views": next.views = restored as Topology["views"]; break;
+    }
+  }
+  const result = validateTopology(next);
+  if (!result.data) throw new TopologyOperationError("invalid_topology", result.issues);
+  return result.data;
+}

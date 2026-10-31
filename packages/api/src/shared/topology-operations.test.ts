@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { topologySchema, type Topology } from "./topology";
-import { applyTopologyOperations, topologyOperationBatchSchema, TopologyOperationError } from "./topology-operations";
+import { applyTopologyOperations, diffTopology, revertTopologyChange, topologyOperationBatchSchema, TopologyOperationError } from "./topology-operations";
 
 function fixture(): Topology {
   return topologySchema.parse({
@@ -121,5 +121,42 @@ describe("topology operations", () => {
     ]);
     expect(next.edges.some((edge) => edge.id === "forward")).toBe(true);
     expect(next.nodes.some((node) => node.id === "child-node")).toBe(true);
+  });
+
+  it("diffs canonical entity images and reverses a cascade and metadata change", () => {
+    const before = fixture();
+    const after = apply(before, [
+      { op: "set_metadata", title: "Changed", provenance: null },
+      { op: "remove_node", id: "root", cascade: true },
+    ]);
+    const changes = diffTopology(before, after);
+    expect(changes.some((item) => item.collection === "metadata")).toBe(true);
+    expect(changes.filter((item) => item.collection === "nodes")).toHaveLength(3);
+    expect(changes.some((item) => item.collection === "edges")).toBe(true);
+    expect(changes.some((item) => item.collection === "views")).toBe(true);
+    const restored = revertTopologyChange(after, changes, [{ collection: "nodes", id: "unrelated" }]);
+    expect(diffTopology(before, restored)).toEqual([]);
+    expect(restored.provenance).toBe("manual");
+    expect(after.title).toBe("Changed");
+
+    const reordered = structuredClone(before);
+    reordered.nodes[0].attrs = { b: 2, a: 1 };
+    const reorderedAgain = structuredClone(reordered);
+    reorderedAgain.nodes[0].attrs = { a: 1, b: 2 };
+    expect(diffTopology(reordered, reorderedAgain)).toEqual([]);
+    reorderedAgain.nodes[0].attrs.c = 3;
+    expect(diffTopology(reordered, reorderedAgain)).toHaveLength(1);
+  });
+
+  it("rejects revert conflicts and validates the restored graph", () => {
+    const before = fixture();
+    const after = apply(before, [{ op: "put_node", value: { id: "added", type: "host", label: "Added", layerId: "layer" } }]);
+    const changes = diffTopology(before, after);
+    expect(changes[0]).toMatchObject({ collection: "nodes", id: "added", before: null });
+    expect(() => revertTopologyChange(after, changes, [{ collection: "nodes", id: "added" }])).toThrowError(expect.objectContaining({ code: "revert_conflict" }));
+    const withLaterEdge = apply(after, [{ op: "put_edge", value: { id: "later", source: "added", target: "peer", kind: "uses", direction: "uni", evidence: "documented" } }]);
+    expect(() => revertTopologyChange(withLaterEdge, changes, [{ collection: "edges", id: "later" }])).toThrowError(expect.objectContaining({ code: "invalid_topology" }));
+    expect(diffTopology(before, revertTopologyChange(after, changes, []))).toEqual([]);
+    expect(after.nodes.some((node) => node.id === "added")).toBe(true);
   });
 });
