@@ -16,7 +16,6 @@
   "dependencies": {
     "@nocoo/basalt": "3.2.1",
     "@steed/api": "workspace:*",
-    "@steed/shared": "workspace:*",
     "clsx": "^2.1.1",
     "jose": "6.2.13",
     "lucide-react": "1.61.0",

@@ -23,7 +23,6 @@
       "dependencies": {
         "@nocoo/basalt": "3.2.1",
         "@steed/api": "workspace:*",
-        "@steed/shared": "workspace:*",
         "clsx": "^2.1.1",
         "jose": "6.2.13",
         "lucide-react": "1.61.0",
@@ -59,10 +58,6 @@
         "@vitest/coverage-v8": "5.0.5",
         "vitest": "5.0.5",
       },
-    },
-    "packages/shared": {
-      "name": "@steed/shared",
-      "version": "0.3.4",
     },
   },
   "overrides": {
@@ -457,8 +452,6 @@
     "@speed-highlight/core": ["@speed-highlight/core@1.2.15", "", {}, "sha512-BMq1K3DsElxDWawkX6eLg9+CKJrTVGCBAWVuHXVUV2u0s2711qiChLSId6ikYPfxhdYocLNt3wWwSvDiTvFabw=="],
 
     "@steed/api": ["@steed/api@workspace:packages/api"],
-
-    "@steed/shared": ["@steed/shared@workspace:packages/shared"],
 
     "@steed/web": ["@steed/web@workspace:apps/web"],
 

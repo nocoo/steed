@@ -16,13 +16,11 @@
     "isolatedModules": true,
     "forceConsistentCasingInFileNames": true,
     "paths": {
-      "@steed/shared": ["./packages/shared/src/index.ts"],
       "@steed/api/*": ["./packages/api/src/*/index.ts"],
       "@/*": ["./apps/web/src/*"]
     }
   },
   "include": [
-    "packages/shared/src/**/*",
     "packages/api/src/**/*",
     "apps/web/src/**/*",
     "apps/web/worker/**/*"
