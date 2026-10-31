@@ -1,42 +1,19 @@
 import { describe, it, expect, vi } from "vitest";
 import { act, render, screen, waitFor } from "@testing-library/react";
-import { createMockApiClient } from "@/viewmodels/__tests__/test-utils";
 
-const mockApiClient = createMockApiClient();
-
-vi.mock("./contexts/api-client", async () => {
-  const actual = await vi.importActual<typeof import("./contexts/api-client")>(
-    "./contexts/api-client"
-  );
-  return {
-    ...actual,
-    useApiClient: () => mockApiClient,
-  };
-});
+vi.mock("@/lib/diagram-client", () => ({ diagramClient: { list: vi.fn().mockResolvedValue({ data: [], nextCursor: null }) } }));
 
 import { App } from "./App";
 import { router } from "./router";
 
 describe("App", () => {
-  it("renders inside ApiClientProvider with the live router", async () => {
-    vi.mocked(mockApiClient.overview.get).mockResolvedValue({
-      hosts: { total: 0, online: 0, offline: 0 },
-      agents: {
-        total: 0,
-        running: 0,
-        by_lane: { work: 0, life: 0, learning: 0, unassigned: 0 },
-      },
-      data_sources: { total: 0, active: 0 },
-    });
-
-    await act(() => router.navigate("/overview"));
+  it("renders the live router", async () => {
+    await act(() => router.navigate("/diagrams"));
 
     render(<App />);
 
     await waitFor(() => {
-      expect(
-        screen.getAllByRole("heading", { name: "Overview" })[0]
-      ).toBeInTheDocument();
+      expect(screen.getAllByRole("heading", { name: "Diagrams" })[0]).toBeInTheDocument();
     });
   });
 });

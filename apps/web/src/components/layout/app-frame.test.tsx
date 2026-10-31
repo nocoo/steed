@@ -37,7 +37,7 @@ function mockViewport(isMobile: boolean) {
   };
 }
 
-function renderFrame(path = "/overview", isMobile = false) {
+function renderFrame(path = "/diagrams", isMobile = false) {
   const viewport = mockViewport(isMobile);
 
   const router = createMemoryRouter(
@@ -50,9 +50,9 @@ function renderFrame(path = "/overview", isMobile = false) {
           </ShellProviders>
         ),
         children: [
-          { path: "overview", element: <div data-testid="child-content">Page content</div> },
-          { path: "hosts", element: <div data-testid="child-content">Hosts</div> },
-          { path: "agents/:id", element: <div data-testid="child-content">Agent</div> },
+          { path: "diagrams", element: <div data-testid="child-content">Page content</div> },
+          { path: "diagrams/:id", element: <div data-testid="child-content">Diagram</div> },
+          { path: "connect", element: <div data-testid="child-content">Connect page</div> },
         ],
       },
     ],
@@ -84,27 +84,20 @@ describe("AppFrame", () => {
     expect(screen.getAllByText("Steed").length).toBeGreaterThan(0);
   });
 
-  it("renders current page title for hosts", () => {
-    renderFrame("/hosts");
-    expect(screen.getAllByText("Hosts").length).toBeGreaterThan(0);
+  it("renders current page title for connect", () => {
+    renderFrame("/connect");
+    expect(screen.getAllByText("Connect").length).toBeGreaterThan(0);
   });
 
-  it("does not link the current page in breadcrumbs", () => {
-    renderFrame("/hosts");
-    const overviewLinks = screen.getAllByRole("link", { name: "Overview" });
-    expect(overviewLinks.length).toBeGreaterThan(0);
-    expect(
-      screen.queryByRole("link", { name: "Hosts" })
-    ).not.toBeInTheDocument();
+  it("has no overview breadcrumb", () => {
+    renderFrame("/connect");
+    expect(screen.queryByRole("link", { name: "Overview" })).not.toBeInTheDocument();
   });
 
-  it("keeps agent id as title, not a link", () => {
-    renderFrame("/agents/agent-123");
-    expect(screen.getByText("agent-123")).toBeInTheDocument();
-    expect(
-      screen.queryByRole("link", { name: "agent-123" })
-    ).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Agents" })).toBeInTheDocument();
+  it("links diagram details back to the diagram list", () => {
+    renderFrame("/diagrams/example");
+    expect(screen.getByText("Architecture diagram")).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "Diagrams" }).length).toBeGreaterThan(0);
   });
 
   it("renders theme toggle", () => {
@@ -121,21 +114,21 @@ describe("AppFrame", () => {
   });
 
   it("shows mobile menu button on mobile viewport", () => {
-    renderFrame("/overview", true);
+    renderFrame("/diagrams", true);
     expect(
       screen.getByRole("button", { name: "Open navigation" })
     ).toBeInTheDocument();
   });
 
   it("hides mobile menu button on desktop viewport", () => {
-    renderFrame("/overview", false);
+    renderFrame("/diagrams", false);
     expect(
       screen.queryByRole("button", { name: "Open navigation" })
     ).not.toBeInTheDocument();
   });
 
   it("returns focus to the menu button after Escape", async () => {
-    renderFrame("/overview", true);
+    renderFrame("/diagrams", true);
     const menu = screen.getByRole("button", { name: "Open navigation" });
 
     act(() => {
@@ -154,7 +147,7 @@ describe("AppFrame", () => {
   });
 
   it("clears the sheet and overflow after leaving the mobile breakpoint", async () => {
-    const { viewport } = renderFrame("/overview", true);
+    const { viewport } = renderFrame("/diagrams", true);
 
     act(() => {
       fireEvent.click(screen.getByRole("button", { name: "Open navigation" }));

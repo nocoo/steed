@@ -9,7 +9,7 @@ vi.mock("@/hooks/use-profile", () => ({ useProfile: profile }));
 
 const originalMatchMedia = window.matchMedia;
 
-function renderSidebar(path = "/overview", collapsed = false) {
+function renderSidebar(path = "/diagrams", collapsed = false) {
   window.matchMedia = vi.fn().mockReturnValue({
     matches: false,
     addEventListener: vi.fn(),
@@ -43,7 +43,7 @@ describe("AppSidebar", () => {
 
   it("keeps the profile avatar in the collapsed footer", () => {
     profile.mockReturnValue({ name: "Example User", email: "user@example.com", avatar: null });
-    renderSidebar("/overview", true);
+    renderSidebar("/diagrams", true);
     expect(screen.getByLabelText("Example User")).toBeInTheDocument();
     expect(screen.queryByText("user@example.com")).not.toBeInTheDocument();
   });
@@ -60,10 +60,10 @@ describe("AppSidebar", () => {
 
     it("collapses a nav group from its label", () => {
       renderSidebar();
-      const label = screen.getByRole("button", { name: /dashboard/i });
-      expect(screen.getByRole("button", { name: /overview/i })).toBeInTheDocument();
+      const label = screen.getByRole("button", { name: /workspace/i });
+      expect(screen.getByRole("button", { name: /connect/i })).toBeInTheDocument();
       fireEvent.click(label);
-      expect(screen.queryByRole("button", { name: /overview/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /connect/i })).not.toBeInTheDocument();
     });
 
     it("renders app name and version", () => {
@@ -72,25 +72,23 @@ describe("AppSidebar", () => {
       expect(screen.getAllByText(/v0\.3\.6/).length).toBeGreaterThan(0);
     });
 
-    it("renders nav groups", () => {
+    it("renders only the workspace group", () => {
       renderSidebar();
-      expect(screen.getByText("Dashboard")).toBeInTheDocument();
-      expect(screen.getByText("Infrastructure")).toBeInTheDocument();
+      expect(screen.getByText("Workspace")).toBeInTheDocument();
+      expect(screen.queryByText("Dashboard")).not.toBeInTheDocument();
+      expect(screen.queryByText("Infrastructure")).not.toBeInTheDocument();
     });
 
-    it("renders overview and hosts controls", () => {
+    it("renders diagrams and connect controls only", () => {
       renderSidebar();
-      expect(
-        screen.getByRole("button", { name: /overview/i })
-      ).toBeInTheDocument();
-      expect(
-        screen.getByRole("button", { name: /hosts/i })
-      ).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /diagrams/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /connect/i })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /hosts/i })).not.toBeInTheDocument();
     });
 
     it("marks the active item", () => {
-      renderSidebar("/hosts");
-      expect(screen.getByRole("button", { name: /hosts/i })).toHaveAttribute(
+      renderSidebar("/connect");
+      expect(screen.getByRole("button", { name: /connect/i })).toHaveAttribute(
         "aria-current",
         "page"
       );
@@ -131,20 +129,20 @@ describe("AppSidebar", () => {
 
   describe("collapsed", () => {
     it("keeps the brand mark without the app name", () => {
-      renderSidebar("/overview", true);
+      renderSidebar("/diagrams", true);
       expect(screen.getByAltText("Steed")).toBeInTheDocument();
       expect(screen.queryByText("Steed")).not.toBeInTheDocument();
     });
 
     it("shows expand button", () => {
-      renderSidebar("/overview", true);
+      renderSidebar("/diagrams", true);
       expect(
         screen.getByRole("button", { name: "Expand sidebar" })
       ).toBeInTheDocument();
     });
 
     it("notifies toggle on expand", () => {
-      const { onToggle } = renderSidebar("/overview", true);
+      const { onToggle } = renderSidebar("/diagrams", true);
       act(() => {
         fireEvent.click(screen.getByRole("button", { name: "Expand sidebar" }));
       });
@@ -152,22 +150,22 @@ describe("AppSidebar", () => {
     });
 
     it("navigates from icon items", () => {
-      renderSidebar("/overview", true);
-      fireEvent.click(screen.getByRole("button", { name: "Hosts" }));
-      expect(screen.getByRole("button", { name: "Hosts" })).toBeInTheDocument();
+      renderSidebar("/diagrams", true);
+      fireEvent.click(screen.getByRole("button", { name: "Connect" }));
+      expect(screen.getByRole("button", { name: "Connect" })).toBeInTheDocument();
     });
   });
 
   it("closes the mobile sheet after choosing a section", () => {
     const onToggle = vi.fn();
     render(
-      <MemoryRouter initialEntries={["/overview"]}>
+      <MemoryRouter initialEntries={["/diagrams"]}>
         <ShellProviders>
           <AppSidebar collapsed={false} onToggle={onToggle} hideCollapse />
         </ShellProviders>
       </MemoryRouter>
     );
-    fireEvent.click(screen.getByRole("button", { name: /hosts/i }));
+    fireEvent.click(screen.getByRole("button", { name: /connect/i }));
     expect(onToggle).toHaveBeenCalled();
   });
 });
