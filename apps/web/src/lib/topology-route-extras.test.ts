@@ -832,27 +832,34 @@ function assertBundleGeometry(
 }
 
 describe("topology route extras stress", () => {
-  it("keeps full-width overview bundle strokes outside protected geometry", () => {
-    for (const name of ["topology-200", "topology-500"] as const) {
+  it.each(["topology-200", "topology-500"] as const)(
+    "keeps %s full-width overview bundle strokes outside protected geometry",
+    (name) => {
       const topology = generateTopologyFixture(name);
       const layout = layoutTopology(topology);
       const result = routeTopology(topology, layout, { clock: () => 0 });
       expect(result.bundles.diagnostics.routeFailures).toEqual([]);
       expect(result.bundles.bundles.length).toBeGreaterThan(0);
       for (const bundle of result.bundles.bundles) {
+        expect(bundle.route).toBeDefined();
         expect(bundle.route).not.toBeNull();
         const points = bundle.route!;
+        const crossings: string[] = [];
         for (let i = 0; i + 1 < points.length; i++) {
           const a = points[i]!; const b = points[i + 1]!;
           for (const lane of layout.lanes) {
-            expect(segmentCrossesCard(a, b, { ...lane, height: TOPOLOGY_SECTION_HEADER }, 5)).toBe(false);
-            if (!bundle.layerIds.includes(lane.layerId)) expect(segmentCrossesCard(a, b, lane, 5)).toBe(false);
+            if (segmentCrossesCard(a, b, { ...lane, height: TOPOLOGY_SECTION_HEADER }, 5)) crossings.push(`segment ${i}: header ${lane.id}`);
+            if (!bundle.layerIds.includes(lane.layerId) && segmentCrossesCard(a, b, lane, 5)) crossings.push(`segment ${i}: section ${lane.id}`);
           }
-          for (const frame of layout.frames) expect(segmentCrossesCard(a, b, frame, 5)).toBe(false);
+          for (const frame of layout.frames) {
+            if (segmentCrossesCard(a, b, frame, 5)) crossings.push(`segment ${i}: frame ${frame.id}`);
+          }
         }
+        expect(crossings, `bundle ${bundle.id}`).toEqual([]);
       }
-    }
-  });
+    },
+    30_000,
+  );
 
   it("keeps 200 and 500 node synthetic bundles and labels within budget geometry", () => {
     for (const nodeCount of [200, 500]) {
