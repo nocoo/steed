@@ -1,15 +1,15 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ComponentType, ReactNode } from "react";
-import { getNodesBounds, getViewportForBounds, type Edge, type Node, type ReactFlowProps } from "reactflow";
-import type { Topology } from "@steed/api/shared";
+import { getNodesBounds, getViewportForBounds, type Edge, type Node, type ReactFlowProps } from "@xyflow/react";
+import { topologySchema, type Topology } from "@steed/api/shared";
 import { inheritedBoundaryIds, TopologyCanvas, topologyEdgeSides, topologyNodeBadgeValues, topologyNodeBoundaryLabels, topologyTint, topologyZoomTier } from "../topology-canvas";
 import type { TopologyCanvasEdge, TopologyCanvasNode } from "../topology-canvas";
 import { layoutTopology } from "@/lib/topology-layout";
 
 const state = vi.hoisted(() => ({ zoom: 1, width: 1000, height: 700, setViewport: vi.fn(), setCenter: vi.fn(), nodeChanges: [] as unknown[], renders: [] as { nodes: unknown[]; edges: unknown[]; selectionHandler: boolean; nodesHandler: boolean }[] }));
-vi.mock("reactflow", async (original) => {
-  const actual = await original<typeof import("reactflow")>();
+vi.mock("@xyflow/react", async (original) => {
+  const actual = await original<typeof import("@xyflow/react")>();
   return {
     ...actual,
     useStore: (selector: (value: { transform: number[]; width: number; height: number }) => unknown) => selector({ transform: [0, 0, state.zoom], width: state.width, height: state.height }),
@@ -21,7 +21,7 @@ vi.mock("reactflow", async (original) => {
     Handle: ({ type, id, isConnectable }: { type: string; id?: string; isConnectable?: boolean }) => (
       <span data-testid={`handle-${type}-${id}`} data-connectable={String(isConnectable)} />
     ),
-    default: (props: ReactFlowProps<TopologyCanvasNode, TopologyCanvasEdge>) => { state.renders.push({ nodes: props.nodes ?? [], edges: props.edges ?? [], selectionHandler: props.onSelectionChange !== undefined, nodesHandler: props.onNodesChange !== undefined }); return (
+    ReactFlow: (props: ReactFlowProps<Node<TopologyCanvasNode>, Edge<TopologyCanvasEdge>>) => { state.renders.push({ nodes: props.nodes ?? [], edges: props.edges ?? [], selectionHandler: props.onSelectionChange !== undefined, nodesHandler: props.onNodesChange !== undefined }); return (
       <div
         data-testid="topology-flow"
         data-draggable={props.nodesDraggable}
@@ -265,6 +265,83 @@ describe("topology canvas", () => {
     expect(inheritedBoundaryIds(topology, topology.nodes[0]!)).toEqual(["home"]);
     expect(inheritedBoundaryIds(topology, topology.nodes[2]!)).toEqual([]);
     expect(topologyNodeBoundaryLabels(topology, topology.nodes[1]!)).toEqual(["Home", "Office"]);
+  });
+
+  it("caps deep frame rendering at depth five and exposes the full ancestor chain on the host chip", () => {
+    const deep = {
+      ...sample(),
+      title: "Deep frame canvas",
+      boundaries: Array.from({ length: 8 }, (_, index) => ({
+        id: `deep-${index + 1}`,
+        label: `Deep ${index + 1}`,
+        kind: "trust" as const,
+        parentId: index === 0 ? undefined : `deep-${index}`,
+        description: "",
+      })),
+      nodes: [{ id: "deep-host", type: "host", label: "Deep host", layerId: "cloud", boundaryIds: ["deep-8"], lifecycle: "active" as const, description: "", tags: [], attrs: {} }],
+      edges: [],
+      views: [],
+    };
+    const topology = topologySchema.parse(deep);
+
+    render(<TopologyCanvas topology={topology} visibleNodes={topology.nodes} visibleEdges={[]} view={undefined} selectedNodeId="" onSelect={vi.fn()} />);
+
+    const renderedFrames = (state.renders.at(-1)?.nodes as Node<TopologyCanvasNode>[]).filter((node) => node.type === "topologyFrame");
+    expect(renderedFrames).toHaveLength(6);
+    expect(renderedFrames.map((node) => node.data.visualDepth)).toEqual([0, 1, 2, 3, 4, 5]);
+    expect(screen.queryByTestId("topology-frame-deep-7")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("topology-frame-deep-8")).not.toBeInTheDocument();
+
+    const host = screen.getByTestId("topology-node-card-deep-host");
+    expect(host).toHaveAttribute("data-boundary-labels", "Deep 1, Deep 2, Deep 3, Deep 4, Deep 5, Deep 6, Deep 7, Deep 8");
+    expect(screen.getByLabelText("Boundaries: Deep 1, Deep 2, Deep 3, Deep 4, Deep 5, Deep 6, Deep 7, Deep 8")).toHaveAttribute("title", "Deep 1, Deep 2, Deep 3, Deep 4, Deep 5, Deep 6, Deep 7, Deep 8");
+  });
+
+  it("hover-highlights every frame fragment with the same boundaryId and clears it", () => {
+    const topology = topologySchema.parse({
+      ...sample(),
+      title: "Fragment canvas",
+      layers: [
+        { id: "cloud", label: "Cloud", provider: "Fixture", order: 0, description: "" },
+        { id: "edge", label: "Edge", provider: "Fixture", order: 1, description: "" },
+      ],
+      boundaries: [
+        { id: "home", label: "Home", kind: "site", description: "" },
+        { id: "lan", label: "LAN", kind: "network", parentId: "home", description: "" },
+      ],
+      nodes: [
+        { id: "root", type: "host", label: "Root", layerId: "cloud", boundaryIds: ["lan"], lifecycle: "active", description: "", tags: [], attrs: {} },
+        { id: "peer", type: "host", label: "Peer", layerId: "edge", boundaryIds: ["lan"], lifecycle: "active", description: "", tags: [], attrs: {} },
+      ],
+      edges: [],
+      views: [],
+    });
+
+    render(<TopologyCanvas topology={topology} visibleNodes={topology.nodes} visibleEdges={[]} view={undefined} selectedNodeId="" onSelect={vi.fn()} />);
+
+    const fragments = screen.getAllByTestId("topology-frame-lan");
+    expect(fragments).toHaveLength(2);
+    expect(fragments.map((frame) => frame.getAttribute("data-highlighted"))).toEqual(["false", "false"]);
+
+    fireEvent.mouseEnter(screen.getAllByRole("button", { name: /Highlight frame LAN/ })[0]!);
+    expect(screen.getAllByTestId("topology-frame-lan").map((frame) => frame.getAttribute("data-highlighted"))).toEqual(["true", "true"]);
+    expect((state.renders.at(-1)?.nodes as Node<TopologyCanvasNode>[]).filter((node) => node.type === "topologyFrame" && node.data.boundaryId === "lan").every((node) => node.className === "topology-frame-highlighted")).toBe(true);
+
+    fireEvent.mouseLeave(screen.getAllByRole("button", { name: /Highlight frame LAN/ })[0]!);
+    expect(screen.getAllByTestId("topology-frame-lan").map((frame) => frame.getAttribute("data-highlighted"))).toEqual(["false", "false"]);
+
+    fireEvent.mouseEnter(screen.getAllByRole("button", { name: /Highlight frame LAN/ })[1]!);
+    expect(screen.getAllByTestId("topology-frame-lan").map((frame) => frame.getAttribute("data-highlighted"))).toEqual(["true", "true"]);
+
+    const header = screen.getAllByRole("button", { name: /Highlight frame LAN/ })[0]!;
+    fireEvent.focus(header);
+    fireEvent.mouseLeave(screen.getAllByRole("button", { name: /Highlight frame LAN/ })[1]!);
+    expect(screen.getAllByTestId("topology-frame-lan").map((frame) => frame.getAttribute("data-highlighted"))).toEqual(["true", "true"]);
+    fireEvent.mouseEnter(header);
+    fireEvent.blur(header);
+    expect(screen.getAllByTestId("topology-frame-lan").map((frame) => frame.getAttribute("data-highlighted"))).toEqual(["true", "true"]);
+    fireEvent.mouseLeave(header);
+    expect(screen.getAllByTestId("topology-frame-lan").map((frame) => frame.getAttribute("data-highlighted"))).toEqual(["false", "false"]);
   });
 
   it("exposes the zoom tier, renders sections and frames, and adds non-connectable handles", () => {

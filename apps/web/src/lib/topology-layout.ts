@@ -1,25 +1,44 @@
 import type { Topology, TopologyBoundary, TopologyNode, TopologyPoint, TopologyView } from "@steed/api/shared";
+import { resolveStyles, resolveTopologyBoundaryStyles, TOPOLOGY_HOST_SIZE_TABLE, TOPOLOGY_SATELLITE_HEIGHT, TOPOLOGY_SATELLITE_INDENT, TOPOLOGY_SUB_SATELLITE_INDENT, type TopologyResolvedBorder, type TopologyResolvedBoundaryStyle } from "./topology-style";
 
 // Card sizes. Satellites and sub-satellites stack under their host in one column.
-export const TOPOLOGY_HOST_WIDTH = 240;
-export const TOPOLOGY_HOST_HEIGHT = 112;
-export const TOPOLOGY_SATELLITE_INDENT = 24;
+export const TOPOLOGY_HOST_WIDTH = TOPOLOGY_HOST_SIZE_TABLE.m.width;
+export const TOPOLOGY_HOST_HEIGHT = TOPOLOGY_HOST_SIZE_TABLE.m.height;
+export { TOPOLOGY_SATELLITE_INDENT, TOPOLOGY_SATELLITE_HEIGHT, TOPOLOGY_SUB_SATELLITE_INDENT };
 export const TOPOLOGY_SATELLITE_WIDTH = TOPOLOGY_HOST_WIDTH - TOPOLOGY_SATELLITE_INDENT;
-export const TOPOLOGY_SATELLITE_HEIGHT = 64;
-export const TOPOLOGY_SUB_SATELLITE_INDENT = 2 * TOPOLOGY_SATELLITE_INDENT;
 export const TOPOLOGY_SUB_SATELLITE_WIDTH = TOPOLOGY_HOST_WIDTH - TOPOLOGY_SUB_SATELLITE_INDENT;
 export const TOPOLOGY_STACK_GAP = 12;
 
 // Spacing between composites, inside boundary frames and inside layer sections.
-export const TOPOLOGY_ITEM_GAP = 56;
-export const TOPOLOGY_FRAME_PADDING = 24;
+export const TOPOLOGY_ITEM_GAP = 64;
+export const TOPOLOGY_FRAME_PADDING = 32;
 export const TOPOLOGY_FRAME_HEADER = 36;
+export const TOPOLOGY_ROUTE_CURVE_RADIUS = 0;
+export const TOPOLOGY_ROUTE_PAINT_MARGIN = 2;
+export const TOPOLOGY_ROUTE_STROKE_MARGIN = 2;
+export const TOPOLOGY_ROUTE_MARKER_CLEARANCE = 14;
+export const TOPOLOGY_ROUTE_HEADER_CLEARANCE = 3;
 export const TOPOLOGY_SECTION_PADDING = 40;
 export const TOPOLOGY_SECTION_HEADER = 96;
 export const TOPOLOGY_SECTION_GAP = 160;
 export const TOPOLOGY_TARGET_ASPECT = 1.6;
+export const TOPOLOGY_FRAME_MAX_DEPTH = 8;
+export const TOPOLOGY_FRAME_VISUAL_DEPTH_LIMIT = 6;
 
 const BOUNDARY_KIND_PRIORITY: Record<TopologyBoundary["kind"], number> = { trust: 0, site: 1, network: 2, account: 3 };
+
+export function topologyRouteObstacle(rect: { x: number; y: number; width: number; height: number }, margin = TOPOLOGY_ROUTE_HEADER_CLEARANCE): { x: number; y: number; width: number; height: number } {
+  return {
+    x: rect.x - margin,
+    y: rect.y - margin,
+    width: rect.width + margin * 2,
+    height: rect.height + margin * 2,
+  };
+}
+
+export function topologyHeaderObstacle(rect: { x: number; y: number; width: number; height: number }, height: number): { x: number; y: number; width: number; height: number } {
+  return topologyRouteObstacle({ ...rect, height });
+}
 
 export interface TopologyLayoutPosition extends TopologyPoint {
   width: number;
@@ -56,7 +75,18 @@ export interface TopologyLayoutFrame {
   id: string;
   layerId: string;
   boundaryId: string;
+  label: string;
+  title: string;
+  fragmentIndex: number;
+  fragmentCount: number;
   depth: number;
+  visualDepth: number;
+  depthCapped: boolean;
+  color: string;
+  tint: string;
+  border: TopologyResolvedBorder;
+  icon: string;
+  style: TopologyResolvedBoundaryStyle;
   x: number;
   y: number;
   width: number;
@@ -131,34 +161,22 @@ export function primaryBoundaryId(topology: Topology, node: TopologyNode): strin
     .sort((a, b) => a.rank - b.rank || compareIds(a.id, b.id))[0]?.id;
 }
 
-function boundaryPath(topology: Topology, boundaryId: string | undefined): string[] {
-  const byId = new Map(topology.boundaries.map((boundary) => [boundary.id, boundary]));
-  const path: string[] = [];
-  const seen = new Set<string>();
-  let current = boundaryId ? byId.get(boundaryId) : undefined;
-  while (current && !seen.has(current.id)) {
-    seen.add(current.id);
-    path.unshift(current.id);
-    current = current.parentId ? byId.get(current.parentId) : undefined;
-  }
-  return path;
-}
-
-function hostComposite(topology: Topology, host: TopologyNode, children: Map<string, TopologyNode[]>): Packed {
-  const rows: Array<{ id: string; dx: number; width: number; height: number }> = [{ id: host.id, dx: 0, width: TOPOLOGY_HOST_WIDTH, height: TOPOLOGY_HOST_HEIGHT }];
-  const visit = (parentId: string, depth: number, seen: Set<string>) => {
+function hostComposite(host: TopologyNode, children: Map<string, TopologyNode[]>, styles: Record<string, { width: number; height: number }>): Packed {
+  const hostStyle = styles[host.id] ?? { width: TOPOLOGY_HOST_WIDTH, height: TOPOLOGY_HOST_HEIGHT };
+  const rows: Array<{ id: string; dx: number; width: number; height: number }> = [{ id: host.id, dx: 0, width: hostStyle.width, height: hostStyle.height }];
+  const visit = (parentId: string, seen: Set<string>) => {
     for (const child of children.get(parentId) ?? []) {
       if (seen.has(child.id)) continue;
       seen.add(child.id);
-      const indent = depth === 1 ? TOPOLOGY_SATELLITE_INDENT : TOPOLOGY_SUB_SATELLITE_INDENT;
-      rows.push({ id: child.id, dx: indent, width: TOPOLOGY_HOST_WIDTH - indent, height: TOPOLOGY_SATELLITE_HEIGHT });
-      visit(child.id, depth + 1, seen);
+      const childStyle = styles[child.id] ?? { width: hostStyle.width - TOPOLOGY_SATELLITE_INDENT, height: TOPOLOGY_SATELLITE_HEIGHT };
+      rows.push({ id: child.id, dx: hostStyle.width - childStyle.width, width: childStyle.width, height: childStyle.height });
+      visit(child.id, seen);
     }
   };
-  visit(host.id, 1, new Set([host.id]));
+  visit(host.id, new Set([host.id]));
   const height = rows.reduce((sum, row) => sum + row.height, 0) + (rows.length - 1) * TOPOLOGY_STACK_GAP;
   return {
-    width: TOPOLOGY_HOST_WIDTH,
+    width: hostStyle.width,
     height,
     nodeIds: rows.map((row) => row.id),
     place(x, y, out) {
@@ -167,20 +185,22 @@ function hostComposite(topology: Topology, host: TopologyNode, children: Map<str
         out.positions[row.id] = { x: x + row.dx, y: rowY, width: row.width, height: row.height };
         rowY += row.height + TOPOLOGY_STACK_GAP;
       }
-      out.blocks.push({ id: host.id, hostId: host.id, kind: "host", x, y, width: TOPOLOGY_HOST_WIDTH, height, nodeIds: rows.map((row) => row.id) });
+      out.blocks.push({ id: host.id, hostId: host.id, kind: "host", x, y, width: hostStyle.width, height, nodeIds: rows.map((row) => row.id) });
     },
   };
 }
 
 interface FrameTree {
   boundaryId: string;
+  fragmentKey: number;
+  kindPriority: number;
   hosts: Packed[];
   children: Map<string, FrameTree>;
 }
 
 function packFrame(tree: FrameTree, depth: number): Packed {
   const items: Packed[] = [
-    ...[...tree.children.values()].sort((a, b) => compareIds(a.boundaryId, b.boundaryId)).map((child) => packFrame(child, depth + 1)),
+    ...[...tree.children.values()].sort((a, b) => a.kindPriority - b.kindPriority || compareIds(a.boundaryId, b.boundaryId)).map((child) => packFrame(child, depth + 1)),
     ...tree.hosts,
   ];
   const packed = shelfPack(items, packWidth(items, TOPOLOGY_ITEM_GAP, TOPOLOGY_TARGET_ASPECT), TOPOLOGY_ITEM_GAP);
@@ -191,10 +211,26 @@ function packFrame(tree: FrameTree, depth: number): Packed {
     nodeIds,
     place(x, y, out, layerId) {
       out.frames.push({
-        id: `frame:${layerId}:${tree.boundaryId}`,
+        id: `frame:${layerId}:${tree.boundaryId}:${tree.fragmentKey}`,
         layerId,
         boundaryId: tree.boundaryId,
+        label: tree.boundaryId,
+        title: tree.boundaryId,
+        fragmentIndex: 1,
+        fragmentCount: 1,
         depth,
+        visualDepth: Math.min(depth, TOPOLOGY_FRAME_VISUAL_DEPTH_LIMIT - 1),
+        depthCapped: depth >= TOPOLOGY_FRAME_VISUAL_DEPTH_LIMIT,
+        color: "",
+        tint: "",
+        border: { style: "solid", width: 1, color: "" },
+        icon: "circle-dot",
+        style: {
+          color: "",
+          tint: "",
+          border: { style: "solid", width: 1, color: "" },
+          icon: "circle-dot",
+        },
         x,
         y,
         width: packed.width + 2 * TOPOLOGY_FRAME_PADDING,
@@ -206,6 +242,86 @@ function packFrame(tree: FrameTree, depth: number): Packed {
       }
     },
   };
+}
+
+function boundaryMembershipChain(topology: Topology, host: TopologyNode): string[] {
+  const byId = new Map(topology.boundaries.map((boundary) => [boundary.id, boundary]));
+  const members = new Set<string>();
+
+  const visitAncestors = (id: string, seen: Set<string>) => {
+    if (seen.has(id) || !byId.has(id)) return;
+    seen.add(id);
+    members.add(id);
+    const parentId = byId.get(id)?.parentId;
+    if (parentId) visitAncestors(parentId, seen);
+  };
+  for (const id of host.boundaryIds) visitAncestors(id, new Set());
+
+  const boundaryRank = (id: string) => {
+    const kind = byId.get(id)?.kind;
+    return kind === "trust" ? 0 : kind === "site" ? 1 : kind === "network" ? 2 : kind === "account" ? 3 : 4;
+  };
+  const boundaryCompare = (a: string, b: string) => boundaryRank(a) - boundaryRank(b) || compareIds(a, b);
+  const roots = [...members].filter((id) => {
+    const parentId = byId.get(id)?.parentId;
+    return !parentId || !members.has(parentId);
+  }).sort(boundaryCompare);
+
+  const chain: string[] = [];
+  const seen = new Set<string>();
+  const visit = (id: string) => {
+    if (seen.has(id)) return;
+    seen.add(id);
+    chain.push(id);
+    const children = [...members].filter((candidate) => byId.get(candidate)?.parentId === id).sort(boundaryCompare);
+    for (const child of children) visit(child);
+  };
+  for (const root of roots) visit(root);
+  for (const id of [...members].sort(boundaryCompare)) visit(id);
+  return chain;
+}
+
+function finalizeFrameFragments(topology: Topology, result: TopologyLayoutResult) {
+  const boundaryStyles = resolveTopologyBoundaryStyles(topology);
+  const laneOrder = new Map([...result.lanes].sort((a, b) => a.order - b.order || compareIds(a.id, b.id)).map((lane, index) => [lane.id, index]));
+  const frames = [...result.frames].sort((a, b) =>
+    (laneOrder.get(a.layerId) ?? Number.MAX_SAFE_INTEGER) - (laneOrder.get(b.layerId) ?? Number.MAX_SAFE_INTEGER)
+    || a.y - b.y
+    || a.x - b.x
+    || b.depth - a.depth
+    || compareIds(a.boundaryId, b.boundaryId)
+    || compareIds(a.id, b.id)
+  );
+
+  const counts = new Map<string, number>();
+  for (const frame of frames) counts.set(frame.boundaryId, (counts.get(frame.boundaryId) ?? 0) + 1);
+
+  const index = new Map<string, number>();
+  for (const frame of frames) {
+    const count = counts.get(frame.boundaryId) ?? 1;
+    const next = (index.get(frame.boundaryId) ?? 0) + 1;
+    index.set(frame.boundaryId, next);
+    const boundary = topology.boundaries.find((candidate) => candidate.id === frame.boundaryId);
+    const label = boundary?.label ?? frame.boundaryId;
+    const style = boundaryStyles[frame.boundaryId] ?? {
+      color: "",
+      tint: "",
+      border: { style: "solid" as const, width: 1, color: "" },
+      icon: "circle-dot",
+    };
+    frame.label = label;
+    frame.title = count > 1 ? `${label} (${next}/${count})` : label;
+    frame.fragmentIndex = next;
+    frame.fragmentCount = count;
+    frame.color = style.color;
+    frame.tint = style.tint;
+    frame.border = style.border;
+    frame.icon = style.icon;
+    frame.style = style;
+    if (count === 1) frame.id = `frame:${frame.layerId}:${frame.boundaryId}`;
+    else if (next === 1) frame.id = `frame:${frame.layerId}:${frame.boundaryId}`;
+    else frame.id = `frame:${frame.layerId}:${frame.boundaryId}:${next}`;
+  }
 }
 
 function pinOrder(pins: Map<string, TopologyPoint>, a: string, b: string): number {
@@ -222,6 +338,7 @@ export function layoutTopology(topology: Topology, options: TopologyLayoutOption
   const pins = new Map(Object.entries(options.pins ?? selectedView?.pins ?? {}));
   const origin = options.origin ?? { x: 0, y: 0 };
   const aspect = options.aspect ?? TOPOLOGY_TARGET_ASPECT;
+  const styles = resolveStyles(topology);
   const result: TopologyLayoutResult = { positions: {}, nodePositions: {}, blocks: [], lanes: [], frames: [], width: 0, height: 0 };
   result.nodePositions = result.positions;
 
@@ -235,25 +352,30 @@ export function layoutTopology(topology: Topology, options: TopologyLayoutOption
   for (const list of children.values()) list.sort((a, b) => compareIds(a.id, b.id));
 
   const layers = [...topology.layers].sort((a, b) => a.order - b.order || compareIds(a.id, b.id));
+  let fragmentKey = 0;
   const sections = layers.map((layer) => {
     const hosts = topology.nodes
       .filter((node) => node.layerId === layer.id && node.parentId === undefined)
       .sort((a, b) => pinOrder(pins, a.id, b.id));
-    const root: FrameTree = { boundaryId: "", hosts: [], children: new Map() };
+    const root: FrameTree = { boundaryId: "", fragmentKey: 0, kindPriority: 4, hosts: [], children: new Map() };
     for (const host of hosts) {
       let tree = root;
-      for (const boundaryId of boundaryPath(topology, primaryBoundaryId(topology, host))) {
+      const chain = boundaryMembershipChain(topology, host);
+      for (const boundaryId of chain) {
         let next = tree.children.get(boundaryId);
         if (!next) {
-          next = { boundaryId, hosts: [], children: new Map() };
+          fragmentKey += 1;
+          const kind = topology.boundaries.find((boundary) => boundary.id === boundaryId)?.kind;
+          const kindPriority = kind === "trust" ? 0 : kind === "site" ? 1 : kind === "network" ? 2 : kind === "account" ? 3 : 4;
+          next = { boundaryId, fragmentKey, kindPriority, hosts: [], children: new Map() };
           tree.children.set(boundaryId, next);
         }
         tree = next;
       }
-      tree.hosts.push(hostComposite(topology, host, children));
+      tree.hosts.push(hostComposite(host, children, styles));
     }
     const items: Packed[] = [
-      ...[...root.children.values()].sort((a, b) => compareIds(a.boundaryId, b.boundaryId)).map((tree) => packFrame(tree, 0)),
+      ...[...root.children.values()].sort((a, b) => a.kindPriority - b.kindPriority || compareIds(a.boundaryId, b.boundaryId)).map((tree) => packFrame(tree, 0)),
       ...root.hosts,
     ];
     const packed = shelfPack(items, packWidth(items, TOPOLOGY_ITEM_GAP, aspect), TOPOLOGY_ITEM_GAP);
@@ -307,6 +429,7 @@ export function layoutTopology(topology: Topology, options: TopologyLayoutOption
     rowY += height + TOPOLOGY_SECTION_GAP;
   });
 
+  finalizeFrameFragments(topology, result);
   return result;
 }
 

@@ -1,14 +1,14 @@
-import { memo, useCallback, useEffect, useMemo, useRef } from "react";
-import ReactFlow, { Background, ControlButton, Controls, Handle, MarkerType, Position, ReactFlowProvider, getNodesBounds, getViewportForBounds, useReactFlow, useStore, type Edge, type Node, type NodeMouseHandler, type NodeProps, type ReactFlowInstance, type Rect } from "reactflow";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ReactFlow, Background, ControlButton, Controls, Handle, MarkerType, Position, ReactFlowProvider, getNodesBounds, getViewportForBounds, useReactFlow, useStore, type Edge, type Node, type NodeMouseHandler, type NodeProps, type ReactFlowInstance, type Rect } from "@xyflow/react";
 import { Badge } from "@nocoo/basalt";
 import { Layers, Maximize, Network, Server, Shield } from "lucide-react";
 import type { Topology, TopologyEdge, TopologyNode, TopologyView } from "@steed/api/shared";
-import { layoutTopology } from "@/lib/topology-layout";
-import "reactflow/dist/style.css";
+import { layoutTopology, TOPOLOGY_FRAME_VISUAL_DEPTH_LIMIT } from "@/lib/topology-layout";
+import "@xyflow/react/dist/style.css";
 
 export type TopologyCardKind = "host" | "satellite" | "sub-satellite";
 
-export interface TopologyCanvasNode {
+export interface TopologyCanvasNode extends Record<string, unknown> {
   label: string;
   kind: "lane" | "frame" | TopologyCardKind;
   node?: TopologyNode;
@@ -18,10 +18,23 @@ export interface TopologyCanvasNode {
   counts?: { hosts: number; nodes: number };
   boundaryKind?: string;
   depth?: number;
+  visualDepth?: number;
+  fragmentIndex?: number;
+  fragmentCount?: number;
+  tint?: string;
+  borderStyle?: "solid" | "dashed" | "dotted" | "double";
+  borderWidth?: number;
+  borderColor?: string;
   satelliteCount?: number;
   typeLabel?: string;
   badges?: { label: string; value: string }[];
   boundaryLabels?: string[];
+  boundaryId?: string;
+  highlighted?: boolean;
+  onFrameHover?: (boundaryId: string) => void;
+  onFrameClearHover?: () => void;
+  onFrameFocus?: (boundaryId: string) => void;
+  onFrameClearFocus?: () => void;
   lifecycle?: TopologyNode["lifecycle"];
   width?: number;
   height?: number;
@@ -62,7 +75,7 @@ export function topologyEdgeSides(source: Rect, target: Rect): [Side, Side] {
   return dy >= 0 ? ["bottom", "top"] : ["top", "bottom"];
 }
 
-export interface TopologyCanvasEdge {
+export interface TopologyCanvasEdge extends Record<string, unknown> {
   edge: TopologyEdge;
 }
 
@@ -126,7 +139,7 @@ function CardHandles() {
   ))}</>;
 }
 
-const NodeCard = memo(function NodeCard({ data, selected }: NodeProps<TopologyCanvasNode>) {
+const NodeCard = memo(function NodeCard({ data, selected }: NodeProps<Node<TopologyCanvasNode>>) {
   const host = data.kind === "host";
   const visibleBadges = data.badges?.slice(0, host ? TOPOLOGY_NODE_VISIBLE_BADGES : TOPOLOGY_SATELLITE_VISIBLE_BADGES) ?? [];
   const visibleBoundaries = host ? data.boundaryLabels?.slice(0, TOPOLOGY_NODE_VISIBLE_BOUNDARY_CHIPS) ?? [] : [];
@@ -141,6 +154,7 @@ const NodeCard = memo(function NodeCard({ data, selected }: NodeProps<TopologyCa
       aria-label={data.node ? `Select ${data.label}` : data.kind}
       aria-pressed={data.node ? selected === true : undefined}
       data-testid={`topology-node-card-${data.node?.id ?? data.kind}`}
+      data-boundary-labels={completeBoundaryLabels || undefined}
       // Mouse focus would make the browser scroll React Flow's overflow-hidden
       // renderer to reveal the card, shifting the whole map off its viewport.
       onMouseDown={(event) => event.preventDefault()}
@@ -179,7 +193,7 @@ const NodeCard = memo(function NodeCard({ data, selected }: NodeProps<TopologyCa
   );
 });
 
-const SectionNode = memo(function SectionNode({ data }: NodeProps<TopologyCanvasNode>) {
+const SectionNode = memo(function SectionNode({ data }: NodeProps<Node<TopologyCanvasNode>>) {
   return (
     <div
       className="topology-section h-full w-full rounded-3xl border-2"
@@ -203,18 +217,35 @@ const SectionNode = memo(function SectionNode({ data }: NodeProps<TopologyCanvas
   );
 });
 
-const FrameNode = memo(function FrameNode({ data }: NodeProps<TopologyCanvasNode>) {
+const FrameNode = memo(function FrameNode({ data }: NodeProps<Node<TopologyCanvasNode>>) {
+  const borderStyle = data.borderStyle === "dotted" ? "dotted" : data.borderStyle === "dashed" ? "dashed" : data.borderStyle === "double" ? "double" : "solid";
+  const hover = () => data.boundaryId && data.onFrameHover?.(data.boundaryId);
+  const clear = () => data.onFrameClearHover?.();
+  const focus = () => data.boundaryId && data.onFrameFocus?.(data.boundaryId);
+  const blur = () => data.onFrameClearFocus?.();
   return (
     <div
-      className="topology-frame h-full w-full rounded-2xl border-2 border-dashed"
-      style={{ width: data.width, height: data.height, borderColor: topologyTint(data.color, 0.7), background: topologyTint(data.color, (data.depth ?? 0) > 0 ? 0.06 : 0.04) }}
+      className={`topology-frame h-full w-full rounded-2xl${data.highlighted ? " topology-frame-highlighted ring-2 ring-basalt-primary/60" : ""}`}
+      style={{ width: data.width, height: data.height, borderStyle, borderWidth: data.borderWidth ?? 2, borderColor: data.highlighted ? data.color ?? topologyTint(data.color, 1) : data.borderColor ?? topologyTint(data.color, 0.7), background: data.tint ?? topologyTint(data.color, (data.visualDepth ?? data.depth ?? 0) > 0 ? 0.06 : 0.04) }}
       data-testid={`topology-frame-${data.label}`}
+      data-highlighted={data.highlighted ? "true" : "false"}
     >
-      <div className="flex h-9 items-center gap-2 px-4 text-base font-semibold" style={{ color: data.color }}>
-        <Shield className="h-4 w-4" aria-hidden="true" />
+      <button
+        type="button"
+        className="nopan absolute inset-x-0 top-0 z-10 flex h-9 items-center gap-2 px-4 text-left text-base font-semibold"
+        style={{ color: data.color }}
+        data-testid={`topology-frame-header-${data.label}-${data.fragmentIndex}-${data.fragmentCount}`}
+        aria-label={`Highlight frame ${data.laneLabel}`}
+        onMouseEnter={hover}
+        onMouseLeave={clear}
+        onFocus={focus}
+        onBlur={blur}
+        onMouseDown={(event) => event.preventDefault()}
+      >
+        <Shield className="h-4 w-4 shrink-0" aria-hidden="true" />
         <span className="truncate">{data.laneLabel}</span>
-        <span className="text-xs font-normal uppercase tracking-wide text-basalt-muted-foreground">{data.boundaryKind}</span>
-      </div>
+        <span className="shrink-0 text-xs font-normal uppercase tracking-wide text-basalt-muted-foreground">{data.boundaryKind}</span>
+      </button>
     </div>
   );
 });
@@ -229,7 +260,7 @@ interface Props {
   selectedNodeId: string;
   onSelect: (id: string) => void;
   focus?: TopologyFocusRequest;
-  onInit?: (instance: ReactFlowInstance<TopologyCanvasNode, TopologyCanvasEdge>) => void;
+  onInit?: (instance: ReactFlowInstance<Node<TopologyCanvasNode>, Edge<TopologyCanvasEdge>>) => void;
 }
 
 const BOUNDARY_FALLBACK_COLOR = "#64748b";
@@ -239,6 +270,8 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
   const canvas = useStore((state) => ({ width: state.width, height: state.height }));
   const canvasRef = useRef(canvas);
   canvasRef.current = canvas;
+  const [hoveredBoundaryId, setHoveredBoundaryId] = useState("");
+  const [focusedBoundaryId, setFocusedBoundaryId] = useState("");
 
   const layout = useMemo(() => layoutTopology(topology, view ? { view } : {}), [topology, view]);
   const fitRect = useCallback((rect: Rect, padding: number) => {
@@ -250,6 +283,13 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
     const lane = layout.lanes.find((candidate) => candidate.layerId === layerId);
     if (lane) fitRect(lane, 0.04);
   }, [layout, fitRect]);
+  const selectRef = useRef({ onSelect, selectedNodeId });
+  selectRef.current = { onSelect, selectedNodeId };
+  const selectNode = useCallback((id: string) => selectRef.current.onSelect(id), []);
+  const hoverFrame = useCallback((boundaryId: string) => setHoveredBoundaryId(boundaryId), []);
+  const clearFrameHover = useCallback(() => setHoveredBoundaryId(""), []);
+  const focusFrame = useCallback((boundaryId: string) => setFocusedBoundaryId(boundaryId), []);
+  const clearFrameFocus = useCallback(() => setFocusedBoundaryId(""), []);
 
   const projected = useMemo(() => {
     const visibleNodeIds = new Set(visibleNodes.map((node) => node.id));
@@ -293,7 +333,7 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
         };
       });
     const frameNodes: Node<TopologyCanvasNode>[] = layout.frames
-      .filter((frame) => frame.nodeIds.some((id) => visibleNodeIds.has(id)))
+      .filter((frame) => frame.depth < TOPOLOGY_FRAME_VISUAL_DEPTH_LIMIT && frame.nodeIds.some((id) => visibleNodeIds.has(id)))
       .map((frame) => {
         const boundary = boundaryById.get(frame.boundaryId);
         return {
@@ -305,14 +345,28 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
           selectable: false,
           draggable: false,
           focusable: false,
-          zIndex: -2 + frame.depth * 0.1,
+          zIndex: -2 + frame.visualDepth * 0.1,
+          className: hoveredBoundaryId === frame.boundaryId || focusedBoundaryId === frame.boundaryId ? "topology-frame-highlighted" : undefined,
           data: {
             label: frame.boundaryId,
             kind: "frame",
-            laneLabel: boundary?.label ?? frame.boundaryId,
+            laneLabel: frame.title,
+            boundaryId: frame.boundaryId,
+            highlighted: hoveredBoundaryId === frame.boundaryId || focusedBoundaryId === frame.boundaryId,
+            onFrameHover: hoverFrame,
+            onFrameClearHover: clearFrameHover,
+            onFrameFocus: focusFrame,
+            onFrameClearFocus: clearFrameFocus,
             boundaryKind: boundary?.kind,
-            color: boundary?.style?.color ?? BOUNDARY_FALLBACK_COLOR,
+            color: frame.color || boundary?.style?.color || BOUNDARY_FALLBACK_COLOR,
             depth: frame.depth,
+            visualDepth: frame.visualDepth,
+            fragmentIndex: frame.fragmentIndex,
+            fragmentCount: frame.fragmentCount,
+            tint: frame.tint,
+            borderStyle: frame.border.style,
+            borderWidth: frame.border.width,
+            borderColor: frame.border.color,
             width: frame.width,
             height: frame.height,
           },
@@ -349,7 +403,7 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
           lifecycle: node.lifecycle,
           width: position.width,
           height: position.height,
-          onSelect,
+          onSelect: selectNode,
         },
       });
     }
@@ -391,7 +445,27 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
         }];
       });
     return { nodes: [...laneNodes, ...frameNodes, ...nodeLayer], laneNodes, edges };
-  }, [topology, visibleNodes, visibleEdges, layout, onSelect, focusLayer]);
+  }, [topology, visibleNodes, visibleEdges, layout, selectNode, focusLayer, hoveredBoundaryId, focusedBoundaryId, hoverFrame, clearFrameHover, focusFrame, clearFrameFocus]);
+
+  useEffect(() => {
+    if (!hoveredBoundaryId) return;
+    const visibleBoundary = layout.frames.some((frame) =>
+      frame.depth < TOPOLOGY_FRAME_VISUAL_DEPTH_LIMIT
+      && frame.boundaryId === hoveredBoundaryId
+      && frame.nodeIds.some((id) => visibleNodes.some((node) => node.id === id)),
+    );
+    if (!visibleBoundary) setHoveredBoundaryId("");
+  }, [hoveredBoundaryId, layout, visibleNodes]);
+
+  useEffect(() => {
+    if (!focusedBoundaryId) return;
+    const visibleBoundary = layout.frames.some((frame) =>
+      frame.depth < TOPOLOGY_FRAME_VISUAL_DEPTH_LIMIT
+      && frame.boundaryId === focusedBoundaryId
+      && frame.nodeIds.some((id) => visibleNodes.some((node) => node.id === id)),
+    );
+    if (!visibleBoundary) setFocusedBoundaryId("");
+  }, [focusedBoundaryId, layout, visibleNodes]);
 
   // Selection is fully controlled by `selectedNodeId`. Only the nodes whose
   // selected flag changes get new objects, and the edge array never depends on
@@ -400,9 +474,7 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
     const selected = node.id === selectedNodeId;
     return selected === (node.selected === true) ? node : { ...node, selected };
   }), [projected.nodes, selectedNodeId]);
-  const selectRef = useRef({ onSelect, selectedNodeId });
-  selectRef.current = { onSelect, selectedNodeId };
-  const handleNodeClick = useCallback<NodeMouseHandler>((_, node) => {
+  const handleNodeClick = useCallback<NodeMouseHandler<Node<TopologyCanvasNode>>>((_, node) => {
     const id = (node.data as TopologyCanvasNode).node?.id;
     if (id && id !== selectRef.current.selectedNodeId) selectRef.current.onSelect(id);
   }, []);
