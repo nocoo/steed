@@ -1,14 +1,14 @@
 import { memo, useCallback, useEffect, useMemo, useRef } from "react";
-import ReactFlow, { Background, ControlButton, Controls, Handle, MarkerType, Position, ReactFlowProvider, getNodesBounds, getViewportForBounds, useReactFlow, useStore, type Edge, type Node, type NodeMouseHandler, type NodeProps, type ReactFlowInstance, type Rect } from "reactflow";
+import { ReactFlow, Background, ControlButton, Controls, Handle, MarkerType, Position, ReactFlowProvider, getNodesBounds, getViewportForBounds, useReactFlow, useStore, type Edge, type Node, type NodeMouseHandler, type NodeProps, type ReactFlowInstance, type Rect } from "@xyflow/react";
 import { Badge } from "@nocoo/basalt";
 import { Layers, Maximize, Network, Server, Shield } from "lucide-react";
 import type { Topology, TopologyEdge, TopologyNode, TopologyView } from "@steed/api/shared";
 import { layoutTopology } from "@/lib/topology-layout";
-import "reactflow/dist/style.css";
+import "@xyflow/react/dist/style.css";
 
 export type TopologyCardKind = "host" | "satellite" | "sub-satellite";
 
-export interface TopologyCanvasNode {
+export interface TopologyCanvasNode extends Record<string, unknown> {
   label: string;
   kind: "lane" | "frame" | TopologyCardKind;
   node?: TopologyNode;
@@ -62,7 +62,7 @@ export function topologyEdgeSides(source: Rect, target: Rect): [Side, Side] {
   return dy >= 0 ? ["bottom", "top"] : ["top", "bottom"];
 }
 
-export interface TopologyCanvasEdge {
+export interface TopologyCanvasEdge extends Record<string, unknown> {
   edge: TopologyEdge;
 }
 
@@ -126,7 +126,7 @@ function CardHandles() {
   ))}</>;
 }
 
-const NodeCard = memo(function NodeCard({ data, selected }: NodeProps<TopologyCanvasNode>) {
+const NodeCard = memo(function NodeCard({ data, selected }: NodeProps<Node<TopologyCanvasNode>>) {
   const host = data.kind === "host";
   const visibleBadges = data.badges?.slice(0, host ? TOPOLOGY_NODE_VISIBLE_BADGES : TOPOLOGY_SATELLITE_VISIBLE_BADGES) ?? [];
   const visibleBoundaries = host ? data.boundaryLabels?.slice(0, TOPOLOGY_NODE_VISIBLE_BOUNDARY_CHIPS) ?? [] : [];
@@ -179,7 +179,7 @@ const NodeCard = memo(function NodeCard({ data, selected }: NodeProps<TopologyCa
   );
 });
 
-const SectionNode = memo(function SectionNode({ data }: NodeProps<TopologyCanvasNode>) {
+const SectionNode = memo(function SectionNode({ data }: NodeProps<Node<TopologyCanvasNode>>) {
   return (
     <div
       className="topology-section h-full w-full rounded-3xl border-2"
@@ -203,7 +203,7 @@ const SectionNode = memo(function SectionNode({ data }: NodeProps<TopologyCanvas
   );
 });
 
-const FrameNode = memo(function FrameNode({ data }: NodeProps<TopologyCanvasNode>) {
+const FrameNode = memo(function FrameNode({ data }: NodeProps<Node<TopologyCanvasNode>>) {
   return (
     <div
       className="topology-frame h-full w-full rounded-2xl border-2 border-dashed"
@@ -229,7 +229,7 @@ interface Props {
   selectedNodeId: string;
   onSelect: (id: string) => void;
   focus?: TopologyFocusRequest;
-  onInit?: (instance: ReactFlowInstance<TopologyCanvasNode, TopologyCanvasEdge>) => void;
+  onInit?: (instance: ReactFlowInstance<Node<TopologyCanvasNode>, Edge<TopologyCanvasEdge>>) => void;
 }
 
 const BOUNDARY_FALLBACK_COLOR = "#64748b";
@@ -250,6 +250,9 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
     const lane = layout.lanes.find((candidate) => candidate.layerId === layerId);
     if (lane) fitRect(lane, 0.04);
   }, [layout, fitRect]);
+  const selectRef = useRef({ onSelect, selectedNodeId });
+  selectRef.current = { onSelect, selectedNodeId };
+  const selectNode = useCallback((id: string) => selectRef.current.onSelect(id), []);
 
   const projected = useMemo(() => {
     const visibleNodeIds = new Set(visibleNodes.map((node) => node.id));
@@ -349,7 +352,7 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
           lifecycle: node.lifecycle,
           width: position.width,
           height: position.height,
-          onSelect,
+          onSelect: selectNode,
         },
       });
     }
@@ -391,7 +394,7 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
         }];
       });
     return { nodes: [...laneNodes, ...frameNodes, ...nodeLayer], laneNodes, edges };
-  }, [topology, visibleNodes, visibleEdges, layout, onSelect, focusLayer]);
+  }, [topology, visibleNodes, visibleEdges, layout, selectNode, focusLayer]);
 
   // Selection is fully controlled by `selectedNodeId`. Only the nodes whose
   // selected flag changes get new objects, and the edge array never depends on
@@ -400,9 +403,7 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
     const selected = node.id === selectedNodeId;
     return selected === (node.selected === true) ? node : { ...node, selected };
   }), [projected.nodes, selectedNodeId]);
-  const selectRef = useRef({ onSelect, selectedNodeId });
-  selectRef.current = { onSelect, selectedNodeId };
-  const handleNodeClick = useCallback<NodeMouseHandler>((_, node) => {
+  const handleNodeClick = useCallback<NodeMouseHandler<Node<TopologyCanvasNode>>>((_, node) => {
     const id = (node.data as TopologyCanvasNode).node?.id;
     if (id && id !== selectRef.current.selectedNodeId) selectRef.current.onSelect(id);
   }, []);

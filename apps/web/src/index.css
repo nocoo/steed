@@ -14,7 +14,7 @@
 }
 
 /* Topology semantic zoom: far shows sections, frames and hosts; mid adds satellites; near adds edge labels.
-   Unlayered so it wins over reactflow/dist/style.css. */
+   Unlayered so it wins over @xyflow/react/dist/style.css. */
 .topology-canvas {
   --topology-edge-cross: #94a3b8;
 }

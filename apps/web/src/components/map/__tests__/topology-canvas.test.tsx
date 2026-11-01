@@ -1,15 +1,15 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ComponentType, ReactNode } from "react";
-import { getNodesBounds, getViewportForBounds, type Edge, type Node, type ReactFlowProps } from "reactflow";
+import { getNodesBounds, getViewportForBounds, type Edge, type Node, type ReactFlowProps } from "@xyflow/react";
 import type { Topology } from "@steed/api/shared";
 import { inheritedBoundaryIds, TopologyCanvas, topologyEdgeSides, topologyNodeBadgeValues, topologyNodeBoundaryLabels, topologyTint, topologyZoomTier } from "../topology-canvas";
 import type { TopologyCanvasEdge, TopologyCanvasNode } from "../topology-canvas";
 import { layoutTopology } from "@/lib/topology-layout";
 
 const state = vi.hoisted(() => ({ zoom: 1, width: 1000, height: 700, setViewport: vi.fn(), setCenter: vi.fn(), nodeChanges: [] as unknown[], renders: [] as { nodes: unknown[]; edges: unknown[]; selectionHandler: boolean; nodesHandler: boolean }[] }));
-vi.mock("reactflow", async (original) => {
-  const actual = await original<typeof import("reactflow")>();
+vi.mock("@xyflow/react", async (original) => {
+  const actual = await original<typeof import("@xyflow/react")>();
   return {
     ...actual,
     useStore: (selector: (value: { transform: number[]; width: number; height: number }) => unknown) => selector({ transform: [0, 0, state.zoom], width: state.width, height: state.height }),
@@ -21,7 +21,7 @@ vi.mock("reactflow", async (original) => {
     Handle: ({ type, id, isConnectable }: { type: string; id?: string; isConnectable?: boolean }) => (
       <span data-testid={`handle-${type}-${id}`} data-connectable={String(isConnectable)} />
     ),
-    default: (props: ReactFlowProps<TopologyCanvasNode, TopologyCanvasEdge>) => { state.renders.push({ nodes: props.nodes ?? [], edges: props.edges ?? [], selectionHandler: props.onSelectionChange !== undefined, nodesHandler: props.onNodesChange !== undefined }); return (
+    ReactFlow: (props: ReactFlowProps<Node<TopologyCanvasNode>, Edge<TopologyCanvasEdge>>) => { state.renders.push({ nodes: props.nodes ?? [], edges: props.edges ?? [], selectionHandler: props.onSelectionChange !== undefined, nodesHandler: props.onNodesChange !== undefined }); return (
       <div
         data-testid="topology-flow"
         data-draggable={props.nodesDraggable}
