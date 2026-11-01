@@ -16,7 +16,7 @@ function profileOrigin(env: Env): string | undefined {
 }
 
 export default {
-  async fetch(req: Request, env: Env): Promise<Response> {
+  async fetch(req: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
     const url = new URL(req.url);
 
     if (url.pathname === "/api/live") {
@@ -28,7 +28,7 @@ export default {
 
     // /api/v1/* — Connect machine API only. The handler authenticates the
     // Bearer token first (401 without one) and answers unknown routes with 404.
-    if (url.pathname === "/api/v1" || url.pathname.startsWith("/api/v1/")) return topologyConnectMachineApi(req, env);
+    if (url.pathname === "/api/v1" || url.pathname.startsWith("/api/v1/")) return topologyConnectMachineApi(req, env, ctx);
 
     // /api/* — Browser-facing API. Requires CF Access JWT.
     if (url.pathname.startsWith("/api/")) {

@@ -3,6 +3,7 @@ import {
   topologyOperationBatchSchema,
   topologyOperationSchema,
   TopologyOperationError,
+  topologyValidationIssues,
   type Topology,
   type TopologyConnectOperation,
 } from "@steed/api/shared";
@@ -26,7 +27,7 @@ export function planTopologyConnectMutation(
   }
   if (operation.id === "topology.operations" || operation.id === "topology.validate") {
     const result = topologyOperationBatchSchema.safeParse(input);
-    if (!result.success) throw new TopologyOperationError("invalid_topology");
+    if (!result.success) throw new TopologyOperationError("invalid_topology", topologyValidationIssues(result.error));
     return planTopologyOperations(before, result.data.operations);
   }
   const collection = operation.collection;
@@ -39,7 +40,8 @@ export function planTopologyConnectMutation(
     return planTopologyOperations(before, [parsed]);
   }
   const parsed = topologyOperationSchema.safeParse({ op: `put_${singular[collection]}`, value: input });
-  if (!parsed.success) throw new TopologyOperationError("invalid_topology");
+  // Paths are relative to the entity body, so drop the synthetic operation's `value` prefix.
+  if (!parsed.success) throw new TopologyOperationError("invalid_topology", topologyValidationIssues(parsed.error, ["value"]));
   if (!("value" in parsed.data) || parsed.data.value.id !== id.data) {
     throw new HttpError(422, "id_mismatch", "The entity ID must match its path.");
   }

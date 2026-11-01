@@ -63,11 +63,16 @@ describe("read-only topology browser API", () => {
     expect(currentBody.data.metadata).toBeUndefined();
     expect(Object.values(currentBody.data.changed).every((items) => items.length === 0)).toBe(true);
     expect(Object.values(currentBody.data.deleted).every((items) => items.length === 0)).toBe(true);
-    for (const value of ["0", "3"]) {
-      const response = await request(`/api/topology?since=${value}`, { headers: { "If-None-Match": '"topology:2"' } });
-      expect(response.status).toBe(410);
-      expect(await response.json()).toMatchObject({ error: { code: "resync_required" }, current_revision: 2, oldest_retained_revision: 1 });
-    }
+    // History is retained from revision 1, so the delta from 0 is complete; only a future revision is stale.
+    expect(await (await request("/api/topology?since=0")).json()).toMatchObject({ data: { since: 0, revision: 2 } });
+    const future = await request("/api/topology?since=3", { headers: { "If-None-Match": '"topology:2"' } });
+    expect(future.status).toBe(410);
+    expect(await future.json()).toMatchObject({ error: { code: "resync_required" }, current_revision: 2, oldest_retained_revision: 1 });
+    database.sqlite.exec("DELETE FROM topo_changes WHERE revision = 1");
+    expect((await request("/api/topology?since=1")).status).toBe(200);
+    const pruned = await request("/api/topology?since=0", { headers: { "If-None-Match": '"topology:2"' } });
+    expect(pruned.status).toBe(410);
+    expect(await pruned.json()).toMatchObject({ error: { code: "resync_required" }, current_revision: 2, oldest_retained_revision: 2 });
     for (const value of ["", "-1", "1.5", "1e2"]) {
       const response = await request(`/api/topology?since=${value}`, { headers: { "If-None-Match": '"topology:2"' } });
       expect(response.status).toBe(400);
@@ -86,7 +91,8 @@ describe("read-only topology browser API", () => {
     expect(body.data.nextCursor).toBe(2);
     const second = await request(`/api/topology/changes?limit=1&cursor=${body.data.nextCursor}`);
     expect(await second.json()).toMatchObject({ data: { changes: [{ id: 1 }], nextCursor: null } });
-    for (const [value, status, code] of [["0", 410, "resync_required"], ["3", 410, "resync_required"], ["bad", 400, "invalid_since"]] as const) {
+    expect((await request("/api/topology/changes?since=0", { headers: { "If-None-Match": '"topology-changes:2:1"' } })).status).toBe(304);
+    for (const [value, status, code] of [["3", 410, "resync_required"], ["bad", 400, "invalid_since"]] as const) {
       const response = await request(`/api/topology/changes?since=${value}`, { headers: { "If-None-Match": '"topology-changes:2:1"' } });
       expect(response.status).toBe(status);
       expect(await response.json()).toMatchObject({ error: { code } });

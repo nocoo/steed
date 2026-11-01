@@ -10,15 +10,16 @@ import { topologyIfMatch } from "./topology-connect-request";
 import { topologyConnectWriteStatements } from "./topology-connect-write";
 import { getTopologyChange, laterTopologyChangeIdentities } from "./topology-history";
 import { planTopologyReplacement } from "./topology-mutation-plan";
-import { loadTopology } from "./topology-store";
+import { loadTopology, loadTopologyWith } from "./topology-store";
 
 type Route = NonNullable<ReturnType<typeof matchTopologyConnectOperation>>;
 interface RequestRow {
   token_id: string; key_hash: string; request_hash: string; request_id: string; operation: string;
   http_status: number; response_json: string | null; etag: string | null; created_at: number; expires_at: number;
 }
-const findRequest = (ctx: ConnectContext, keyHash: string) => ctx.env.DB.prepare("SELECT * FROM connect_requests WHERE token_id = ? AND key_hash = ?")
-  .bind(requireToken(ctx).id, keyHash).first<RequestRow>();
+const requestStatement = (ctx: ConnectContext, keyHash: string) => ctx.env.DB.prepare("SELECT * FROM connect_requests WHERE token_id = ? AND key_hash = ?")
+  .bind(requireToken(ctx).id, keyHash);
+const findRequest = (ctx: ConnectContext, keyHash: string) => requestStatement(ctx, keyHash).first<RequestRow>();
 function idempotencyKey(value: string | null) {
   if (!value) throw new HttpError(428, "idempotency_required", "Persist an Idempotency-Key before sending a change.");
   const result = idempotencyKeySchema.safeParse(value);
@@ -42,7 +43,9 @@ async function mutate(ctx: ConnectContext, route: Route) {
   const input = bodyless ? null : await readJson(request, TOPOLOGY_LIMITS.bytes);
   if (bodyless && await readText(request, TOPOLOGY_LIMITS.bytes)) throw new HttpError(400, "unexpected_body", "This operation does not accept a body.");
   const hash = await fingerprint(JSON.stringify([request.method, new URL(request.url).pathname, request.headers.get("If-Match"), request.headers.get("If-None-Match"), request.headers.get("X-Steed-Confirm"), input]));
-  const previous = await findRequest(ctx, keyHash);
+  // The receipt lookup rides in the snapshot batch: one round trip for replay detection and the plan input.
+  const loaded = await loadTopologyWith<RequestRow>(env.DB, [requestStatement(ctx, keyHash)]);
+  const previous = loaded.extra[0]?.[0];
   if (previous) return replay(ctx, previous, hash);
   let revision: number;
   let before: Awaited<ReturnType<typeof loadTopology>>["topology"];
@@ -50,7 +53,7 @@ async function mutate(ctx: ConnectContext, route: Route) {
   let revertsChangeId: number | null = null;
   try {
     revision = topologyIfMatch(request);
-    before = (await loadTopology(env.DB)).topology;
+    before = loaded.topology;
     if (before.revision !== revision) throw new HttpError(412, "version_conflict", "The topology changed. Read its current state before retrying.");
     if (route.operation.id === "changes.revert") {
       revertsChangeId = topologyPositiveInteger(route.params.changeId, 0, Number.MAX_SAFE_INTEGER);
@@ -79,7 +82,7 @@ async function mutate(ctx: ConnectContext, route: Route) {
   return replay(ctx, row, hash);
 }
 
-export function topologyConnectMachineApi(request: Request, env: ConnectEnv) {
+export function topologyConnectMachineApi(request: Request, env: ConnectEnv, execution?: Pick<ExecutionContext, "waitUntil">) {
   return runConnect(request, env, "bearer", async (ctx) => {
     const url = new URL(request.url);
     const route = matchTopologyConnectOperation(url.pathname, request.method);
@@ -109,6 +112,6 @@ export function topologyConnectMachineApi(request: Request, env: ConnectEnv) {
     const response = await topologyConnectRead(request, env.DB, operation, params, ctx.requestId);
     if (response) return response;
     throw new HttpError(404, "not_found", "Topology API route not found.");
-  });
+  }, undefined, execution);
 }
 

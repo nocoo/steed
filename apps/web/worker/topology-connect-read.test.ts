@@ -42,11 +42,14 @@ describe("topology Connect reads", () => {
   });
 
   it("returns 410 for stale and future since and 400 for malformed since before conditional handling", async () => {
-    for (const since of ["0", "3"]) {
-      const result = await read(`/topology?since=${since}`, { headers: { "If-None-Match": '"topology:2"' } });
-      expect(result?.status).toBe(410);
-      expect(await result?.json()).toMatchObject({ error: { code: "resync_required" }, current_revision: 2, oldest_retained_revision: 1 });
-    }
+    const future = await read("/topology?since=3", { headers: { "If-None-Match": '"topology:2"' } });
+    expect(future?.status).toBe(410);
+    expect(await future?.json()).toMatchObject({ error: { code: "resync_required" }, current_revision: 2, oldest_retained_revision: 1 });
+    expect(await (await read("/topology?since=0"))?.json()).toMatchObject({ data: { since: 0, revision: 2 } });
+    database.sqlite.exec("DELETE FROM topo_changes WHERE revision = 1");
+    const pruned = await read("/topology?since=0", { headers: { "If-None-Match": '"topology:2"' } });
+    expect(pruned?.status).toBe(410);
+    expect(await pruned?.json()).toMatchObject({ error: { code: "resync_required" }, current_revision: 2, oldest_retained_revision: 2 });
     const invalid = await read("/topology?since=bad", { headers: { "If-None-Match": '"topology:2"' } });
     expect(invalid?.status).toBe(400);
     expect(await invalid?.json()).toMatchObject({ error: { code: "invalid_since" } });
@@ -72,8 +75,9 @@ describe("topology Connect reads", () => {
     expect(await detail?.json()).toMatchObject({ data: { id: 1, items: expect.any(Array) } });
     await expect(read("/topology/changes/99")).rejects.toMatchObject({ status: 404 });
     await expect(read("/topology/changes/nope")).rejects.toBeInstanceOf(HttpError);
-    const stale = await read("/topology/changes?since=0");
-    expect(stale?.status).toBe(410);
+    expect((await read("/topology/changes?since=0"))?.status).toBe(200);
+    database.sqlite.exec("DELETE FROM topo_changes WHERE revision = 1");
+    expect((await read("/topology/changes?since=0"))?.status).toBe(410);
   });
 
   it("leaves non-read operations for the caller", async () => {

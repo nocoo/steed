@@ -63,11 +63,14 @@ describe("prepared topology Connect machine API", () => {
   it("handles current, stale, future and malformed revisions before conditional reads", async () => {
     await api("/topology", "PUT", emptyTopology(), intent("intent-07", 0));
     expect((await api("/topology?since=1")).status).toBe(200);
-    for (const since of ["0", "2"]) {
-      const response = await api(`/topology?since=${since}`, "GET", undefined, { "If-None-Match": '"topology:1"' });
-      expect(response.status).toBe(410);
-      expect(await response.json()).toMatchObject({ error: { code: "resync_required" }, current_revision: 1, oldest_retained_revision: 1 });
-    }
+    expect(await (await api("/topology?since=0")).json()).toMatchObject({ data: { since: 0, revision: 1 } });
+    const future = await api("/topology?since=2", "GET", undefined, { "If-None-Match": '"topology:1"' });
+    expect(future.status).toBe(410);
+    expect(await future.json()).toMatchObject({ error: { code: "resync_required" }, current_revision: 1, oldest_retained_revision: 1 });
+    database.sqlite.exec("DELETE FROM topo_changes");
+    const pruned = await api("/topology?since=0", "GET", undefined, { "If-None-Match": '"topology:1"' });
+    expect(pruned.status).toBe(410);
+    expect(await pruned.json()).toMatchObject({ error: { code: "resync_required" }, current_revision: 1, oldest_retained_revision: 1 });
     expect((await api("/topology?since=bad")).status).toBe(400);
     expect((await api("/topology/changes?since=bad")).status).toBe(400);
     expect((await api("/topology", "GET", undefined, { "If-None-Match": '"topology:1"' })).status).toBe(304);
@@ -158,5 +161,47 @@ describe("prepared topology Connect machine API", () => {
     expect(response.status).toBe(409);
     expect(await response.json()).toMatchObject({ error: { code: "revert_conflict" } });
     expect(database.sqlite.prepare("SELECT revision FROM topology_meta").get()?.revision).toBe(2);
+  });
+
+  it("validates long low-entropy text that once tripped the high-entropy rule", async () => {
+    const node = { id: "web", label: "Web", type: "host", layerId: "cloud" };
+    const graph = (patch: Record<string, unknown>) => ({ ...emptyTopology("Fixture"), layers: [{ id: "cloud", label: "Cloud", provider: "Cloud", order: 0 }],
+      types: [{ id: "host", label: "Host", shape: "rect" }], nodes: [{ ...node, ...patch }] });
+    for (const patch of [{ description: "x".repeat(41) }, { description: "x".repeat(39) },
+      { description: "Pneumonoultramicroscopicsilicovolcanoconiosis" }, { attrs: { note: "x".repeat(256) } }]) {
+      const response = await api("/topology/validate", "POST", graph(patch));
+      expect(response.status, JSON.stringify(patch).slice(0, 60)).toBe(200);
+    }
+    const randomLooking = btoa(String.fromCharCode(...Array.from({ length: 30 }, (_, index) => (index * 97 + 13) % 256)));
+    const rejected = await api("/topology/validate", "POST", graph({ description: randomLooking }));
+    expect(rejected.status).toBe(422);
+    expect(await rejected.json()).toMatchObject({ error: { issues: [{ path: ["nodes", 0, "description"], code: "secret_like_value", rule: "high_entropy" }] } });
+  });
+
+  it("reports the path and code of structural errors in operations and entity writes without echoing values", async () => {
+    const graph = { ...emptyTopology("Fixture"), layers: [{ id: "cloud", label: "Cloud", provider: "Cloud", order: 0 }],
+      types: [{ id: "host", label: "Host", shape: "rect" }],
+      nodes: ["web", "db"].map((id) => ({ id, label: id, type: "host", layerId: "cloud" })),
+      edges: [{ id: "link", source: "web", target: "db", kind: "uses", direction: "uni", evidence: "documented" }] };
+    expect((await api("/topology", "PUT", graph, intent("issues-setup", 0))).status).toBe(200);
+    const longLabel = "q".repeat(161);
+    const badDash = { op: "put_edge", value: { ...graph.edges[0], style: { dash: "zigzag" } } };
+    const badLabel = { op: "put_node", value: { ...graph.nodes[0], label: longLabel } };
+    const issue = (path: (string | number)[]) => ({ path, code: "invalid_topology", message: "Invalid topology structure." });
+    const cases: [string, string, unknown, Record<string, string>, (string | number)[][]][] = [
+      ["/topology/validate", "POST", { operations: [badDash] }, {}, [["operations", 0, "value", "style", "dash"]]],
+      ["/topology/validate", "POST", { operations: [badDash, badLabel] }, {}, [["operations", 0, "value", "style", "dash"], ["operations", 1, "value", "label"]]],
+      ["/topology/operations", "POST", { operations: [badLabel] }, intent("issues-ops", 1), [["operations", 0, "value", "label"]]],
+      ["/topology/edges/link", "PUT", badDash.value, intent("issues-edge", 1), [["style", "dash"]]],
+    ];
+    for (const [path, method, body, headers, paths] of cases) {
+      const response = await api(path, method, body, headers);
+      expect(response.status, path).toBe(422);
+      const text = await response.text();
+      expect(JSON.parse(text).error.issues, path).toEqual(paths.map(issue));
+      expect(text).not.toContain("zigzag");
+      expect(text).not.toContain(longLabel);
+    }
+    expect(database.sqlite.prepare("SELECT revision FROM topology_meta").get()?.revision).toBe(1);
   });
 });

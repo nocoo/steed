@@ -423,7 +423,7 @@ audit listing drops the diagram filter.
 | Method | Path | Scope | Notes |
 |---|---|---|---|
 | GET | `/capabilities`, `/openapi.json`, `/requests/{key}` | read | as today, regenerated for v2 |
-| GET | `/topology` | read | full snapshot; `?since=<rev>` returns entities with `updated_rev > rev` plus deleted IDs from the change log; stale or future `rev` → `410 resync_required`, malformed → `400 invalid_since` (decision 9) |
+| GET | `/topology` | read | full snapshot; `?since=<rev>` returns entities with `updated_rev > rev` plus deleted IDs from the change log; `rev` below `oldest_retained_revision - 1` or above the current revision → `410 resync_required`, malformed → `400 invalid_since` (decision 9) |
 | GET | `/topology/{collection}` | read | `collection ∈ layers, types, boundaries, nodes, edges, views`; stable ID order, `cursor`, `limit ≤ 500`; nodes filter `layer`, `type`, `tag`, `boundary`, `parent`; edges filter `node`, `kind` |
 | GET | `/topology/{collection}/{id}` | read | one entity + topology ETag |
 | PUT | `/topology/{collection}/{id}` | write | upsert one entity |
@@ -726,8 +726,12 @@ The former open questions, answered in order:
 8. **Audit column.** Rename `connect_audit.diagram_id` to `target`.
 9. **Resync and `since` validation.** Applies to `GET /api/topology?since=`,
    `GET /api/v1/topology?since=` and `/changes?since=`:
-   - `since` older than the oldest retained change (pruning removed history
-     needed to list every deletion) → `410 resync_required`;
+   - `since < oldest_retained_revision - 1` (pruning removed a change the
+     delta needs: a delta from `since` replays every revision after it, so it
+     is complete while the oldest retained change is `since + 1` or earlier;
+     with no retained changes only `since` equal to the current revision is
+     complete) → `410 resync_required`. For example, with history retained
+     from revision 1, `since=0` is a complete delta, not a resync;
    - `since` greater than the current revision → `410 resync_required`;
    - malformed `since` (not a non-negative integer) → `400 invalid_since`;
    - `since` equal to the current revision → empty delta (the only case that
@@ -968,7 +972,11 @@ The former open questions, answered in order:
   revocation and expiry are checked again in the batch.
 - The prepared machine handler returns `valid: true`, warnings and change
   counts for a successful dry run; invalid graphs return 422 with redacted
-  issues. In-use and satellite-removal conflicts return 409 with their
+  issues. Every 422 `invalid_topology`, whether from a full document, an
+  operations batch or an entity write, carries one `{ path, code, message }`
+  issue per schema failure: batch paths start at the operation
+  (`["operations", 0, "value", "style", "dash"]`), entity-write paths are
+  relative to the body, and the message is generic, never the value. In-use and satellite-removal conflicts return 409 with their
   operation code. An invalid idempotency-key format returns 400. A stored
   matching receipt is checked before the revision precondition for replay.
 - Revert takes no request body and always requires explicit topology

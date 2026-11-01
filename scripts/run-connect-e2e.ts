@@ -168,10 +168,10 @@ try {
     const bad = await api(credential, "/topology", "PUT", { ...emptyTopology(), description: secret }, intent("secret-01", 1));
     await status(bad, 422); const text = await bad.text(); assert.ok(text.includes("secret_like_value") && text.includes("known_prefix") && !text.includes(secret));
     for (const path of ["/topology", "/topology/changes"]) {
-      for (const value of ["0", "2"]) {
-        const response = await api(reader, `${path}?since=${value}`); await status(response, 410);
-        assert.deepEqual(Object.fromEntries(Object.entries(await parse<{ current_revision: number; oldest_retained_revision: number }>(response)).filter(([key]) => key.endsWith("revision"))), { current_revision: 1, oldest_retained_revision: 1 });
-      }
+      // History is retained from revision 1, so the delta from 0 is complete; a future revision resyncs.
+      await status(await api(reader, `${path}?since=0`), 200);
+      const future = await api(reader, `${path}?since=2`); await status(future, 410);
+      assert.deepEqual(Object.fromEntries(Object.entries(await parse<{ current_revision: number; oldest_retained_revision: number }>(future)).filter(([key]) => key.endsWith("revision"))), { current_revision: 1, oldest_retained_revision: 1 });
       const malformed = await api(reader, `${path}?since=bad`); await status(malformed, 400);
       assert.equal((await parse<{ error: { code: string } }>(malformed)).error.code, "invalid_since");
     }

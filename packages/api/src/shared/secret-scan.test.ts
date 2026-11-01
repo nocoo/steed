@@ -8,6 +8,9 @@ import {
 } from "./secret-scan";
 
 const runtime = (...parts: string[]) => parts.join("");
+// Deterministic random-looking material (about 5 bits/char base64, 3.7 bits/char hex), built at runtime.
+const randomBase64 = btoa(String.fromCharCode(...Array.from({ length: 30 }, (_, index) => (index * 97 + 13) % 256)));
+const randomHex = Array.from({ length: 20 }, (_, index) => ((index * 73 + 5) % 256).toString(16).padStart(2, "0")).join("");
 
 function encodeEveryChar(value: string): string {
   return Array.from(value, (character) => `%${character.charCodeAt(0).toString(16).padStart(2, "0")}`).join("").toUpperCase();
@@ -251,8 +254,21 @@ describe("secret-like value detector", () => {
     expect(findSecretLike("😀".repeat(12), ["label"])).toBeNull();
     expect(findSecretLike("你好".repeat(12), ["label"])).toBeNull();
     expect(findSecretLike(runtime("2001:db8::1%eth0-", "A7!mQ2@zX9#cV4$pL8&oR3%nK5+"), ["label"])).toMatchObject({ rule: "high_entropy" });
+    expect(findSecretLike(randomBase64, ["label"])).toMatchObject({ rule: "high_entropy" });
+    expect(findSecretLike(randomHex, ["label"])).toMatchObject({ rule: "high_entropy" });
+    expect(findSecretLike(randomHex + randomHex, ["label"])).toMatchObject({ rule: "high_entropy" });
+    expect(findSecretLike(runtime(randomHex.slice(0, 24), " ", randomHex.slice(24), randomHex), ["label"])).toMatchObject({ rule: "high_entropy" });
+    // Exact SHA-1/SHA-256 shapes stay format-flagged regardless of entropy.
     expect(findSecretLike("a".repeat(40), ["label"])).toMatchObject({ rule: "high_entropy" });
-    expect(findSecretLike("A".repeat(40), ["label"])).toMatchObject({ rule: "high_entropy" });
+    expect(findSecretLike(runtime("note ", randomBase64, " end"), ["label"])).toMatchObject({ rule: "high_entropy" });
+  });
+
+  it("does not flag long low-entropy runs such as repeated characters or dictionary words", () => {
+    for (const value of ["x".repeat(39), "x".repeat(41), "x".repeat(256), "Z".repeat(64), "xy".repeat(30) + "==",
+      "Pneumonoultramicroscopicsilicovolcanoconiosis", "internationalizationlocalizationframework",
+      runtime("x".repeat(30), " ", "y".repeat(30))]) {
+      expect(findSecretLike(value, ["nodes", 0, "description"]), value.slice(0, 50)).toBeNull();
+    }
   });
 
   it("allows IPv4, IPv6, CIDR, UUID, short hex IDs, names, semver, dates, numbers, and URLs", () => {
@@ -356,7 +372,7 @@ describe("secret-like value detector", () => {
 
     expect(findSecretLike(ssh, ["nodes", 0, "attrs", "key"])).toMatchObject({ rule: "high_entropy" });
     expect(findSecretLike(fingerprint, ["nodes", 0, "attrs", "fingerprint"], { declaredAttrType: "public_key" })).toMatchObject({ rule: "high_entropy" });
-    expect(findSecretLike(runtime("ssh-rsa ", "A".repeat(40)), ["nodes", 0, "attrs", "key"], { declaredAttrType: "public_key" })).toMatchObject({ rule: "high_entropy" });
+    expect(findSecretLike(runtime("ssh-rsa ", randomBase64), ["nodes", 0, "attrs", "key"], { declaredAttrType: "public_key" })).toMatchObject({ rule: "high_entropy" });
 
     const marker = runtime("-----BEGIN RSA ", "PRIVATE KEY-----");
     expect(findSecretLike(marker, ["nodes", 0, "attrs", "key"], { declaredAttrType: "public_key" })).toMatchObject({ rule: "private_key" });
@@ -386,8 +402,7 @@ describe("secret-like value detector", () => {
   });
 
   it("does not exempt other rules or expose scanned values in paths", () => {
-    const entropy = "A".repeat(40);
-    expect(findSecretLike(entropy, ["label"])).toMatchObject({ rule: "high_entropy" });
+    expect(findSecretLike(randomBase64, ["label"])).toMatchObject({ rule: "high_entropy" });
     expect(findSecretLike(runtime("steed", "c_fixture"), ["label"], { declaredAttrType: "identifier" })).toMatchObject({ rule: "known_prefix" });
 
     const privateKey = runtime("-----BEGIN RSA PRIVATE ", "KEY-----");
