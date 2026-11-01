@@ -41,7 +41,7 @@ describe("Connect D1 round-trip budget", () => {
     results.capabilities = await measure("/capabilities");
     results.replace = await measure("/topology", "PUT", graph, intent("budget-put-1", 0));
     results.read = await measure("/topology");
-    results.delta = await measure("/topology?since=1");
+    results.delta = await measure("/topology?since=0");
     results.validate = await measure("/topology/validate", "POST", { operations: [{ op: "set_metadata", title: "Dry run" }] });
     results.operations = await measure("/topology/operations", "POST", { operations: [{ op: "set_metadata", title: "Next" }] }, intent("budget-ops-1", 1));
     results.replay = await measure("/topology/operations", "POST", { operations: [{ op: "set_metadata", title: "Next" }] }, intent("budget-ops-1", 1));

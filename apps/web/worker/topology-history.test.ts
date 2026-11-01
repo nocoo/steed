@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { testDatabase } from "./__tests__/db";
-import { getTopologyChange, InvalidTopologySince, laterTopologyChangeIdentities, listTopologyChanges, parseTopologySince, pruneTopologyHistoryStatement, TopologyResyncRequired } from "./topology-history";
+import { getTopologyChange, InvalidTopologySince, laterTopologyChangeIdentities, listTopologyChanges, parseTopologySince, pruneTopologyHistoryStatement, requireRetainedTopologySince, TopologyResyncRequired } from "./topology-history";
 
 let database: ReturnType<typeof testDatabase>;
 beforeEach(() => { database = testDatabase(); });
@@ -34,6 +34,15 @@ describe("topology history", () => {
     }
   });
 
+  it("accepts since back to one before the oldest retained change", () => {
+    for (const [since, current, oldest] of [[0, 3, 1], [1, 3, 2], [2, 3, 2], [3, 3, 2], [3, 3, null], [0, 0, null]] as const) {
+      expect(requireRetainedTopologySince(since, current, oldest), `${since}/${current}/${oldest}`).toBe(oldest ?? current);
+    }
+    for (const [since, current, oldest] of [[0, 3, 2], [4, 3, 1], [2, 3, null], [1, 0, null]] as const) {
+      expect(() => requireRetainedTopologySince(since, current, oldest), `${since}/${current}/${oldest}`).toThrow(TopologyResyncRequired);
+    }
+  });
+
   it("lists stable pages and reports stale, future and current revisions", async () => {
     const empty = await listTopologyChanges(database.db, { since: 0, limit: 2 });
     expect(empty).toEqual({ currentRevision: 0, oldestRetainedRevision: 0, data: [], nextCursor: null });
@@ -44,7 +53,9 @@ describe("topology history", () => {
     expect((await listTopologyChanges(database.db, { cursor: first.nextCursor!, limit: 2 })).data.map((change) => change.id)).toEqual([1]);
     expect((await listTopologyChanges(database.db, { since: 1, limit: 10 })).data.map((change) => change.revision)).toEqual([3, 2]);
     expect((await listTopologyChanges(database.db, { since: 3, limit: 10 })).data).toEqual([]);
-    for (const since of [0, 4]) {
+    // History back to revision 1 is retained, so a delta from 0 is complete.
+    expect((await listTopologyChanges(database.db, { since: 0, limit: 10 })).data.map((change) => change.revision)).toEqual([3, 2, 1]);
+    for (const since of [4]) {
       await expect(listTopologyChanges(database.db, { since, limit: 10 })).rejects.toMatchObject({
         currentRevision: 3, oldestRetainedRevision: 1, message: "resync_required",
       } satisfies Partial<TopologyResyncRequired>);
@@ -80,7 +91,8 @@ describe("topology history", () => {
     expect(database.sqlite.prepare("SELECT MIN(revision) AS min, COUNT(*) AS n FROM topo_changes").get()).toMatchObject({ min: 3, n: 508 });
     expect(database.sqlite.prepare("SELECT COUNT(*) AS n FROM topo_change_images WHERE change_id = 1").get()?.n).toBe(0);
     expect((await listTopologyChanges(database.db, { since: 3, limit: 1 })).oldestRetainedRevision).toBe(3);
-    await expect(listTopologyChanges(database.db, { since: 2, limit: 1 })).rejects.toBeInstanceOf(TopologyResyncRequired);
+    expect((await listTopologyChanges(database.db, { since: 2, limit: 1 })).oldestRetainedRevision).toBe(3);
+    await expect(listTopologyChanges(database.db, { since: 1, limit: 1 })).rejects.toBeInstanceOf(TopologyResyncRequired);
     database.sqlite.exec("UPDATE topo_changes SET reverts_change_id = NULL WHERE revision = 510");
     await pruneTopologyHistoryStatement(database.db, 10_000_000).run();
     expect(database.sqlite.prepare("SELECT MIN(revision) AS min, COUNT(*) AS n FROM topo_changes").get()).toMatchObject({ min: 11, n: 500 });

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { topologySchema, type Topology } from "@steed/api/shared";
+import { TOPOLOGY_COLLECTIONS, topologySchema, type Topology } from "@steed/api/shared";
 import { testDatabase } from "./__tests__/db";
 import { TopologyResyncRequired } from "./topology-history";
 import { loadTopology, loadTopologyDelta } from "./topology-store";
@@ -78,9 +78,12 @@ describe("topology deltas", () => {
     expect(Object.values(current.changed).every((items) => items.length === 0)).toBe(true);
     expect(Object.values(current.deleted).every((items) => items.length === 0)).toBe(true);
 
-    for (const since of [0, 4]) {
-      await expect(loadTopologyDelta(database.db, since)).rejects.toMatchObject({ currentRevision: 3, oldestRetainedRevision: 1 });
-    }
+    // Revision 1 is the oldest retained change, so the delta from 0 is complete: every live entity.
+    const sinceZero = await loadTopologyDelta(database.db, 0);
+    const snapshot = await loadTopology(database.db);
+    expect(sinceZero.changed).toEqual(Object.fromEntries(TOPOLOGY_COLLECTIONS.map((collection) => [collection, snapshot.topology[collection]])));
+    expect(sinceZero.metadata).toMatchObject({ title: "Updated fixture" });
+    await expect(loadTopologyDelta(database.db, 4)).rejects.toMatchObject({ currentRevision: 3, oldestRetainedRevision: 1 });
     database.db.batch = originalBatch;
     before = await write(before, before, 3);
     const unchangedWrite = await loadTopologyDelta(database.db, 3);
@@ -89,6 +92,7 @@ describe("topology deltas", () => {
     expect(Object.values(unchangedWrite.deleted).every((items) => items.length === 0)).toBe(true);
     expect(before.revision).toBe(4);
     database.sqlite.exec("DELETE FROM topo_changes WHERE revision = 1");
-    await expect(loadTopologyDelta(database.db, 1)).rejects.toBeInstanceOf(TopologyResyncRequired);
+    expect((await loadTopologyDelta(database.db, 1)).revision).toBe(4);
+    await expect(loadTopologyDelta(database.db, 0)).rejects.toBeInstanceOf(TopologyResyncRequired);
   });
 });

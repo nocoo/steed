@@ -63,11 +63,14 @@ describe("prepared topology Connect machine API", () => {
   it("handles current, stale, future and malformed revisions before conditional reads", async () => {
     await api("/topology", "PUT", emptyTopology(), intent("intent-07", 0));
     expect((await api("/topology?since=1")).status).toBe(200);
-    for (const since of ["0", "2"]) {
-      const response = await api(`/topology?since=${since}`, "GET", undefined, { "If-None-Match": '"topology:1"' });
-      expect(response.status).toBe(410);
-      expect(await response.json()).toMatchObject({ error: { code: "resync_required" }, current_revision: 1, oldest_retained_revision: 1 });
-    }
+    expect(await (await api("/topology?since=0")).json()).toMatchObject({ data: { since: 0, revision: 1 } });
+    const future = await api("/topology?since=2", "GET", undefined, { "If-None-Match": '"topology:1"' });
+    expect(future.status).toBe(410);
+    expect(await future.json()).toMatchObject({ error: { code: "resync_required" }, current_revision: 1, oldest_retained_revision: 1 });
+    database.sqlite.exec("DELETE FROM topo_changes");
+    const pruned = await api("/topology?since=0", "GET", undefined, { "If-None-Match": '"topology:1"' });
+    expect(pruned.status).toBe(410);
+    expect(await pruned.json()).toMatchObject({ error: { code: "resync_required" }, current_revision: 1, oldest_retained_revision: 1 });
     expect((await api("/topology?since=bad")).status).toBe(400);
     expect((await api("/topology/changes?since=bad")).status).toBe(400);
     expect((await api("/topology", "GET", undefined, { "If-None-Match": '"topology:1"' })).status).toBe(304);

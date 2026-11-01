@@ -239,8 +239,10 @@ try {
     assert.ok(Object.values(currentBody.data.deleted).every((items) => items.length === 0));
   });
 
-  await check("snapshot stale and future since values resync instead of being masked by ETag", async () => {
-    for (const value of ["0", "3"]) {
+  await check("snapshot since from retained history is complete; future since resyncs instead of being masked by ETag", async () => {
+    // History is retained from revision 1, so the delta from 0 is complete and matches the current ETag.
+    await expectStatus(await request("/api/topology?since=0", "GET", undefined, { "If-None-Match": '"topology:2"' }), 304);
+    for (const value of ["3"]) {
       const response = await request(`/api/topology?since=${value}`, "GET", undefined, { "If-None-Match": '"topology:2"' });
       await expectStatus(response, 410);
       const body = await response.json() as { error: { code: string }; current_revision: number; oldest_retained_revision: number };
@@ -291,10 +293,10 @@ try {
     await expectStatus(await request("/api/topology/changes", "GET", undefined, { "If-None-Match": etag }), 304);
   });
 
-  await check("history since, stale and malformed values are validated", async () => {
-    await expectStatus(await request("/api/topology/changes?since=1"), 200);
-    await expectStatus(await request("/api/topology/changes?since=2"), 200);
-    for (const value of ["0", "3"]) {
+  await check("history since, future and malformed values are validated", async () => {
+    // History is retained from revision 1, so since=0 lists every change.
+    for (const value of ["0", "1", "2"]) await expectStatus(await request(`/api/topology/changes?since=${value}`), 200);
+    for (const value of ["3"]) {
       const response = await request(`/api/topology/changes?since=${value}`);
       await expectStatus(response, 410);
       assert.equal((await response.json() as { error: { code: string } }).error.code, "resync_required");

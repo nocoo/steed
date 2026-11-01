@@ -20,7 +20,10 @@ export function parseTopologySince(value: string | null): number | undefined {
 
 export function requireRetainedTopologySince(since: number, currentRevision: number, oldest: number | null): number {
   const oldestRetainedRevision = oldest ?? currentRevision;
-  if (since > currentRevision || since < oldestRetainedRevision) {
+  // A delta from `since` needs every change with revision > since, so it is complete while the
+  // oldest retained change is since + 1 or earlier. With nothing retained only `since` = current is.
+  const missingHistory = oldest === null ? since < currentRevision : since < oldest - 1;
+  if (since > currentRevision || missingHistory) {
     throw new TopologyResyncRequired(currentRevision, oldestRetainedRevision);
   }
   return oldestRetainedRevision;
