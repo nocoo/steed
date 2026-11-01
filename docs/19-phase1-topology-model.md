@@ -993,6 +993,12 @@ The former open questions, answered in order:
   clients that branch on status or on `issues[].code` are unaffected; clients
   that match `error.code === "invalid_topology"` should also accept
   `secret_like_value`. The audit row records the same code.
+- Every `/api/*` response carries `X-Steed-Colo`, the Cloudflare data center
+  where the Worker ran: taken from the `cf-placement` request header that
+  Cloudflare adds when placement is enabled (also echoed as
+  `X-Steed-Placement`, e.g. `remote-NRT`), otherwise from `request.cf.colo`.
+  Only validated values (`^[A-Z]{3}$`, `^(local|remote)-[A-Z]{3}$`) are
+  echoed; the headers are omitted when neither is available.
 - Revert takes no request body and always requires explicit topology
   confirmation. It uses the same revision guard and idempotent receipt as
   other writes; invalid or missing change IDs fail before any write.

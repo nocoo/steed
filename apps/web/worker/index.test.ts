@@ -43,6 +43,26 @@ describe("worker", () => {
     expect(mocks.verifyAccessJwt).not.toHaveBeenCalled();
   });
 
+  it("reports where the Worker ran on API responses only, from validated values", async () => {
+    const located = (path: string, placement?: string, colo?: unknown) => {
+      const req = new Request(`https://example.com${path}`, placement ? { headers: { "cf-placement": placement } } : {});
+      if (colo !== undefined) Object.defineProperty(req, "cf", { value: { colo } });
+      return worker.fetch(req, baseEnv, { waitUntil: vi.fn() } as unknown as ExecutionContext);
+    };
+    const live = await located("/api/live", "remote-NRT", "IAD");
+    expect([live.headers.get("X-Steed-Colo"), live.headers.get("X-Steed-Placement")]).toEqual(["NRT", "remote-NRT"]);
+    mocks.connectFetch.mockResolvedValueOnce(new Response(null, { status: 401, headers: { "Cache-Control": "no-store" } }));
+    const connect = await located("/api/v1/capabilities", "local-NRT");
+    expect([connect.status, connect.headers.get("Cache-Control"), connect.headers.get("X-Steed-Colo"), connect.headers.get("X-Steed-Placement")])
+      .toEqual([401, "no-store", "NRT", "local-NRT"]);
+    // Without a valid placement header the colo falls back to request.cf; malformed values are never echoed.
+    const fallback = await located("/api/live", "remote-NRT, injected", "IAD");
+    expect([fallback.headers.get("X-Steed-Colo"), fallback.headers.get("X-Steed-Placement")]).toEqual(["IAD", null]);
+    for (const colo of [undefined, "iad", 42]) expect((await located("/api/live", undefined, colo)).headers.get("X-Steed-Colo")).toBeNull();
+    mocks.assetsFetch.mockResolvedValueOnce(new Response("page"));
+    expect((await located("/topology", "remote-NRT")).headers.get("X-Steed-Colo")).toBeNull();
+  });
+
   it.each(["/api/v1", "/api/v1/diagrams", "/api/v1/hosts", "/api/v1/health"])("routes %s only to the Connect handler without CF Access check", async (path) => {
     mocks.connectFetch.mockResolvedValueOnce(new Response(null, { status: 401 }));
 
