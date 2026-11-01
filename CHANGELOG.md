@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.5.8] - 2026-11-01
+
+### Fixed
+
+- Connect deferred writes (`last_used_at` stamp, read and 412/422 rate-limit
+  increment, audit row) now start only after the request's action has
+  finished. In v0.5.7 the `last_used_at` UPDATE was issued right after auth
+  and committed on the D1 primary while the snapshot read ran, moving the
+  commit tail from auth into read (read-net p95 135–152 ms, total p95
+  351/370 ms). Round-trip budgets are unchanged (#120).
+
+### Added
+
+- `STEED_PROBE=read` for `scripts/prod-write-latency.ts`: GET-only A/B mode
+  with no topology writes; every summary now counts `net > 100 ms` samples
+  per segment (#120).
+
+### Documentation
+
+- docs/21 records the v0.5.7 retest analysis, the v0.5.8 change and the
+  v0.5.7 production runs (revision 169 → 373) (#120).
+
 ## [0.5.7] - 2026-11-01
 
 ### Changed
