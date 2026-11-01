@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   verifyAccessJwt: vi.fn(),
   getUserProfile: vi.fn(),
   topologyFetch: vi.fn(),
+  workerColo: vi.fn(),
 }));
 
 vi.mock("./topology-connect-machine", () => ({
@@ -17,6 +18,10 @@ vi.mock("./access-jwt", () => ({
 }));
 
 vi.mock("./author-profile", () => ({ getUserProfile: mocks.getUserProfile }));
+vi.mock("./worker-colo", () => ({
+  TRACE_URL: "https://trace.test/cdn-cgi/trace",
+  coloLookup: () => (url: string) => mocks.workerColo(url),
+}));
 vi.mock("./topology-api", () => ({ topologyBrowserApi: (...args: unknown[]) => mocks.topologyFetch(...args) }));
 
 import worker from "./index";
@@ -43,24 +48,39 @@ describe("worker", () => {
     expect(mocks.verifyAccessJwt).not.toHaveBeenCalled();
   });
 
-  it("reports where the Worker ran on API responses only, from validated values", async () => {
-    const located = (path: string, placement?: string, colo?: unknown) => {
+  it("reports the traced execution colo and the validated ingress location on API responses only", async () => {
+    const located = (path: string, placement?: string, colo?: unknown, env: object = baseEnv) => {
       const req = new Request(`https://example.com${path}`, placement ? { headers: { "cf-placement": placement } } : {});
       if (colo !== undefined) Object.defineProperty(req, "cf", { value: { colo } });
-      return worker.fetch(req, baseEnv, { waitUntil: vi.fn() } as unknown as ExecutionContext);
+      return worker.fetch(req, env as typeof baseEnv, { waitUntil: vi.fn() } as unknown as ExecutionContext);
     };
-    const live = await located("/api/live", "remote-NRT", "IAD");
-    expect([live.headers.get("X-Steed-Colo"), live.headers.get("X-Steed-Placement")]).toEqual(["NRT", "remote-NRT"]);
+    const headersOf = (res: Response) =>
+      ["X-Steed-Colo", "X-Steed-Ingress-Colo", "X-Steed-Placement"].map((name) => res.headers.get(name));
+    mocks.workerColo.mockResolvedValue("NRT");
+    expect(headersOf(await located("/api/live", "remote-NRT", "IAD"))).toEqual(["NRT", "IAD", "remote-NRT"]);
+    expect(mocks.workerColo).toHaveBeenCalledWith("https://trace.test/cdn-cgi/trace");
     mocks.connectFetch.mockResolvedValueOnce(new Response(null, { status: 401, headers: { "Cache-Control": "no-store" } }));
-    const connect = await located("/api/v1/capabilities", "local-NRT");
-    expect([connect.status, connect.headers.get("Cache-Control"), connect.headers.get("X-Steed-Colo"), connect.headers.get("X-Steed-Placement")])
-      .toEqual([401, "no-store", "NRT", "local-NRT"]);
-    // Without a valid placement header the colo falls back to request.cf; malformed values are never echoed.
-    const fallback = await located("/api/live", "remote-NRT, injected", "IAD");
-    expect([fallback.headers.get("X-Steed-Colo"), fallback.headers.get("X-Steed-Placement")]).toEqual(["IAD", null]);
-    for (const colo of [undefined, "iad", 42]) expect((await located("/api/live", undefined, colo)).headers.get("X-Steed-Colo")).toBeNull();
+    const connect = await located("/api/v1/capabilities", undefined, "IAD");
+    expect([connect.status, connect.headers.get("Cache-Control"), ...headersOf(connect)]).toEqual([401, "no-store", "NRT", "IAD", null]);
+    // Malformed request metadata is never echoed, and a failed trace omits X-Steed-Colo.
+    mocks.workerColo.mockResolvedValue(null);
+    expect(headersOf(await located("/api/live", "remote-NRT, injected", "iad"))).toEqual([null, null, null]);
+    for (const colo of [undefined, 42]) expect(headersOf(await located("/api/live", undefined, colo))).toEqual([null, null, null]);
     mocks.assetsFetch.mockResolvedValueOnce(new Response("page"));
-    expect((await located("/topology", "remote-NRT")).headers.get("X-Steed-Colo")).toBeNull();
+    expect(headersOf(await located("/topology", "remote-NRT", "IAD"))).toEqual([null, null, null]);
+  });
+
+  it("traces only through the local E2E override in the local dev deployment", async () => {
+    const local = { ...baseEnv, CF_ACCESS_DEV_BYPASS: "true", CONNECT_DEPLOYMENT_ID: "steed-development" };
+    mocks.workerColo.mockResolvedValue("NRT");
+    const skipped = await worker.fetch(new Request("http://127.0.0.1:8787/api/live"), local, {} as ExecutionContext);
+    expect([skipped.headers.get("X-Steed-Colo"), mocks.workerColo.mock.calls.length]).toEqual([null, 0]);
+    const stubbed = await worker.fetch(new Request("http://127.0.0.1:8787/api/live"),
+      { ...local, COLO_TRACE_URL: "http://127.0.0.1:9/cdn-cgi/trace" }, {} as ExecutionContext);
+    expect([stubbed.headers.get("X-Steed-Colo"), mocks.workerColo.mock.calls]).toEqual(["NRT", [["http://127.0.0.1:9/cdn-cgi/trace"]]]);
+    // Outside the local deployment the override is ignored.
+    await worker.fetch(new Request("https://example.com/api/live"), { ...baseEnv, COLO_TRACE_URL: "http://127.0.0.1:9/x" }, {} as ExecutionContext);
+    expect(mocks.workerColo.mock.calls.at(-1)).toEqual(["https://trace.test/cdn-cgi/trace"]);
   });
 
   it.each(["/api/v1", "/api/v1/diagrams", "/api/v1/hosts", "/api/v1/health"])("routes %s only to the Connect handler without CF Access check", async (path) => {

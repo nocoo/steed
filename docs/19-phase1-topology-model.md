@@ -993,12 +993,23 @@ The former open questions, answered in order:
   clients that branch on status or on `issues[].code` are unaffected; clients
   that match `error.code === "invalid_topology"` should also accept
   `secret_like_value`. The audit row records the same code.
-- Every `/api/*` response carries `X-Steed-Colo`, the Cloudflare data center
-  where the Worker ran: taken from the `cf-placement` request header that
-  Cloudflare adds when placement is enabled (also echoed as
-  `X-Steed-Placement`, e.g. `remote-NRT`), otherwise from `request.cf.colo`.
+- `/api/*` responses report location in up to three headers (since v0.5.4;
+  v0.5.3 sent the ingress colo as `X-Steed-Colo`, which was misleading):
+  - `X-Steed-Colo` is the Cloudflare data center the Worker executed in, so
+    callers can confirm targeted placement (Tokyo is `NRT`). Each
+    isolate fetches `https://www.cloudflare.com/cdn-cgi/trace` once, from
+    inside the Worker, through a wrapped `fetch` with `redirect: "manual"`
+    and a 500 ms timeout. It keeps the `colo=` value for the life of the
+    isolate and runs the lookup alongside the API handler. If the lookup
+    fails, the header is omitted and the lookup is retried after 60 s. Local
+    dev skips it unless the E2E stub URL is configured.
+  - `X-Steed-Ingress-Colo` is `request.cf.colo`, where the request entered
+    Cloudflare. With placement this is near the caller, not the Worker.
+  - `X-Steed-Placement` echoes Cloudflare's `cf-placement` request header
+    (`remote-NRT`) when Cloudflare sends it. With a `region` placement hint it
+    is not sent in practice.
   Only validated values (`^[A-Z]{3}$`, `^(local|remote)-[A-Z]{3}$`) are
-  echoed; the headers are omitted when neither is available.
+  echoed; each header is omitted when its value is unavailable.
 - Revert takes no request body and always requires explicit topology
   confirmation. It uses the same revision guard and idempotent receipt as
   other writes; invalid or missing change IDs fail before any write.

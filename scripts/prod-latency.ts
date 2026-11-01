@@ -42,7 +42,7 @@ async function once(probe: Probe) {
   });
   await response.arrayBuffer();
   return { ms: performance.now() - started, status: response.status, colo: response.headers.get("cf-ray")?.split("-")[1] ?? "?",
-    placement: response.headers.get("cf-placement") ?? "-" };
+    worker: response.headers.get("x-steed-colo") ?? "-" };
 }
 
 const rows: string[][] = [];
@@ -56,9 +56,9 @@ for (const probe of probes) {
   const statuses = [...new Set(results.map((result) => result.status))].join("/");
   if (results.some((result) => result.status !== probe.expect)) failed = true;
   rows.push([probe.name, statuses, String(samples), ...[0.5, 0.95].map((q) => quantile(times, q).toFixed(0)), times.at(-1)!.toFixed(0),
-    results[0]!.colo, results[0]!.placement]);
+    results[0]!.colo, results[0]!.worker]);
 }
-const header = ["endpoint", "status", "n", "p50 ms", "p95 ms", "max ms", "colo", "cf-placement"];
+const header = ["endpoint", "status", "n", "p50 ms", "p95 ms", "max ms", "ingress colo", "worker colo"];
 const table = [header, ...rows];
 const widths = header.map((_, column) => Math.max(...table.map((row) => (row[column] ?? "").length)));
 console.log(`${base} at ${new Date().toISOString()}${token ? "" : " (no STEED_TOKEN: unauthenticated probes only)"}`);

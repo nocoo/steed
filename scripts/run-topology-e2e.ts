@@ -40,6 +40,16 @@ const profileUpstream = Bun.serve({
     return Response.json({ name: "E2E Author", avatar: "https://avatars.example/e2e.png" });
   },
 });
+// Stub for Cloudflare's /cdn-cgi/trace, reached through the real Workers runtime fetch.
+const traceHits: string[] = [];
+const traceUpstream = Bun.serve({
+  hostname: "127.0.0.1",
+  port: 0,
+  fetch(request) {
+    traceHits.push(new URL(request.url).pathname);
+    return new Response("fl=e2e\nh=127.0.0.1\nvisit_scheme=http\ncolo=NRT\nloc=JP\n", { headers: { "Content-Type": "text/plain" } });
+  },
+});
 const env = { ...process.env, NODE_ENV: "test", CI: "1", WRANGLER_SEND_METRICS: "false" };
 let server: ReturnType<typeof Bun.spawn> | undefined;
 let serverOutput: Promise<string> | undefined;
@@ -52,6 +62,7 @@ function cleanup() {
   cleanupPromise ??= (async () => {
     await Promise.all([...commands, ...(server ? [server] : [])].map((child) => stopProcessGroup(child)));
     void profileUpstream.stop(true);
+    void traceUpstream.stop(true);
     assertOwnedState();
     await rm(state, { recursive: true });
   })();
@@ -138,7 +149,8 @@ try {
   if (interrupted) throw new Error("Topology E2E interrupted.");
   server = Bun.spawn(["bun", "x", "--no-install", "wrangler", "dev", "--env", "dev", "--local", "--persist-to", state,
     "--ip", "127.0.0.1", "--port", String(port), "--inspector-port", String(inspectorPort),
-    "--var", `AUTHOR_PROFILE_ORIGIN:http://127.0.0.1:${profileUpstream.port}`], {
+    "--var", `AUTHOR_PROFILE_ORIGIN:http://127.0.0.1:${profileUpstream.port}`,
+    "--var", `COLO_TRACE_URL:http://127.0.0.1:${traceUpstream.port}/cdn-cgi/trace`], {
     cwd: web,
     env,
     stdin: "ignore",
@@ -211,6 +223,18 @@ try {
       assert.deepEqual(await response.json(), { email: "dev@local", name: "E2E Author", avatar: "https://avatars.example/e2e.png" });
     }
     assert.deepEqual(profileHits, [`/api/authors/profile?hash=${hash}`]);
+  });
+
+  await check("API responses report the traced execution colo, looked up once per isolate in the Workers runtime", async () => {
+    for (const path of ["/api/live", "/api/topology", "/api/live"]) {
+      const response = await request(path);
+      await expectStatus(response, 200);
+      assert.equal(response.headers.get("X-Steed-Colo"), "NRT");
+      const ingress = response.headers.get("X-Steed-Ingress-Colo");
+      assert.ok(ingress === null || /^[A-Z]{3}$/.test(ingress), `unexpected ingress colo ${ingress}`);
+    }
+    // Readiness polls and the reads above share one isolate, so the trace was fetched exactly once.
+    assert.deepEqual(traceHits, ["/cdn-cgi/trace"]);
   });
 
   await check("retired diagram browser APIs return 404", async () => {

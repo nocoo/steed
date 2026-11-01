@@ -4,27 +4,38 @@ import { getUserProfile } from "./author-profile";
 import { topologyConnectMachineApi } from "./topology-connect-machine";
 import { topologyConnectManagementApi } from "./topology-connect-management";
 import { topologyBrowserApi } from "./topology-api";
+import { coloLookup, TRACE_URL } from "./worker-colo";
 
 type Env = Pick<Cloudflare.ProductionEnv, "DB" | "CF_ACCESS_TEAM" | "CF_ACCESS_AUD">
   & Pick<WorkerBindings, "CF_ACCESS_DEV_BYPASS" | "CONNECT_DEPLOYMENT_ID" | "CONNECT_MANAGERS" | "CONNECT_TOKEN_KEYS">
-  & { ASSETS: Pick<WorkerBindings["ASSETS"], "fetch">; AUTHOR_PROFILE_ORIGIN?: string };
+  & { ASSETS: Pick<WorkerBindings["ASSETS"], "fetch">; AUTHOR_PROFILE_ORIGIN?: string; COLO_TRACE_URL?: string };
+
+const isLocalDev = (env: Env) => env.CF_ACCESS_DEV_BYPASS === "true" && env.CONNECT_DEPLOYMENT_ID === "steed-development";
 
 /** The author profile upstream can only be redirected by the explicit local dev deployment (E2E stub). */
 function profileOrigin(env: Env): string | undefined {
-  const local = env.CF_ACCESS_DEV_BYPASS === "true" && env.CONNECT_DEPLOYMENT_ID === "steed-development";
-  return local ? env.AUTHOR_PROFILE_ORIGIN || undefined : undefined;
+  return isLocalDev(env) ? env.AUTHOR_PROFILE_ORIGIN || undefined : undefined;
 }
 
+/** The trace lookup, redirected only by the local dev deployment's E2E stub and skipped there otherwise. */
+function traceUrl(env: Env): string | undefined {
+  return isLocalDev(env) ? env.COLO_TRACE_URL || undefined : TRACE_URL;
+}
+
+const workerColo = coloLookup();
+
 /**
- * Where this Worker invocation ran, for API callers checking placement. Cloudflare sets the
- * `cf-placement` request header (`remote-NRT`, `local-IAD`) when placement is enabled; without it the
- * colo falls back to `request.cf.colo`. Only validated airport codes are echoed, nothing else.
+ * Where the request entered Cloudflare, from validated request metadata only: `request.cf.colo` is
+ * the ingress colo, not where a placed Worker runs. `cf-placement` (`remote-NRT`, `local-IAD`) is
+ * echoed when Cloudflare sends it.
  */
-export function workerLocation(req: Request): Record<string, string> {
-  const placement = req.headers.get("cf-placement")?.match(/^(local|remote)-([A-Z]{3})$/);
-  if (placement?.[2]) return { "X-Steed-Colo": placement[2], "X-Steed-Placement": placement[0] };
+export function ingressLocation(req: Request): Record<string, string> {
+  const location: Record<string, string> = {};
+  const placement = req.headers.get("cf-placement");
+  if (placement && /^(local|remote)-[A-Z]{3}$/.test(placement)) location["X-Steed-Placement"] = placement;
   const colo = (req as Request & { cf?: { colo?: unknown } }).cf?.colo;
-  return typeof colo === "string" && /^[A-Z]{3}$/.test(colo) ? { "X-Steed-Colo": colo } : {};
+  if (typeof colo === "string" && /^[A-Z]{3}$/.test(colo)) location["X-Steed-Ingress-Colo"] = colo;
+  return location;
 }
 
 function withLocation(response: Response, location: Record<string, string>): Response {
@@ -38,7 +49,9 @@ export default {
   async fetch(req: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
     const url = new URL(req.url);
     if (!url.pathname.startsWith("/api/")) return env.ASSETS.fetch(req);
-    return withLocation(await api(req, env, url, ctx), workerLocation(req));
+    const trace = traceUrl(env);
+    const [response, colo] = await Promise.all([api(req, env, url, ctx), trace ? workerColo(trace) : null]);
+    return withLocation(response, { ...ingressLocation(req), ...(colo ? { "X-Steed-Colo": colo } : {}) });
   },
 } satisfies ExportedHandler<Env>;
 
