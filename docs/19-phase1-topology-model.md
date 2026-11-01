@@ -225,8 +225,9 @@ Public keys, fingerprints and commit SHAs are rejected by `high_entropy` unless
 they sit in a TypeDef-declared attr of type `public_key`, `fingerprint` or
 `identifier` and match that type's format (see allowlisted attr types).
 
-Errors are `422 invalid_topology` with issues
-`{ path, code: "secret_like_value", rule }`. The value is never echoed in
+Errors are 422 with issues `{ path, code: "secret_like_value", rule }`; the
+top-level `error.code` is `secret_like_value` when every issue is a secret
+hit, otherwise `invalid_topology`. The value is never echoed in
 the response, the audit log, the change log or Worker logs, and a rejected
 request stores no idempotency receipt body beyond the error. Test fixtures
 are built at runtime (string concatenation) so gitleaks never sees a
@@ -972,13 +973,32 @@ The former open questions, answered in order:
   revocation and expiry are checked again in the batch.
 - The prepared machine handler returns `valid: true`, warnings and change
   counts for a successful dry run; invalid graphs return 422 with redacted
-  issues. Every 422 `invalid_topology`, whether from a full document, an
+  issues. Every validation 422, whether from a full document, an
   operations batch or an entity write, carries one `{ path, code, message }`
-  issue per schema failure: batch paths start at the operation
-  (`["operations", 0, "value", "style", "dash"]`), entity-write paths are
-  relative to the body, and the message is generic, never the value. In-use and satellite-removal conflicts return 409 with their
+  issue per failure (`rule` too for secret-like hits), and the message is
+  generic, never the value. Paths are in request terms, for structural and
+  semantic failures alike: a full document uses graph paths
+  (`["nodes", 3, "attrs"]`); a batch uses the position of the last operation
+  that wrote the entity or metadata field (`["operations", 0, "value",
+  "style", "dash"]`, `["operations", 1, "value", "attrs"]`,
+  `["operations", 0, "description"]`); an entity write is relative to its body
+  (`["attrs"]`). Only issues on entities the batch did not write, such as
+  nodes made invalid by a type change, keep their graph path. In-use and satellite-removal conflicts return 409 with their
   operation code. An invalid idempotency-key format returns 400. A stored
   matching receipt is checked before the revision precondition for replay.
+- The top-level `error.code` of a validation 422 is `secret_like_value` when
+  every issue is a secret-like hit and `invalid_topology` otherwise, mixed
+  failures included (since v0.5.3; earlier releases always sent
+  `invalid_topology`). Both keep status 422 and the same `issues[]` shape, so
+  clients that branch on status or on `issues[].code` are unaffected; clients
+  that match `error.code === "invalid_topology"` should also accept
+  `secret_like_value`. The audit row records the same code.
+- Every `/api/*` response carries `X-Steed-Colo`, the Cloudflare data center
+  where the Worker ran: taken from the `cf-placement` request header that
+  Cloudflare adds when placement is enabled (also echoed as
+  `X-Steed-Placement`, e.g. `remote-NRT`), otherwise from `request.cf.colo`.
+  Only validated values (`^[A-Z]{3}$`, `^(local|remote)-[A-Z]{3}$`) are
+  echoed; the headers are omitted when neither is available.
 - Revert takes no request body and always requires explicit topology
   confirmation. It uses the same revision guard and idempotent receipt as
   other writes; invalid or missing change IDs fail before any write.

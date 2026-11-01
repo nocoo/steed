@@ -45,5 +45,14 @@ export function planTopologyConnectMutation(
   if (!("value" in parsed.data) || parsed.data.value.id !== id.data) {
     throw new HttpError(422, "id_mismatch", "The entity ID must match its path.");
   }
-  return planTopologyOperations(before, [parsed.data]);
+  try {
+    return planTopologyOperations(before, [parsed.data]);
+  } catch (error) {
+    // The body is the entity, so issues on it are relative to the body, like its structural errors.
+    if (!(error instanceof TopologyOperationError)) throw error;
+    throw new TopologyOperationError(error.code, error.issues.map((issue) => {
+      const [head, index, value, ...rest] = issue.path;
+      return head === "operations" && index === 0 && value === "value" ? { ...issue, path: rest } : issue;
+    }));
+  }
 }

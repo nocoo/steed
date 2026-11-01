@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { testDatabase } from "./__tests__/db";
 import { fingerprint } from "./connect-crypto";
-import { pruneConnect, runConnect, tokenContext, tokenMetadata, type ConnectEnv, type TokenRow } from "./topology-connect-core";
+import { pruneConnect, runConnect, tokenContext, tokenMetadata, topologyValidationCode, type ConnectEnv, type TokenRow } from "./topology-connect-core";
 
 let database: ReturnType<typeof testDatabase>;
 let env: ConnectEnv;
@@ -64,5 +64,15 @@ describe("prepared topology Connect core", () => {
     expect(database.sqlite.prepare("SELECT COUNT(*) AS n FROM connect_confirmations").get()?.n).toBe(0);
     expect(database.sqlite.prepare("SELECT response_json FROM connect_requests").get()?.response_json).toBeNull();
     expect(database.sqlite.prepare("SELECT COUNT(*) AS n FROM connect_rate_limits").get()?.n).toBe(0);
+  });
+});
+
+describe("topology validation code", () => {
+  it("names a failure secret_like_value only when every issue is a secret hit", () => {
+    const issue = (code: string) => ({ code });
+    expect(topologyValidationCode([issue("secret_like_value"), issue("secret_like_value")])).toBe("secret_like_value");
+    expect(topologyValidationCode([issue("secret_like_value"), issue("required_attr_missing")])).toBe("invalid_topology");
+    expect(topologyValidationCode([issue("invalid_topology")])).toBe("invalid_topology");
+    expect(topologyValidationCode([])).toBe("invalid_topology");
   });
 });
