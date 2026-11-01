@@ -219,6 +219,11 @@ describe("topology v2 schema", () => {
     depthTwo.nodes.push({ id: "port", type: "host", label: "Port", layerId: "compute", parentId: "service", role: "subresource", lifecycle: "active", boundaryIds: [], description: "Fixture", tags: [], attrs: {} });
     expect(topologySchema.safeParse(depthTwo).success).toBe(true);
 
+    const roleIndependentDepth = clone(sample());
+    roleIndependentDepth.nodes.push({ id: "port-first", type: "host", label: "Port first", layerId: "compute", parentId: "root", role: "subresource", lifecycle: "active", boundaryIds: [], description: "Fixture", tags: [], attrs: {} });
+    roleIndependentDepth.nodes.push({ id: "service-second", type: "host", label: "Service second", layerId: "compute", parentId: "port-first", role: "service", lifecycle: "active", boundaryIds: [], description: "Fixture", tags: [], attrs: {} });
+    expect(topologySchema.safeParse(roleIndependentDepth).success).toBe(true);
+
     const depthThree = clone(depthTwo);
     depthThree.nodes.push({ id: "detail", type: "host", label: "Detail", layerId: "compute", parentId: "port", role: "subresource", lifecycle: "active", boundaryIds: [], description: "Fixture", tags: [], attrs: {} });
     expect(codes(topologySchema.safeParse(depthThree))).toContain("satellite_depth");
