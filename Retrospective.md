@@ -70,6 +70,14 @@ allowed search roots. The search returned no matches and did not change files.
 Read explicitly named instruction files directly; do not broaden a search when
 the brief limits searches to the worktree and the project clone.
 
+Later, while inspecting coverage in an owned temporary worker copy, the
+controller ran `rg` against that copy, its coverage directory and an explicit
+file in a separate owned router copy. The copies were authorized test
+locations, but not authorized search roots under the brief. Only those owned
+copies were searched; no files were changed by the searches.
+Treat permission to use a temporary copy as separate from permission to search
+it: use explicitly named files or search only the designated project roots.
+
 ## 2026-10-31: Target Herdr panes explicitly
 
 While arranging the Phase 1 work panes, a resize using `--current` resolved to
