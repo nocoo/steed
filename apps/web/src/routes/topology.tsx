@@ -7,6 +7,7 @@ import { ArrowDownLeft, ArrowUpRight, Download, Network, RefreshCw, Search, X } 
 import type { Topology, TopologyNode } from "@steed/api/shared";
 import { useTopologyViewModel, type TopologyReach } from "@/viewmodels/use-topology-viewmodel";
 import { downloadTopology } from "@/lib/topology-client";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { topologyNodeBadgeValues, topologyNodeBoundaryLabels, TopologyCanvas } from "@/components/map/topology-canvas";
 
 const sentinel = "\u0000";
@@ -123,14 +124,16 @@ export function TopologyPage() {
 
             <div className={`grid gap-4${inspectorOpen ? " xl:grid-cols-[minmax(0,1fr)_300px]" : ""}`}>
               <LayerCard padding="none" className="h-[calc(100dvh-420px)] min-h-[440px] overflow-hidden">
-                <TopologyCanvas
-                  topology={topology}
-                  visibleNodes={vm.visibleNodes}
-                  visibleEdges={vm.visibleEdges}
-                  view={vm.selectedView ?? undefined}
-                  selectedNodeId={vm.selectedNodeId}
-                  onSelect={vm.setSelectedNodeId}
-                />
+                <ErrorBoundary label="Topology canvas" className="h-full" resetKeys={[topology]}>
+                  <TopologyCanvas
+                    topology={topology}
+                    visibleNodes={vm.visibleNodes}
+                    visibleEdges={vm.visibleEdges}
+                    view={vm.selectedView ?? undefined}
+                    selectedNodeId={vm.selectedNodeId}
+                    onSelect={vm.setSelectedNodeId}
+                  />
+                </ErrorBoundary>
               </LayerCard>
 
               {inspectorOpen && <aside className="flex max-h-[calc(100dvh-420px)] min-h-[440px] flex-col gap-4 overflow-y-auto" aria-label="Topology inspector">
@@ -145,7 +148,7 @@ export function TopologyPage() {
                   </div>}
                 </LayerCard>
 
-                {selected && topology && <LayerCard>
+                {selected && topology && <ErrorBoundary label="Node details" resetKeys={[topology, selected.id]}><LayerCard>
                   <div className="mb-3 flex items-start justify-between gap-2">
                     <h2 className="break-words text-sm font-semibold">{selected.label}</h2>
                     <Badge variant="outline">{selected.lifecycle}</Badge>
@@ -164,7 +167,7 @@ export function TopologyPage() {
                   {selected.tags.length > 0 && <div className="mt-4"><h3 className="mb-2 text-xs font-semibold">Tags</h3><div className="flex flex-wrap gap-1">{selected.tags.map((tag) => <Badge key={tag} variant="secondary" className="text-[10px]">{tag}</Badge>)}</div></div>}
                   <div className="mt-4"><h3 className="mb-2 text-xs font-semibold">Satellites</h3>{selectedSatellites.length ? <div className="space-y-1">{selectedSatellites.map((node) => <button key={node.id} type="button" className="block w-full rounded p-2 text-left text-xs hover:bg-basalt-secondary" onClick={() => vm.setSelectedNodeId(node.id)}>{node.label}<span className="ml-2 text-basalt-muted-foreground">{node.id}</span></button>)}</div> : <p className="text-xs text-basalt-muted-foreground">None</p>}</div>
                   <div className="mt-4"><h3 className="mb-2 text-xs font-semibold">{selectedEdges.length} edges</h3><div className="space-y-1">{selectedEdges.map((edge) => { const otherId = edge.source === selected.id ? edge.target : edge.source; const other = topology.nodes.find((node) => node.id === otherId); const relativeArrow = edge.direction === "bi" ? "↔" : edge.source === selected.id ? "→" : "←"; return <button key={edge.id} type="button" className="block w-full rounded p-2 text-left text-xs hover:bg-basalt-secondary" onClick={() => vm.setSelectedNodeId(otherId)}><span className="block">{relativeArrow} {other?.label ?? otherId}</span><span className="text-basalt-muted-foreground">{edge.label || edge.kind} · {edge.evidence}</span></button>; })}{!selectedEdges.length && <p className="text-xs text-basalt-muted-foreground">None</p>}</div></div>
-                </LayerCard>}
+                </LayerCard></ErrorBoundary>}
               </aside>}
             </div>
           </>}
