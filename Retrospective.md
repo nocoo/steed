@@ -2,6 +2,17 @@
 
 Accident narratives belong here. Keep only recurring project rules in `AGENTS.md`; cross-project lessons belong in global rules and deterministic checks in hooks/tests.
 
+## 2026-11-01: Freeze reviewed sources before parallel fixes
+
+During the Phase 3 sidebar review, the controller started fixes in the draft
+after the reviewer had captured its hashes, but before retaining an exact copy
+of the reviewed source. The reviewer's temporary copy was cleaned, and the
+mutable stage no longer matched the captured hashes. The findings and original
+hash table remain available, but a later reviewer cannot compare both exact
+source trees.
+Freeze and retain the complete reviewed snapshot before authorizing parallel
+edits; keep it until the follow-up review is complete.
+
 ## 2026-11-01: Verify hook installation before resolving a merge
 
 During Phase 3 setup, the main-branch merge conflicted before the requested
