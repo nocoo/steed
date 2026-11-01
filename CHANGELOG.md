@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.5.1] - 2026-11-01
+
+### Fixed
+
+- The sidebar avatar now loads: the Worker fetches the lizheng.blog author
+  profile through a wrapped fetch with manual redirects (the previous call
+  always failed in the Workers runtime), and caches it in `caches.default`
+  for 24 h when found, 1 h when empty and 5 min after a failure.
+
+### Added
+
+- Avatars may also be base64 PNG data URLs.
+- A topology E2E check that fetches a stubbed author profile through the real
+  Workers runtime and confirms the cache.
+
+### Changed
+
+- Documented the `CONNECT_MANAGERS` format: comma-separated, exact
+  `email:<lowercase address>` or `subject:<Access sub>` entries.
+
 ## [0.5.0] - 2026-11-01
 
 Phase 1 and 2 introduce the canonical topology and its Connect API. See
