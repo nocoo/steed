@@ -1014,8 +1014,9 @@ The former open questions, answered in order:
   `auth;dur=14.2, auth-sql;dur=0.3, read;dur=41.0, read-sql;dur=1.9,
   validate;dur=0.0, write;dur=96.5, write-sql;dur=3.1, colo;dur=0.0,
   total;dur=152.8`. Metrics appear in this fixed order, only when measured:
-  - `auth`: Bearer token lookup and rate-limit charge (one D1 batch), or the
-    manager check on `/api/connect`; `auth-sql` is D1's SQL time for it.
+  - `auth`: the Connect Bearer token lookup and rate-limit charge (one D1
+    batch); `auth-sql` is D1's SQL time for it. Browser and management
+    routes report only `colo` and `total`.
   - `read`: the D1 snapshot read (writes, validate, reads); `read-sql` is its
     SQL time, reported for writes.
   - `validate`: planning and building the write statements. It is CPU-only,
