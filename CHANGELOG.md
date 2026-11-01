@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.5] - 2026-11-01
+
+### Added
+
+- API responses carry a `Server-Timing` header with per-segment durations
+  (`auth`, `read`, `validate`, `write`, `audit`, the D1-reported `*-sql`
+  execution time, the `colo` lookup, `total`) and a `cold` flag on the first
+  request of an isolate. It is fail-soft and carries no identities (#114).
+- `scripts/prod-write-latency.ts` measures incremental `put_node` latency
+  against an empty production topology using `test-` data and clears it
+  afterwards (#114).
+
 ## [0.5.4] - 2026-11-01
 
 ### Fixed
