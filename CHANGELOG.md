@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.5.4] - 2026-11-01
+
+### Fixed
+
+- `X-Steed-Colo` now reports the data center the Worker executed in, read
+  once per isolate from Cloudflare's `/cdn-cgi/trace` inside the Worker and
+  omitted when that lookup fails. In 0.5.3 it carried the ingress colo,
+  which with targeted placement is near the caller, not Tokyo. The ingress
+  value is now `X-Steed-Ingress-Colo` (#111).
+
 ## [0.5.3] - 2026-11-01
 
 ### Changed

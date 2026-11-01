@@ -44,7 +44,7 @@ describe("worker", () => {
 
     expect(res.status).toBe(200);
     expect(res.headers.get("Cache-Control")).toBe("no-store");
-    expect(await res.json()).toEqual({ status: "ok", version: "0.5.3" });
+    expect(await res.json()).toEqual({ status: "ok", version: "0.5.4" });
     expect(mocks.verifyAccessJwt).not.toHaveBeenCalled();
   });
 
