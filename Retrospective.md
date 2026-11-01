@@ -2,6 +2,15 @@
 
 Accident narratives belong here. Keep only recurring project rules in `AGENTS.md`; cross-project lessons belong in global rules and deterministic checks in hooks/tests.
 
+## 2026-11-01: Record temporary paths before using them
+
+While preserving a worker review snapshot, the controller used `path` as a
+loop variable in zsh, replacing `PATH` and causing the first copy to fail. The
+temporary directory name had not been recorded, leaving an owned partial
+archive that could not be safely identified for cleanup under the search
+restriction. Record each temporary path immediately and avoid zsh's special
+parameter names in scripts.
+
 ## 2026-11-01: Freeze reviewed sources before parallel fixes
 
 During the Phase 3 sidebar review, the controller started fixes in the draft
