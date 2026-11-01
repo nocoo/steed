@@ -29,6 +29,7 @@ bun run build
 bun run test                    # Vitest with coverage
 bun run check-coverage
 bun run test:e2e                # topology and Connect over local HTTP
+bun run test:browser            # L3: Playwright clicks every node of the acceptance topology
 bun run bench:topology          # local HTTP/D1 capacity benchmark
 ```
 
@@ -42,7 +43,7 @@ G2 requires dependency and secret scans, with missing required scanners failing.
 |---|---|---|
 | L1 TypeScript | planned | Hooks/CI count Worker code and gate statements/functions/lines 95%, branches 90%. Missing-report success in `check-coverage` and the 90% branch floor leave all-four 95% incomplete. Hooks/CI run root strict types and ESLint `--max-warnings=0`; formatting and full index-snapshot checks remain incomplete. |
 | L2 API | planned | Two local real-HTTP runners cover topology and Connect, each with an isolated temporary D1 and process-group cleanup; Connect exercises all registered operations. Audited 100% endpoint/auth/error coverage remains required. |
-| L3 browser | manual | No Playwright gate is configured. Verify full pages, rendered topology and Connect through trusted dev HTTPS with disposable data. |
+| L3 browser | enforced (CI) | `scripts/run-browser-e2e.ts` builds, seeds `apps/web/e2e/acceptance-topology.json` into an isolated local D1, then clicks every topology node in headless Chromium and fails on any crash or console error. `--screens <dir>` writes light/dark screenshots; `STEED_BROWSER_CHANNEL=chrome` uses installed Chrome. Not in pre-push. |
 | G2 | enforced | Pre-push and shared CI run OSV on Bun lock plus gitleaks; missing scanners must fail. |
 | D1 | planned | Topology/Connect runners use marked mkdtemp local persist directories and canonical-path cleanup checks. Full fail-closed initialization remains incomplete. |
 
