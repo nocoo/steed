@@ -20,6 +20,9 @@ export interface ConnectContext {
   token?: TokenRow;
   tokenId?: string;
   audited: boolean;
+  /** Pending token rate-limit increment. Writes fold it into their D1 batch; anything
+   *  else (reads, validate, 412/422 before the write) defers it via waitUntil. */
+  rateCharge?: { key: string; window: number };
   execution?: Pick<ExecutionContext, "waitUntil">;
   pending: Promise<unknown>[];
   timing: ServerTiming;
@@ -47,31 +50,56 @@ export async function rate(db: D1Database, key: string, limit: number) {
 }
 
 const LIVE_TOKEN = "token_hash = ? AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?)";
-// One D1 round trip: the token lookup and its rate-limit charge share a batch. The charge is
-// guarded by the same token state so unknown, revoked, expired or under-scoped tokens never
-// consume a bucket; the last-used stamp is deferred because the response does not depend on it.
+/** Unconditional +1 for a token rate bucket. The limit is enforced by a prior read of the
+ *  current count; this statement never rejects, so a request that passed the check is charged
+ *  exactly once even when concurrent peers push the stored count past the limit. */
+export function rateIncrementStatement(db: D1Database, key: string, window: number) {
+  return db.prepare(`INSERT INTO connect_rate_limits (key, window, count) VALUES (?, ?, 1)
+    ON CONFLICT(key, window) DO UPDATE SET count = count + 1`).bind(key, window);
+}
+/** Take a pending write charge for inclusion in the mutation's D1 batch. Returns null when
+ *  there is nothing to fold (already deferred, or a read). */
+export function takeRateCharge(ctx: ConnectContext): D1PreparedStatement | null {
+  const charge = ctx.rateCharge;
+  if (!charge) return null;
+  ctx.rateCharge = undefined;
+  return rateIncrementStatement(ctx.env.DB, charge.key, charge.window);
+}
+function deferRateCharge(ctx: ConnectContext) {
+  const charge = ctx.rateCharge;
+  if (!charge) return;
+  ctx.rateCharge = undefined;
+  defer(ctx, rateIncrementStatement(ctx.env.DB, charge.key, charge.window).run());
+}
+// Auth is a read-only batch: token lookup + current window count. Writes fold their increment
+// into the mutation's single D1 batch; reads (and write paths that never reach that batch)
+// defer it via waitUntil. Rejected tokens never arm a charge.
 async function bearer(ctx: ConnectContext) {
   const credential = /^Bearer (steedc_[A-Za-z0-9_-]{43})$/i.exec(ctx.request.headers.get("Authorization") ?? "")?.[1];
   if (!credential) throw new HttpError(401, "invalid_token", "A valid Connect Bearer token is required.");
   const hash = await fingerprint(`${deployment(ctx.env)}:${credential}`);
   const writing = !["GET", "HEAD"].includes(ctx.request.method);
+  const kind = writing ? "write" : "read";
+  const limit = writing ? CONNECT_LIMITS.writePerMinute : CONNECT_LIMITS.readPerMinute;
   const now = nowSeconds();
+  const window = Math.floor(now / 60) * 60;
   const db = ctx.env.DB;
   const batch = await db.batch<Record<string, unknown>>([
     db.prepare("SELECT * FROM connect_tokens WHERE token_hash = ?").bind(hash),
-    db.prepare(`INSERT INTO connect_rate_limits (key, window, count)
-      SELECT 'token:' || id || ':' || ?, ?, 1 FROM connect_tokens WHERE ${LIVE_TOKEN}${writing ? " AND scope = 'topology:write'" : ""}
-      ON CONFLICT(key, window) DO UPDATE SET count = count + 1 WHERE count < ? RETURNING count`)
-      .bind(writing ? "write" : "read", Math.floor(now / 60) * 60, hash, now, writing ? CONNECT_LIMITS.writePerMinute : CONNECT_LIMITS.readPerMinute),
+    db.prepare(`SELECT count FROM connect_rate_limits WHERE key = (
+      SELECT 'token:' || id || ':' || ? FROM connect_tokens WHERE token_hash = ?) AND window = ?`).bind(kind, hash, window),
   ]);
   ctx.timing.sql("auth-sql", batch);
-  const [lookup, charge] = batch;
+  const [lookup, usage] = batch;
   const row = lookup?.results[0] as TokenRow | undefined;
   if (!row || row.revoked_at !== null || (row.expires_at !== null && row.expires_at <= now)) throw new HttpError(401, "invalid_token", "The token is invalid, expired or revoked.");
   ctx.token = row; ctx.tokenId = row.id; ctx.actor = `token:${row.id}`;
   if (!isManager(ctx.request, ctx.env, row.owner)) throw new HttpError(403, "authorization_revoked", "The issuing manager is no longer authorized.");
   if (writing && row.scope !== "topology:write") throw new HttpError(403, "insufficient_scope", "A write token is required.");
-  if (!charge?.results[0]) throw new HttpError(429, "rate_limited", "Too many requests. Retry after one minute.");
+  const count = Number((usage?.results[0] as { count?: number } | undefined)?.count ?? 0);
+  if (!Number.isFinite(count) || count >= limit) throw new HttpError(429, "rate_limited", "Too many requests. Retry after one minute.");
+  ctx.rateCharge = { key: `token:${row.id}:${kind}`, window };
+  if (!writing) deferRateCharge(ctx);
   defer(ctx, db.prepare(`UPDATE connect_tokens SET last_used_at = ? WHERE id = ? AND ${LIVE_TOKEN}`).bind(now, row.id, hash, now).run());
 }
 // Work the response does not depend on runs after it via waitUntil; without an execution
@@ -128,8 +156,10 @@ export async function runConnect(request: Request, env: ConnectEnv, mode: "beare
         code = error instanceof HttpError ? error.code : response.status === 422 ? "invalid_document" : "unavailable";
       }
     }
+    // Writes that never reached their D1 batch (412/422/validate/replay) still owe exactly one charge.
+    deferRateCharge(ctx);
     if (!ctx.audited) defer(ctx, auditStatement(ctx, response.status, code).run());
-    // With waitUntil the audit runs after the response and is not timed; without it, it is awaited here.
+    // With waitUntil deferred work runs after the response and is not timed; without it, it is awaited here.
     if (ctx.pending.length) await timing.time("audit", () => Promise.all(ctx.pending));
     return response;
   });
