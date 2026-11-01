@@ -37,7 +37,7 @@ export function topologyConnectOpenApi(origin: string) {
       parameters.push(header("If-None-Match", false, { type: "string" }, "Return 304 when the current ETag matches."));
     }
     if (operation.mutates) {
-      parameters.push(header("If-Match", true, { type: "string" }, 'Current topology ETag, for example "topology:0".'),
+      parameters.push(header("If-Match", true, { type: "string" }, 'Current topology ETag, for example "topology:0"; the weak form W/"topology:0" is accepted.'),
         header("Idempotency-Key", true, schema(idempotencyKeySchema), "Use one persisted key per exact intent."),
         header("X-Steed-Confirm", Boolean(operation.dangerous), { const: "topology" }, "Required for removals, reverts and replacements that remove entities."));
     }
@@ -53,7 +53,7 @@ export function topologyConnectOpenApi(origin: string) {
     else if (operation.id === "changes.get") output = envelope(ref("ChangeDetail"));
     else if (operation.id === "topology.validate") output = envelope(ref("Validation"));
     else if (operation.id === "requests.get") output = envelope(ref("RequestOutcome"));
-    const headers = { ETag: { schema: { type: "string" } }, "X-Request-Id": { schema: { type: "string" } }, "Cache-Control": { schema: { const: "no-store" } }, "Idempotency-Replayed": { schema: { const: "true" } }, "X-Original-Request-Id": { schema: { type: "string" } },
+    const headers = { ETag: { schema: { type: "string" } }, "X-Request-Id": { schema: { type: "string" } }, "Cache-Control": { schema: { const: "no-store, no-transform" } }, "Idempotency-Replayed": { schema: { const: "true" } }, "X-Original-Request-Id": { schema: { type: "string" } },
       "X-Steed-Colo": { description: "Cloudflare data center (IATA code) the Worker executed in, read once per isolate from Cloudflare's trace endpoint; omitted when that lookup fails.", schema: { type: "string", pattern: "^[A-Z]{3}$" } },
       "X-Steed-Ingress-Colo": { description: "Cloudflare data center (IATA code) where the request entered Cloudflare (request.cf.colo); not where a placed Worker ran.", schema: { type: "string", pattern: "^[A-Z]{3}$" } },
       "X-Steed-Placement": { description: "Cloudflare's cf-placement value, such as remote-NRT, echoed only when Cloudflare sends it.", schema: { type: "string", pattern: "^(local|remote)-[A-Z]{3}$" } },

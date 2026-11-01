@@ -102,4 +102,12 @@ describe("Connect Server-Timing segments", () => {
     expect(await timed("/topology/operations", "POST", { operations: [{ op: "set_metadata", title: "Late" }] }, intent("timing-ops-1", 0))).toEqual({ status: 412,
       metrics: ["auth", "auth-sql", "read", "read-sql", "validate", "total"] });
   });
+
+  it("opts out of edge compression and accepts the weak ETag a compressing proxy hands out", async () => {
+    const response = await topologyConnectMachineApi(new Request(`${origin}/api/v1/topology/operations`, {
+      method: "POST", headers: { Authorization: `Bearer ${writer}`, "Content-Type": "application/json", "Accept-Encoding": "gzip", ...intent("weak-etag-1", 0), "If-Match": 'W/"topology:0"' },
+      body: JSON.stringify({ operations: [{ op: "set_metadata", title: "Weak" }] }),
+    }), env, { waitUntil: () => undefined });
+    expect([response.status, response.headers.get("ETag"), response.headers.get("Cache-Control")]).toEqual([200, '"topology:1"', "no-store, no-transform"]);
+  });
 });

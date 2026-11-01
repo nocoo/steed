@@ -133,7 +133,9 @@ export async function runConnect(request: Request, env: ConnectEnv, mode: "beare
     if (ctx.pending.length) await timing.time("audit", () => Promise.all(ctx.pending));
     return response;
   });
-  for (const [name, value] of Object.entries({ Pragma: "no-cache", "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff", "Cross-Origin-Resource-Policy": "same-origin", "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'" })) result.headers.set(name, value);
+  // no-transform stops Cloudflare from compressing Connect JSON, which would weaken the ETag
+  // (W/"topology:N") that clients echo back in If-Match.
+  for (const [name, value] of Object.entries({ "Cache-Control": "no-store, no-transform", Pragma: "no-cache", "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff", "Cross-Origin-Resource-Policy": "same-origin", "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'" })) result.headers.set(name, value);
   if (result.status === 401 && mode === "bearer") result.headers.set("WWW-Authenticate", 'Bearer realm="steed-connect"');
   if (result.status === 429) result.headers.set("Retry-After", "60");
   return request.method === "HEAD" ? new Response(null, { status: result.status, headers: result.headers }) : result;

@@ -5,9 +5,11 @@ import type { TopologyCollectionQuery } from "./topology-collections";
 export function topologyIfMatch(request: Request): number {
   const etag = request.headers.get("If-Match");
   if (!etag) throw new HttpError(428, "precondition_required", "Read the topology and send its ETag in If-Match.");
-  const match = /^"topology:(0|[1-9]\d*)"$/.exec(etag);
-  const revision = match ? Number(match[1]) : NaN;
-  if (!Number.isSafeInteger(revision) || etag !== topologyEtag(revision) || request.headers.has("If-None-Match")) {
+  // A weak validator is accepted: the ETag names a revision, not a byte representation, and
+  // Cloudflare weakens it to W/"…" whenever it compresses the response for the client.
+  const match = /^(?:W\/)?("topology:(0|[1-9]\d*)")$/.exec(etag);
+  const revision = match ? Number(match[2]) : NaN;
+  if (!Number.isSafeInteger(revision) || match?.[1] !== topologyEtag(revision) || request.headers.has("If-None-Match")) {
     throw new HttpError(412, "version_conflict", "The topology version does not match. Reload before editing.");
   }
   return revision;
