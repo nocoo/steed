@@ -6,11 +6,12 @@ const request = (headers: Record<string, string>) => new Request("https://exampl
 const url = (query: string) => new URL(`https://example.com/api/v1/topology/nodes${query}`);
 
 describe("topology Connect request parsing", () => {
-  it("requires a single exact strong topology ETag, including revision zero", () => {
+  it("requires a single exact topology ETag, strong or weak, including revision zero", () => {
     expect(topologyIfMatch(request({ "If-Match": '"topology:0"' }))).toBe(0);
     expect(topologyIfMatch(request({ "If-Match": '"topology:12"' }))).toBe(12);
+    expect(topologyIfMatch(request({ "If-Match": 'W/"topology:35"' }))).toBe(35);
     expect(() => topologyIfMatch(request({}))).toThrow(expect.objectContaining({ status: 428, code: "precondition_required" }));
-    for (const value of ['W/"topology:1"', '"topology:01"', '"other:1"', "*", '"topology:9007199254740992"', '"topology:1", "topology:2"']) {
+    for (const value of ['w/"topology:1"', 'W/ "topology:1"', 'W/"topology:01"', '"topology:01"', '"other:1"', "*", '"topology:9007199254740992"', '"topology:1", "topology:2"']) {
       expect(() => topologyIfMatch(request({ "If-Match": value }))).toThrow(expect.objectContaining({ status: 412, code: "version_conflict" }));
     }
     expect(() => topologyIfMatch(request({ "If-Match": '"topology:1"', "If-None-Match": "*" }))).toThrow(HttpError);

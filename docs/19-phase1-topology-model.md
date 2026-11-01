@@ -929,8 +929,13 @@ The former open questions, answered in order:
   Collection projections use a validated snapshot and preserve its ID order.
 - Collection page size defaults to 50 and is limited to 1–500; unknown or
   repeated query keys and malformed cursors are rejected. Mutation If-Match
-  accepts one exact strong `"topology:<revision>"` ETag, including revision
-  zero; a conflicting If-None-Match is rejected.
+  accepts one exact `"topology:<revision>"` ETag, including revision zero,
+  either strong or with a `W/` prefix (since v0.5.6); a conflicting
+  If-None-Match is rejected. Weak comparison is safe because the ETag names a
+  revision, not a byte representation. Connect responses send
+  `Cache-Control: no-store, no-transform` so Cloudflare does not compress
+  them and weaken the ETag (it did for gzip-requesting clients such as Bun's
+  `fetch`, which then got 412 on a strong-only If-Match).
 - Machine collection and history pages return `data` arrays and `nextCursor`
   alongside `requestId`; a history detail includes its change items. History
   detail and its revision are read in one batch, so its snapshot ETag and
