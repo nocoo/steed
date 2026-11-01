@@ -55,6 +55,12 @@ but the search could have traversed it and read ignore files. Before searching,
 use the known rule-file path or explicitly list only approved instruction
 directories, never a parent that contains excluded workspaces.
 
+During the Phase 3 continuation, the controller again used `fd` to locate the
+commit rules, this time in two instruction directories outside the brief's
+allowed search roots. The search returned no matches and did not change files.
+Read explicitly named instruction files directly; do not broaden a search when
+the brief limits searches to the worktree and the project clone.
+
 ## 2026-10-31: Target Herdr panes explicitly
 
 While arranging the Phase 1 work panes, a resize using `--current` resolved to
