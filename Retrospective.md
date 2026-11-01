@@ -17,6 +17,13 @@ ESLint scanned its JavaScript and failed. Moving the owned browser to an
 isolated temporary directory restored the unchanged lint gate. Keep downloaded
 test tools outside the lint traversal and clean up their owned directories.
 
+Several parallel staging copies inside `.p3-local/` later caused ESLint to
+exhaust its Node heap, and the style commit hook correctly rejected the commit.
+The controller paused the workers, moved the owned copies to a temporary
+directory, and resumed them through symlinks. The unmodified lint and complete
+commit hook then passed. Keep parallel staging copies outside the project lint
+traversal from the start.
+
 ## 2026-10-31: Bound rule-file searches to approved roots
 
 While locating the commit rules, the controller searched under the home
