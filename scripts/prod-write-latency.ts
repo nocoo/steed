@@ -9,13 +9,21 @@
 // (default 100, 1-200) and STEED_WRITE_GAP_MS (default 2200, at least 2000) are optional. The gap
 // keeps writes under the 30 per minute token limit (100 writes take about five minutes). The token
 // is never printed. `<segment>-net` is the segment minus its D1-reported SQL time: round trip,
-// queueing and commit outside SQL.
+// queueing and commit outside SQL. The summary also counts samples whose `<segment>-net` exceeds
+// 100 ms (the D1 commit-tail events) per segment.
+//
+// STEED_PROBE=read is a read-only A/B mode: no seed, no clear, no topology writes, any prod state.
+// It sends N GET /api/v1/topology with the same gap and reports the same segments, so the snapshot
+// read can be measured with no write batch in the request (a token read needs only topology:read;
+// Connect still stamps last use, charges the read bucket and writes an audit row after each one).
 import { emptyTopology, type Topology } from "@steed/api/shared";
 
 const base = (process.env.STEED_BASE_URL ?? "https://steed.hexly.ai").replace(/\/+$/, "");
 const token = process.env.STEED_TOKEN?.trim();
 const samples = Number(process.env.STEED_WRITE_N ?? "100");
 const gap = Number(process.env.STEED_WRITE_GAP_MS ?? "2200");
+const probe = process.env.STEED_PROBE ?? "write";
+if (probe !== "write" && probe !== "read") throw new Error("STEED_PROBE must be write or read.");
 if (!token) throw new Error("STEED_TOKEN (topology:write) is required.");
 if (!Number.isInteger(samples) || samples < 1 || samples > 200) throw new Error("STEED_WRITE_N must be an integer from 1 to 200.");
 if (!Number.isFinite(gap) || gap < 2000) throw new Error("STEED_WRITE_GAP_MS must be at least 2000.");
@@ -53,6 +61,42 @@ function quantile(values: number[], q: number) {
   return sorted[Math.min(sorted.length - 1, Math.ceil(q * sorted.length) - 1)] ?? NaN;
 }
 
+function report(label: string, results: Sample[], live: number[]) {
+  const metrics = ["client", ...new Set(results.flatMap((result) => Object.keys(result.timing)))];
+  console.log(`\n${base} at ${new Date().toISOString()}, ${results.length} ${label}, colo ${[...new Set(results.map((result) => result.colo))].join("/")}, cold ${results.filter((result) => result.cold).length}`);
+  console.log(`live baseline p50 ${quantile(live, 0.5).toFixed(0)} ms, p95 ${quantile(live, 0.95).toFixed(0)} ms`);
+  console.log("metric       p50     p90     p95     p99     max");
+  for (const metric of metrics) {
+    const values = results.map((result) => metric === "client" ? result.ms : result.timing[metric]).filter((value): value is number => typeof value === "number");
+    if (values.length) console.log(`${metric.padEnd(10)} ${[0.5, 0.9, 0.95, 0.99, 1].map((q) => quantile(values, q).toFixed(1).padStart(7)).join(" ")}`);
+  }
+  const spikes = (["auth-net", "read-net", "write-net"] as const).map((metric) =>
+    `${metric} ${results.filter((result) => (result.timing[metric] ?? 0) > 100).length}`);
+  console.log(`net > 100 ms: ${spikes.join(", ")} of ${results.length}`);
+}
+const line = (name: string, index: number, sample: Sample) =>
+  `${name} ${String(index).padStart(2)}  client ${sample.ms.toFixed(0).padStart(5)} ms  ${Object.entries(sample.timing).map(([metric, value]) => `${metric}=${value}`).join(" ")}${sample.cold ? " cold" : ""}`;
+async function liveBaseline(into: number[]) {
+  const started = performance.now();
+  await (await fetch(`${base}/api/live`)).arrayBuffer();
+  into.push(performance.now() - started);
+}
+
+if (probe === "read") {
+  const reads: Sample[] = [];
+  const live: number[] = [];
+  for (let index = 0; index < samples; index++) {
+    await sleep(gap);
+    const read = await call("/api/v1/topology");
+    if (read.status !== 200) throw new Error(`Read ${index} failed with ${read.status}.`);
+    reads.push(read);
+    await liveBaseline(live);
+    console.log(line("read ", index, read));
+  }
+  report("topology reads", reads, live);
+  process.exit(0);
+}
+
 const before = await call("/api/v1/topology");
 if (before.status !== 200 || !before.etag) throw new Error(`Topology read failed with ${before.status}.`);
 const current = (before.json as { data: Topology }).data;
@@ -74,10 +118,8 @@ try {
     const write = await call("/api/v1/topology/operations", "POST", { operations: [{ op: "put_node", value: node }] }, { "If-Match": etag, "Idempotency-Key": key() });
     if (write.status !== 200 || !write.etag) throw new Error(`Write ${index} failed with ${write.status}.`);
     etag = write.etag; writes.push(write);
-    const started = performance.now();
-    await (await fetch(`${base}/api/live`)).arrayBuffer();
-    live.push(performance.now() - started);
-    console.log(`write ${String(index).padStart(2)}  client ${write.ms.toFixed(0).padStart(5)} ms  ${Object.entries(write.timing).map(([name, value]) => `${name}=${value}`).join(" ")}${write.cold ? " cold" : ""}`);
+    await liveBaseline(live);
+    console.log(line("write", index, write));
   }
 } finally {
   if (seeded) {
@@ -90,11 +132,4 @@ try {
   console.log(`final: ${after.status} ${after.etag ?? ""} entities ${left.join("/")}`);
   if (after.status !== 200 || left.some(Boolean)) process.exitCode = 1;
 }
-const metrics = ["client", ...new Set(writes.flatMap((write) => Object.keys(write.timing)))];
-console.log(`\n${base} at ${new Date().toISOString()}, ${writes.length} put_node writes, colo ${[...new Set(writes.map((write) => write.colo))].join("/")}, cold ${writes.filter((write) => write.cold).length}`);
-console.log(`live baseline p50 ${quantile(live, 0.5).toFixed(0)} ms, p95 ${quantile(live, 0.95).toFixed(0)} ms`);
-console.log("metric       p50     p90     p95     p99     max");
-for (const metric of metrics) {
-  const values = writes.map((write) => metric === "client" ? write.ms : write.timing[metric]).filter((value): value is number => typeof value === "number");
-  if (values.length) console.log(`${metric.padEnd(10)} ${[0.5, 0.9, 0.95, 0.99, 1].map((q) => quantile(values, q).toFixed(1).padStart(7)).join(" ")}`);
-}
+report("put_node writes", writes, live);
