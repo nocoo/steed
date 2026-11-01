@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.5.7] - 2026-11-01
+
+### Changed
+
+- Connect auth is a read-only D1 batch (token lookup + rate-limit count).
+  Mutations fold the rate-limit increment into their existing write batch so
+  writes pay one durable commit instead of two; reads and write paths that
+  never reach that batch (412/422/validate/replay) defer the same increment
+  via `waitUntil`. Over-limit requests still get 429 before any topology I/O.
+  Expected to bring incremental write server p95 from ~280 ms to ~240 ms
+  (#118).
+
+### Documentation
+
+- docs/21 records the v0.5.6 N=100 PASS (p95 280), 拓扑大师's decisions on
+  proposals A (done) and B (deferred), and the check-vs-increment semantics
+  including the brief concurrent overshoot window (#118).
+
 ## [0.5.6] - 2026-11-01
 
 ### Fixed
