@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.5.3] - 2026-11-01
+
+### Changed
+
+- Semantic topology errors, such as a dangling `layerId` or a secret-like
+  attr, are reported at the request position of the operation that wrote the
+  entity (`["operations", i, "value", ...]`), and entity writes report
+  body-relative paths, consistent with structural errors. Issues on entities
+  the batch did not write keep their graph path (#109).
+- A validation 422 whose issues are all secret-like hits now has top-level
+  `error.code` `secret_like_value`; other validation failures keep
+  `invalid_topology`. Status and the `issues[]` shape are unchanged (#109).
+
+### Added
+
+- `/api/*` responses carry `X-Steed-Colo` and, when placement is enabled,
+  `X-Steed-Placement`, so callers can confirm where the Worker ran (#109).
+
 ## [0.5.2] - 2026-11-01
 
 ### Fixed
