@@ -42,9 +42,15 @@ describe("topology Connect mutation planning", () => {
     expect(() => call("nodes.put", { id: "different", label: "X", type: "host", layerId: "cloud" })).toThrow(expect.objectContaining({ status: 422, code: "id_mismatch" }));
     expect(() => call("nodes.delete", null, "missing")).toThrow(expect.objectContaining({ status: 404, code: "not_found" }));
     expect(() => call("nodes.delete", null, "BAD")).toThrow(expect.objectContaining({ status: 400, code: "invalid_id" }));
-    for (const [id, input] of [["topology.operations", { operations: [{ op: "not-valid", value: "private-value" }] }], ["nodes.put", { id: "root", invalid: "private-value" }]] as const) {
+    for (const [id, input, path] of [
+      ["topology.operations", { operations: [{ op: "not-valid", value: "private-value" }] }, ["operations", 0, "op"]],
+      ["nodes.put", { id: "root", label: "private-value", type: "host", layerId: "cloud", invalid: "private-value" }, []],
+    ] as const) {
       try { call(id, input); expect.fail("accepted malformed input"); }
-      catch (error) { expect(error).toMatchObject({ code: "invalid_topology", issues: [] }); expect(JSON.stringify(error)).not.toContain("private-value"); }
+      catch (error) {
+        expect(error).toMatchObject({ code: "invalid_topology", issues: [{ path, code: "invalid_topology", message: "Invalid topology structure." }] });
+        expect(JSON.stringify(error)).not.toContain("private-value");
+      }
     }
     expect(() => call("layers.list", null)).toThrow("Not a topology mutation operation.");
   });

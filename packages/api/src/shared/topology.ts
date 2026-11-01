@@ -532,16 +532,24 @@ export function validateTopology(input: unknown): { data?: Topology; issues: Top
   if (result.success) {
     return { data: result.data, issues: [], warnings: topologyWarnings(result.data) };
   }
-  const issues = result.error.issues.map((rawIssue) => {
-    const issue = rawIssue as unknown as { path: PropertyKey[]; message: string; params?: { topologyCode?: string; rule?: string } };
+  return { issues: topologyValidationIssues(result.error), warnings: [] };
+}
+
+/**
+ * Maps a schema failure to client-facing issues: a sanitized path (attr keys that look secret are
+ * redacted), the topology code and a generic message. Submitted values are never echoed.
+ */
+export function topologyValidationIssues(error: z.ZodError, dropLeading: readonly PropertyKey[] = []): TopologyValidationIssue[] {
+  return error.issues.map((rawIssue) => {
+    const issue = rawIssue as unknown as { path: PropertyKey[]; params?: { topologyCode?: string; rule?: string } };
+    const path = dropLeading.every((segment, index) => issue.path[index] === segment) ? issue.path.slice(dropLeading.length) : issue.path;
     return {
-      path: sanitizeTopologyIssuePath(issue.path),
+      path: sanitizeTopologyIssuePath(path),
       code: issue.params?.topologyCode ?? "invalid_topology",
       message: "Invalid topology structure.",
       rule: issue.params?.rule,
     };
   });
-  return { issues, warnings: [] };
 }
 
 export function emptyTopology(title = "Untitled topology"): Topology {

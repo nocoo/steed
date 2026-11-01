@@ -972,7 +972,11 @@ The former open questions, answered in order:
   revocation and expiry are checked again in the batch.
 - The prepared machine handler returns `valid: true`, warnings and change
   counts for a successful dry run; invalid graphs return 422 with redacted
-  issues. In-use and satellite-removal conflicts return 409 with their
+  issues. Every 422 `invalid_topology`, whether from a full document, an
+  operations batch or an entity write, carries one `{ path, code, message }`
+  issue per schema failure: batch paths start at the operation
+  (`["operations", 0, "value", "style", "dash"]`), entity-write paths are
+  relative to the body, and the message is generic, never the value. In-use and satellite-removal conflicts return 409 with their
   operation code. An invalid idempotency-key format returns 400. A stored
   matching receipt is checked before the revision precondition for replay.
 - Revert takes no request body and always requires explicit topology

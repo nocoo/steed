@@ -177,5 +177,31 @@ describe("prepared topology Connect machine API", () => {
     expect(rejected.status).toBe(422);
     expect(await rejected.json()).toMatchObject({ error: { issues: [{ path: ["nodes", 0, "description"], code: "secret_like_value", rule: "high_entropy" }] } });
   });
-});
 
+  it("reports the path and code of structural errors in operations and entity writes without echoing values", async () => {
+    const graph = { ...emptyTopology("Fixture"), layers: [{ id: "cloud", label: "Cloud", provider: "Cloud", order: 0 }],
+      types: [{ id: "host", label: "Host", shape: "rect" }],
+      nodes: ["web", "db"].map((id) => ({ id, label: id, type: "host", layerId: "cloud" })),
+      edges: [{ id: "link", source: "web", target: "db", kind: "uses", direction: "uni", evidence: "documented" }] };
+    expect((await api("/topology", "PUT", graph, intent("issues-setup", 0))).status).toBe(200);
+    const longLabel = "q".repeat(161);
+    const badDash = { op: "put_edge", value: { ...graph.edges[0], style: { dash: "zigzag" } } };
+    const badLabel = { op: "put_node", value: { ...graph.nodes[0], label: longLabel } };
+    const issue = (path: (string | number)[]) => ({ path, code: "invalid_topology", message: "Invalid topology structure." });
+    const cases: [string, string, unknown, Record<string, string>, (string | number)[][]][] = [
+      ["/topology/validate", "POST", { operations: [badDash] }, {}, [["operations", 0, "value", "style", "dash"]]],
+      ["/topology/validate", "POST", { operations: [badDash, badLabel] }, {}, [["operations", 0, "value", "style", "dash"], ["operations", 1, "value", "label"]]],
+      ["/topology/operations", "POST", { operations: [badLabel] }, intent("issues-ops", 1), [["operations", 0, "value", "label"]]],
+      ["/topology/edges/link", "PUT", badDash.value, intent("issues-edge", 1), [["style", "dash"]]],
+    ];
+    for (const [path, method, body, headers, paths] of cases) {
+      const response = await api(path, method, body, headers);
+      expect(response.status, path).toBe(422);
+      const text = await response.text();
+      expect(JSON.parse(text).error.issues, path).toEqual(paths.map(issue));
+      expect(text).not.toContain("zigzag");
+      expect(text).not.toContain(longLabel);
+    }
+    expect(database.sqlite.prepare("SELECT revision FROM topology_meta").get()?.revision).toBe(1);
+  });
+});
