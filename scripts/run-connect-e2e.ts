@@ -235,6 +235,8 @@ try {
     await sql(`UPDATE connect_rate_limits SET count = ${CONNECT_LIMITS.writePerMinute - 1} WHERE key = 'token:${token.id}:write' AND window = ${window}`);
     const conflict = await api(credential, "/topology/operations", "POST", { operations: [{ op: "set_metadata", title: "Stale" }] }, intent("rate-412", 0));
     await status(conflict, 412);
+    // The 412 charge is deferred and starts after the response; give it time to land.
+    await new Promise((resolve) => setTimeout(resolve, 500));
     const afterCharge = await api(credential, "/topology/operations", "POST", { operations: [{ op: "set_metadata", title: "Blocked" }] }, intent("rate-after-412", 0));
     await status(afterCharge, 429);
     await sql("DELETE FROM connect_rate_limits");
