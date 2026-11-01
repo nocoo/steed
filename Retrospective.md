@@ -2,6 +2,21 @@
 
 Accident narratives belong here. Keep only recurring project rules in `AGENTS.md`; cross-project lessons belong in global rules and deterministic checks in hooks/tests.
 
+## 2026-11-01: Verify hook installation before resolving a merge
+
+During Phase 3 setup, the main-branch merge conflicted before the requested
+dependency installation. The controller resolved and committed the merge while
+the configured Husky launcher was still absent, so the commit hook did not run.
+The exact merge snapshot later passed the pre-commit and pre-push checks in an
+isolated copy, but that does not make the hook execution retroactive. Before
+finishing a conflicted merge, verify that the configured launcher exists and
+install the required dependencies first when necessary.
+
+The controller also placed a downloaded browser under `.p3-local/`, where
+ESLint scanned its JavaScript and failed. Moving the owned browser to an
+isolated temporary directory restored the unchanged lint gate. Keep downloaded
+test tools outside the lint traversal and clean up their owned directories.
+
 ## 2026-10-31: Bound rule-file searches to approved roots
 
 While locating the commit rules, the controller searched under the home
