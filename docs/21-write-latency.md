@@ -193,6 +193,9 @@ Samples with a segment's `*-net` above 100 ms (D1 commit-tail events; SQL is
 | v0.5.6 (N=100) | 9 | 0 | 7 | 16 (16%) | 36.2 / 79.3 |
 | v0.5.7 run 1 | 1 | 6 | 8 | 15 (15%) | 135.5 / 797.5 |
 | v0.5.7 run 2 | 0 | 6 | 7 | 13 (13%) | 152.0 / 491.7 |
+| v0.5.8 run 1 | 1 | 1 | 11 | 13 (13%) | 35.4 / 222.9 |
+| v0.5.8 run 2 | 1 | 1 | 9 | 11 (11%) | 39.0 / 146.3 |
+| v0.5.8 read-only control (100 GET) | 1 | 0 | — | 1 (1%) | read p95 19 / max 60 |
 
 - **Not noise:** read-net spikes went from 0 / 130 to 12 / 200 (at a 6% rate,
   0 in 130 has probability ≈ 3·10⁻⁴), while the per-request event rate stayed
@@ -247,3 +250,34 @@ back to an empty topology.
 | 2026-11-01 13:51 UTC+8 | v0.5.6 | 100 | 67 → 169 | 0 |
 | 2026-11-01 14:17 UTC+8 | v0.5.7 | 100 | 169 → 271 | 0 |
 | 2026-11-01 14:22 UTC+8 | v0.5.7 | 100 | 271 → 373 | 0 |
+| 2026-11-01 14:42 UTC+8 | v0.5.8 | 100 | 373 → 475 | 0 |
+| 2026-11-01 14:47 UTC+8 | v0.5.8 | 100 | 475 → 577 | 0 |
+| 2026-11-01 14:52 UTC+8 | v0.5.8 (`STEED_PROBE=read`, GET only) | 100 | 577 → 577 | 0 |
+
+v0.5.8 runs: backup `steed-prod-pre-wl058-20261101-144207.json`; production
+is empty at `topology:577`.
+
+## Closure (2026-11-01, decided by 拓扑大师)
+
+v0.5.8 re-measure (2 × N=100, stock `scripts/prod-write-latency.ts` @ 9df687a,
+plus a 100-GET read-only control):
+
+| ms (server total) | p50 | p90 | p95 | p99 | max |
+|---|---|---|---|---|---|
+| v0.5.8 run 1 | 80 | 180 | 326 | 522 | 804 |
+| v0.5.8 run 2 | 76 | 158 | 234 | 364 | 528 |
+| read-only control | 22 | 33 | 38 | 70 | 302 |
+
+- **Acceptance changed:** incremental write is gated on server **p90 < 300 ms**
+  — passed (180 / 158). p95 (326 / 234) is recorded, not gated.
+- auth-net p95 17–19 ms (was 184.6 in v0.5.6): the v0.5.8 fix works.
+- read-net had one sample > 100 ms per run (max 223 / 146). In the read-only
+  control auth-net also hit 292 ms once with 0.5 ms SQL, so ~1% of requests are
+  D1 round-trip jitter unrelated to deferred writes.
+- write-net > 100 ms in 9–11% of requests, right at the p90–p95 boundary, so
+  p95 is down to luck.
+- The tail is attributed to D1 commit latency and accepted as a **known
+  limitation**. Writes have a single, mostly batched client (拓扑大师), so this
+  is enough.
+- v0.5.8 semantics are kept; no rollback. The write-latency track is closed;
+  proposal B stays deferred.
