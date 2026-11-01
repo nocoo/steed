@@ -1,25 +1,36 @@
-import type { Topology, TopologyPoint, TopologyView } from "@steed/api/shared";
+import type { Topology, TopologyBoundary, TopologyNode, TopologyPoint, TopologyView } from "@steed/api/shared";
 
+// Card sizes. Satellites and sub-satellites stack under their host in one column.
 export const TOPOLOGY_HOST_WIDTH = 240;
-export const TOPOLOGY_HOST_HEIGHT = 152;
-export const TOPOLOGY_SATELLITE_WIDTH = 220;
-export const TOPOLOGY_SATELLITE_HEIGHT = 152;
-export const TOPOLOGY_SUB_SATELLITE_INDENT = 32;
-export const TOPOLOGY_LAYOUT_GAP_X = 24;
-export const TOPOLOGY_LAYOUT_GAP_Y = 16;
-export const TOPOLOGY_LANE_PADDING_X = 32;
-export const TOPOLOGY_LANE_PADDING_Y = 32;
-export const TOPOLOGY_DEFAULT_COLUMNS = 4;
+export const TOPOLOGY_HOST_HEIGHT = 112;
+export const TOPOLOGY_SATELLITE_INDENT = 24;
+export const TOPOLOGY_SATELLITE_WIDTH = TOPOLOGY_HOST_WIDTH - TOPOLOGY_SATELLITE_INDENT;
+export const TOPOLOGY_SATELLITE_HEIGHT = 64;
+export const TOPOLOGY_SUB_SATELLITE_INDENT = 2 * TOPOLOGY_SATELLITE_INDENT;
+export const TOPOLOGY_SUB_SATELLITE_WIDTH = TOPOLOGY_HOST_WIDTH - TOPOLOGY_SUB_SATELLITE_INDENT;
+export const TOPOLOGY_STACK_GAP = 12;
+
+// Spacing between composites, inside boundary frames and inside layer sections.
+export const TOPOLOGY_ITEM_GAP = 56;
+export const TOPOLOGY_FRAME_PADDING = 24;
+export const TOPOLOGY_FRAME_HEADER = 36;
+export const TOPOLOGY_SECTION_PADDING = 40;
+export const TOPOLOGY_SECTION_HEADER = 96;
+export const TOPOLOGY_SECTION_GAP = 160;
+export const TOPOLOGY_TARGET_ASPECT = 1.6;
+
+const BOUNDARY_KIND_PRIORITY: Record<TopologyBoundary["kind"], number> = { trust: 0, site: 1, network: 2, account: 3 };
 
 export interface TopologyLayoutPosition extends TopologyPoint {
   width: number;
   height: number;
 }
 
+/** One host with its satellites and sub-satellites, stacked in a column. */
 export interface TopologyLayoutBlock {
   id: string;
-  hostId: string | null;
-  kind: "host" | "satellite" | "sub-satellite";
+  hostId: string;
+  kind: "host";
   x: number;
   y: number;
   width: number;
@@ -27,6 +38,7 @@ export interface TopologyLayoutBlock {
   nodeIds: string[];
 }
 
+/** A titled region for one layer. */
 export interface TopologyLayoutLane {
   id: string;
   layerId: string;
@@ -36,6 +48,20 @@ export interface TopologyLayoutLane {
   width: number;
   height: number;
   blockIds: string[];
+  nodeIds: string[];
+}
+
+/** A boundary frame inside a layer section. Frames nest and never overlap. */
+export interface TopologyLayoutFrame {
+  id: string;
+  layerId: string;
+  boundaryId: string;
+  depth: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  nodeIds: string[];
 }
 
 export interface TopologyLayoutResult {
@@ -43,6 +69,7 @@ export interface TopologyLayoutResult {
   nodePositions: Record<string, TopologyLayoutPosition>;
   blocks: TopologyLayoutBlock[];
   lanes: TopologyLayoutLane[];
+  frames: TopologyLayoutFrame[];
   width: number;
   height: number;
 }
@@ -50,324 +77,237 @@ export interface TopologyLayoutResult {
 export interface TopologyLayoutOptions {
   viewId?: string;
   view?: TopologyView;
+  /** View pins order hosts (pinned first, by y then x); they are not coordinates. */
   pins?: Record<string, TopologyPoint>;
-  columns?: number;
   origin?: TopologyPoint;
+  /** Target width:height of the whole map, used to choose the section grid. */
+  aspect?: number;
 }
 
-interface Rectangle {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
+interface Size { width: number; height: number }
 
-interface ReservedRectangle extends Rectangle {
-  ownerHostId?: string;
-  fixed?: boolean;
-}
-
-interface SatelliteLayout {
-  satelliteId: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  children: Array<{ id: string; x: number; y: number }>;
+/** A placed item relative to its parent, with its own relative children. */
+interface Packed extends Size {
+  place(x: number, y: number, out: TopologyLayoutResult, layerId: string): void;
+  nodeIds: string[];
 }
 
 function compareIds(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
-function overlaps(a: Rectangle, b: Rectangle): boolean {
-  return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
-}
-
-function firstBoundaryId(topology: Topology, nodeId: string): string {
-  const node = topology.nodes.find((candidate) => candidate.id === nodeId);
-  if (!node?.boundaryIds.length) return "\uffff";
-  return [...node.boundaryIds].sort(compareIds)[0] ?? "\uffff";
-}
-
-function satelliteChildren(topology: Topology, parentId: string): string[] {
-  return topology.nodes.filter((node) => node.parentId === parentId).map((node) => node.id).sort(compareIds);
-}
-
-function rootHosts(topology: Topology, layerId: string): string[] {
-  return topology.nodes
-    .filter((node) => node.layerId === layerId && node.parentId === undefined)
-    .map((node) => node.id)
-    .sort((a, b) => {
-      const boundary = compareIds(firstBoundaryId(topology, a), firstBoundaryId(topology, b));
-      return boundary || compareIds(a, b);
-    });
-}
-
-function satelliteBlockHeight(childCount: number): number {
-  return childCount
-    ? TOPOLOGY_SATELLITE_HEIGHT + TOPOLOGY_LAYOUT_GAP_Y + childCount * TOPOLOGY_SATELLITE_HEIGHT + Math.max(0, childCount - 1) * TOPOLOGY_LAYOUT_GAP_Y
-    : TOPOLOGY_SATELLITE_HEIGHT;
-}
-
-function satelliteBlockWidth(childCount: number): number {
-  return childCount ? TOPOLOGY_SATELLITE_WIDTH + TOPOLOGY_SUB_SATELLITE_INDENT : TOPOLOGY_SATELLITE_WIDTH;
-}
-
-function unionRectangle(rectangles: Rectangle[]): Rectangle | null {
-  if (!rectangles.length) return null;
-  const x = Math.min(...rectangles.map((rectangle) => rectangle.x));
-  const y = Math.min(...rectangles.map((rectangle) => rectangle.y));
-  const right = Math.max(...rectangles.map((rectangle) => rectangle.x + rectangle.width));
-  const bottom = Math.max(...rectangles.map((rectangle) => rectangle.y + rectangle.height));
-  return { x, y, width: right - x, height: bottom - y };
-}
-
-function childPositions(satelliteX: number, satelliteY: number, childIds: string[]): Array<{ id: string; x: number; y: number }> {
-  return childIds.map((id, index) => ({
-    id,
-    x: satelliteX + TOPOLOGY_SUB_SATELLITE_INDENT,
-    y: satelliteY + TOPOLOGY_SATELLITE_HEIGHT + TOPOLOGY_LAYOUT_GAP_Y + index * (TOPOLOGY_SATELLITE_HEIGHT + TOPOLOGY_LAYOUT_GAP_Y),
-  }));
-}
-
-function movedSatelliteLayout(topology: Topology, satelliteId: string, pins: Map<string, TopologyPoint>): SatelliteLayout | null {
-  const children = satelliteChildren(topology, satelliteId);
-  const satellitePin = pins.get(satelliteId);
-  if (satellitePin) {
-    const layoutChildren = childPositions(satellitePin.x, satellitePin.y, children);
-    return {
-      satelliteId,
-      x: satellitePin.x,
-      y: satellitePin.y,
-      width: satelliteBlockWidth(children.length),
-      height: satelliteBlockHeight(children.length),
-      children: layoutChildren,
-    };
+/** Row ("shelf") packing with a width budget. Items keep their order. */
+function shelfPack<T extends Size>(items: T[], maxWidth: number, gap: number): { offsets: Array<TopologyPoint & { item: T }>; width: number; height: number } {
+  const offsets: Array<TopologyPoint & { item: T }> = [];
+  let x = 0;
+  let y = 0;
+  let rowHeight = 0;
+  let width = 0;
+  for (const item of items) {
+    if (x > 0 && x + item.width > maxWidth) {
+      y += rowHeight + gap;
+      x = 0;
+      rowHeight = 0;
+    }
+    offsets.push({ item, x, y });
+    x += item.width + gap;
+    rowHeight = Math.max(rowHeight, item.height);
+    width = Math.max(width, x - gap);
   }
+  return { offsets, width, height: items.length ? y + rowHeight : 0 };
+}
 
-  const pinnedChild = [...children].sort(compareIds).find((id) => pins.has(id));
-  if (!pinnedChild) return null;
-  const pinned = pins.get(pinnedChild);
-  if (!pinned) return null;
-  const childIndex = children.indexOf(pinnedChild);
-  const satelliteX = pinned.x - TOPOLOGY_SUB_SATELLITE_INDENT;
-  const satelliteY = pinned.y - TOPOLOGY_SATELLITE_HEIGHT - TOPOLOGY_LAYOUT_GAP_Y - childIndex * (TOPOLOGY_SATELLITE_HEIGHT + TOPOLOGY_LAYOUT_GAP_Y);
-  const layoutChildren = childPositions(satelliteX, satelliteY, children);
-  const selectedIndex = layoutChildren.findIndex((child) => child.id === pinnedChild);
-  const selected = layoutChildren[selectedIndex];
-  if (selected) {
-    selected.x = pinned.x;
-    selected.y = pinned.y;
+/** Width budget so a group of items packs to roughly the given aspect. */
+function packWidth(items: Size[], gap: number, aspect: number): number {
+  const area = items.reduce((sum, item) => sum + (item.width + gap) * (item.height + gap), 0);
+  const widest = Math.max(0, ...items.map((item) => item.width));
+  return Math.max(widest, Math.sqrt(area * aspect));
+}
+
+export function primaryBoundaryId(topology: Topology, node: TopologyNode): string | undefined {
+  const priority = new Map(topology.boundaries.map((boundary) => [boundary.id, BOUNDARY_KIND_PRIORITY[boundary.kind]]));
+  return node.boundaryIds
+    .flatMap((id) => { const rank = priority.get(id); return rank === undefined ? [] : [{ id, rank }]; })
+    .sort((a, b) => a.rank - b.rank || compareIds(a.id, b.id))[0]?.id;
+}
+
+function boundaryPath(topology: Topology, boundaryId: string | undefined): string[] {
+  const byId = new Map(topology.boundaries.map((boundary) => [boundary.id, boundary]));
+  const path: string[] = [];
+  const seen = new Set<string>();
+  let current = boundaryId ? byId.get(boundaryId) : undefined;
+  while (current && !seen.has(current.id)) {
+    seen.add(current.id);
+    path.unshift(current.id);
+    current = current.parentId ? byId.get(current.parentId) : undefined;
   }
+  return path;
+}
+
+function hostComposite(topology: Topology, host: TopologyNode, children: Map<string, TopologyNode[]>): Packed {
+  const rows: Array<{ id: string; dx: number; width: number; height: number }> = [{ id: host.id, dx: 0, width: TOPOLOGY_HOST_WIDTH, height: TOPOLOGY_HOST_HEIGHT }];
+  const visit = (parentId: string, depth: number, seen: Set<string>) => {
+    for (const child of children.get(parentId) ?? []) {
+      if (seen.has(child.id)) continue;
+      seen.add(child.id);
+      const indent = depth === 1 ? TOPOLOGY_SATELLITE_INDENT : TOPOLOGY_SUB_SATELLITE_INDENT;
+      rows.push({ id: child.id, dx: indent, width: TOPOLOGY_HOST_WIDTH - indent, height: TOPOLOGY_SATELLITE_HEIGHT });
+      visit(child.id, depth + 1, seen);
+    }
+  };
+  visit(host.id, 1, new Set([host.id]));
+  const height = rows.reduce((sum, row) => sum + row.height, 0) + (rows.length - 1) * TOPOLOGY_STACK_GAP;
   return {
-    satelliteId,
-    x: satelliteX,
-    y: satelliteY,
-    width: satelliteBlockWidth(children.length),
-    height: satelliteBlockHeight(children.length),
-    children: layoutChildren,
+    width: TOPOLOGY_HOST_WIDTH,
+    height,
+    nodeIds: rows.map((row) => row.id),
+    place(x, y, out) {
+      let rowY = y;
+      for (const row of rows) {
+        out.positions[row.id] = { x: x + row.dx, y: rowY, width: row.width, height: row.height };
+        rowY += row.height + TOPOLOGY_STACK_GAP;
+      }
+      out.blocks.push({ id: host.id, hostId: host.id, kind: "host", x, y, width: TOPOLOGY_HOST_WIDTH, height, nodeIds: rows.map((row) => row.id) });
+    },
   };
 }
 
-function defaultSatelliteLayout(topology: Topology, hostX: number, satelliteId: string, satelliteY: number): SatelliteLayout {
-  const children = satelliteChildren(topology, satelliteId);
-  const x = hostX + TOPOLOGY_HOST_WIDTH + TOPOLOGY_LAYOUT_GAP_X;
+interface FrameTree {
+  boundaryId: string;
+  hosts: Packed[];
+  children: Map<string, FrameTree>;
+}
+
+function packFrame(tree: FrameTree, depth: number): Packed {
+  const items: Packed[] = [
+    ...[...tree.children.values()].sort((a, b) => compareIds(a.boundaryId, b.boundaryId)).map((child) => packFrame(child, depth + 1)),
+    ...tree.hosts,
+  ];
+  const packed = shelfPack(items, packWidth(items, TOPOLOGY_ITEM_GAP, TOPOLOGY_TARGET_ASPECT), TOPOLOGY_ITEM_GAP);
+  const nodeIds = items.flatMap((item) => item.nodeIds);
   return {
-    satelliteId,
-    x,
-    y: satelliteY,
-    width: satelliteBlockWidth(children.length),
-    height: satelliteBlockHeight(children.length),
-    children: childPositions(x, satelliteY, children),
+    width: packed.width + 2 * TOPOLOGY_FRAME_PADDING,
+    height: packed.height + TOPOLOGY_FRAME_HEADER + 2 * TOPOLOGY_FRAME_PADDING,
+    nodeIds,
+    place(x, y, out, layerId) {
+      out.frames.push({
+        id: `frame:${layerId}:${tree.boundaryId}`,
+        layerId,
+        boundaryId: tree.boundaryId,
+        depth,
+        x,
+        y,
+        width: packed.width + 2 * TOPOLOGY_FRAME_PADDING,
+        height: packed.height + TOPOLOGY_FRAME_HEADER + 2 * TOPOLOGY_FRAME_PADDING,
+        nodeIds,
+      });
+      for (const offset of packed.offsets) {
+        offset.item.place(x + TOPOLOGY_FRAME_PADDING + offset.x, y + TOPOLOGY_FRAME_HEADER + TOPOLOGY_FRAME_PADDING + offset.y, out, layerId);
+      }
+    },
   };
 }
 
-function satelliteLayouts(topology: Topology, hostId: string, hostX: number, hostY: number, moved: Map<string, SatelliteLayout>, ignoreMoved: boolean): SatelliteLayout[] {
-  const satellites = satelliteChildren(topology, hostId);
-  let satelliteY = hostY;
-  const layouts: SatelliteLayout[] = [];
-  for (const satelliteId of satellites) {
-    const movedLayout = ignoreMoved ? undefined : moved.get(satelliteId);
-    const layout = movedLayout ?? defaultSatelliteLayout(topology, hostX, satelliteId, satelliteY);
-    layouts.push(layout);
-    satelliteY += layout.height + TOPOLOGY_LAYOUT_GAP_Y;
-  }
-  return layouts;
-}
-
-function computeMovingCandidateRectangles(topology: Topology, hostId: string, hostX: number, hostY: number, moved: Map<string, SatelliteLayout>): Rectangle[] {
-  const rectangles: Rectangle[] = [{ x: hostX, y: hostY, width: TOPOLOGY_HOST_WIDTH, height: TOPOLOGY_HOST_HEIGHT }];
-  for (const satellite of satelliteLayouts(topology, hostId, hostX, hostY, moved, false)) {
-    if (moved.has(satellite.satelliteId)) continue;
-    rectangles.push({ x: satellite.x, y: satellite.y, width: satellite.width, height: satellite.height });
-    for (const child of satellite.children) {
-      rectangles.push({ x: child.x, y: child.y, width: TOPOLOGY_SATELLITE_WIDTH, height: TOPOLOGY_SATELLITE_HEIGHT });
-    }
-  }
-  return rectangles;
-}
-
-function computeComposite(hostX: number, hostY: number, satellites: SatelliteLayout[]): Rectangle {
-  const rectangles: Rectangle[] = [{ x: hostX, y: hostY, width: TOPOLOGY_HOST_WIDTH, height: TOPOLOGY_HOST_HEIGHT }];
-  for (const satellite of satellites) {
-    rectangles.push({ x: satellite.x, y: satellite.y, width: satellite.width, height: satellite.height });
-    for (const child of satellite.children) {
-      rectangles.push({ x: child.x, y: child.y, width: TOPOLOGY_SATELLITE_WIDTH, height: TOPOLOGY_SATELLITE_HEIGHT });
-    }
-  }
-  return unionRectangle(rectangles) ?? { x: hostX, y: hostY, width: TOPOLOGY_HOST_WIDTH, height: TOPOLOGY_HOST_HEIGHT };
+function pinOrder(pins: Map<string, TopologyPoint>, a: string, b: string): number {
+  const pa = pins.get(a);
+  const pb = pins.get(b);
+  if (pa && pb) return pa.y - pb.y || pa.x - pb.x || compareIds(a, b);
+  if (pa) return -1;
+  if (pb) return 1;
+  return compareIds(a, b);
 }
 
 export function layoutTopology(topology: Topology, options: TopologyLayoutOptions = {}): TopologyLayoutResult {
   const selectedView = options.view ?? (options.viewId ? topology.views.find((view) => view.id === options.viewId) : undefined);
   const pins = new Map(Object.entries(options.pins ?? selectedView?.pins ?? {}));
-  const columns = Math.max(1, options.columns ?? TOPOLOGY_DEFAULT_COLUMNS);
   const origin = options.origin ?? { x: 0, y: 0 };
-  const positions: Record<string, TopologyLayoutPosition> = {};
-  const blocks: TopologyLayoutBlock[] = [];
-  const lanes: TopologyLayoutLane[] = [];
-  const occupied: ReservedRectangle[] = [];
-  let laneY = origin.y;
+  const aspect = options.aspect ?? TOPOLOGY_TARGET_ASPECT;
+  const result: TopologyLayoutResult = { positions: {}, nodePositions: {}, blocks: [], lanes: [], frames: [], width: 0, height: 0 };
+  result.nodePositions = result.positions;
 
-  const hostIds = new Set(topology.nodes.filter((node) => node.parentId === undefined).map((node) => node.id));
-  const pinnedHostIds = new Set([...hostIds].filter((hostId) => pins.has(hostId)));
-
-  // Pre-reserve every pinned host composite before any unpinned host is packed.
-  for (const hostId of pinnedHostIds) {
-    const pin = pins.get(hostId);
-    if (!pin) continue;
-    const satellites = satelliteLayouts(topology, hostId, pin.x, pin.y, new Map(), true);
-    occupied.push({ ...computeComposite(pin.x, pin.y, satellites), ownerHostId: hostId, fixed: true });
+  const children = new Map<string, TopologyNode[]>();
+  for (const node of topology.nodes) {
+    if (node.parentId === undefined) continue;
+    const list = children.get(node.parentId) ?? [];
+    list.push(node);
+    children.set(node.parentId, list);
   }
-
-  // Pre-reserve every moved satellite/sub-satellite block before unpinned peers are packed.
-  const movedSatellites = new Map<string, SatelliteLayout>();
-  for (const hostId of hostIds) {
-    if (pinnedHostIds.has(hostId)) continue;
-    for (const satelliteId of satelliteChildren(topology, hostId)) {
-      const moved = movedSatelliteLayout(topology, satelliteId, pins);
-      if (!moved) continue;
-      movedSatellites.set(satelliteId, moved);
-      const composite = unionRectangle([
-        { x: moved.x, y: moved.y, width: moved.width, height: moved.height },
-        ...moved.children.map((child) => ({ x: child.x, y: child.y, width: TOPOLOGY_SATELLITE_WIDTH, height: TOPOLOGY_SATELLITE_HEIGHT })),
-      ]);
-      if (composite) occupied.push({ ...composite, ownerHostId: hostId, fixed: true });
-    }
-  }
+  for (const list of children.values()) list.sort((a, b) => compareIds(a.id, b.id));
 
   const layers = [...topology.layers].sort((a, b) => a.order - b.order || compareIds(a.id, b.id));
-  for (const layer of layers) {
-    const hostIdsInLane = rootHosts(topology, layer.id);
-    const laneX = origin.x;
-    const laneTop = laneY;
-    const laneBlockIds: string[] = [];
-    let laneMaxX = laneX;
-    let laneMaxY = laneTop;
-
-    for (let index = 0; index < hostIdsInLane.length; index++) {
-      const hostId = hostIdsInLane[index];
-      if (!hostId) continue;
-      const hostPin = pins.get(hostId);
-      let hostX: number;
-      let hostY: number;
-
-      if (hostPin) {
-        hostX = hostPin.x;
-        hostY = hostPin.y;
-      } else {
-        const gridColumn = index % columns;
-        const gridRow = Math.floor(index / columns);
-        const startsAt = gridRow * columns + gridColumn;
-        let candidateX = laneX + TOPOLOGY_LANE_PADDING_X + gridColumn * (TOPOLOGY_HOST_WIDTH + TOPOLOGY_LAYOUT_GAP_X);
-        let candidateY = laneTop + TOPOLOGY_LANE_PADDING_Y + gridRow * (TOPOLOGY_HOST_HEIGHT + TOPOLOGY_LAYOUT_GAP_Y);
-        let found = false;
-        const maxCandidateCount = 2000;
-        for (let attempt = 0; attempt < maxCandidateCount; attempt++) {
-          const scan = startsAt + attempt;
-          const scanColumn = scan % columns;
-          const scanRow = Math.floor(scan / columns);
-          candidateX = laneX + TOPOLOGY_LANE_PADDING_X + scanColumn * (TOPOLOGY_HOST_WIDTH + TOPOLOGY_LAYOUT_GAP_X);
-          candidateY = laneTop + TOPOLOGY_LANE_PADDING_Y + scanRow * (TOPOLOGY_HOST_HEIGHT + TOPOLOGY_LAYOUT_GAP_Y);
-          const moving = computeMovingCandidateRectangles(topology, hostId, candidateX, candidateY, movedSatellites);
-          const collides = occupied.some((rectangle) => {
-            if (rectangle.fixed) return moving.some((movingRectangle) => overlaps(movingRectangle, rectangle));
-            return rectangle.ownerHostId !== hostId && moving.some((movingRectangle) => overlaps(movingRectangle, rectangle));
-          });
-          if (!collides) {
-            found = true;
-            break;
-          }
+  const sections = layers.map((layer) => {
+    const hosts = topology.nodes
+      .filter((node) => node.layerId === layer.id && node.parentId === undefined)
+      .sort((a, b) => pinOrder(pins, a.id, b.id));
+    const root: FrameTree = { boundaryId: "", hosts: [], children: new Map() };
+    for (const host of hosts) {
+      let tree = root;
+      for (const boundaryId of boundaryPath(topology, primaryBoundaryId(topology, host))) {
+        let next = tree.children.get(boundaryId);
+        if (!next) {
+          next = { boundaryId, hosts: [], children: new Map() };
+          tree.children.set(boundaryId, next);
         }
-        if (!found) {
-          const occupiedBottom = occupied.length
-            ? Math.max(...occupied.map((rectangle) => rectangle.y + rectangle.height))
-            : laneTop;
-          candidateX = laneX + TOPOLOGY_LANE_PADDING_X;
-          candidateY = occupiedBottom + TOPOLOGY_LAYOUT_GAP_Y;
-        }
-        hostX = candidateX;
-        hostY = candidateY;
+        tree = next;
       }
-
-      const satellites = satelliteLayouts(topology, hostId, hostX, hostY, movedSatellites, hostPin !== undefined);
-      positions[hostId] = { x: hostX, y: hostY, width: TOPOLOGY_HOST_WIDTH, height: TOPOLOGY_HOST_HEIGHT };
-      const composite = computeComposite(hostX, hostY, satellites);
-      blocks.push({
-        id: hostId,
-        hostId,
-        kind: "host",
-        x: composite.x,
-        y: composite.y,
-        width: composite.width,
-        height: composite.height,
-        nodeIds: [hostId, ...satellites.flatMap((layout) => [layout.satelliteId, ...layout.children.map((child) => child.id)])],
-      });
-      laneBlockIds.push(hostId);
-      occupied.push({ ...composite, ownerHostId: hostId, fixed: false });
-      laneMaxX = Math.max(laneMaxX, composite.x + composite.width);
-      laneMaxY = Math.max(laneMaxY, composite.y + composite.height);
-
-      for (const satellite of satellites) {
-        blocks.push({
-          id: satellite.satelliteId,
-          hostId,
-          kind: "satellite",
-          x: satellite.x,
-          y: satellite.y,
-          width: satellite.width,
-          height: satellite.height,
-          nodeIds: [satellite.satelliteId, ...satellite.children.map((child) => child.id)],
-        });
-        laneBlockIds.push(satellite.satelliteId);
-        positions[satellite.satelliteId] = { x: satellite.x, y: satellite.y, width: TOPOLOGY_SATELLITE_WIDTH, height: TOPOLOGY_SATELLITE_HEIGHT };
-        laneMaxX = Math.max(laneMaxX, satellite.x + satellite.width);
-        laneMaxY = Math.max(laneMaxY, satellite.y + satellite.height);
-        for (const child of satellite.children) {
-          blocks.push({ id: child.id, hostId, kind: "sub-satellite", x: child.x, y: child.y, width: TOPOLOGY_SATELLITE_WIDTH, height: TOPOLOGY_SATELLITE_HEIGHT, nodeIds: [child.id] });
-          laneBlockIds.push(child.id);
-          positions[child.id] = { x: child.x, y: child.y, width: TOPOLOGY_SATELLITE_WIDTH, height: TOPOLOGY_SATELLITE_HEIGHT };
-          laneMaxX = Math.max(laneMaxX, child.x + TOPOLOGY_SATELLITE_WIDTH);
-          laneMaxY = Math.max(laneMaxY, child.y + TOPOLOGY_SATELLITE_HEIGHT);
-        }
-      }
+      tree.hosts.push(hostComposite(topology, host, children));
     }
+    const items: Packed[] = [
+      ...[...root.children.values()].sort((a, b) => compareIds(a.boundaryId, b.boundaryId)).map((tree) => packFrame(tree, 0)),
+      ...root.hosts,
+    ];
+    const packed = shelfPack(items, packWidth(items, TOPOLOGY_ITEM_GAP, aspect), TOPOLOGY_ITEM_GAP);
+    return {
+      layer,
+      items,
+      packed,
+      width: Math.max(TOPOLOGY_HOST_WIDTH, packed.width) + 2 * TOPOLOGY_SECTION_PADDING,
+      height: packed.height + TOPOLOGY_SECTION_HEADER + 2 * TOPOLOGY_SECTION_PADDING,
+    };
+  });
 
-    const laneWidth = Math.max(TOPOLOGY_HOST_WIDTH + TOPOLOGY_LANE_PADDING_X * 2, laneMaxX - laneX);
-    const laneHeight = Math.max(TOPOLOGY_HOST_HEIGHT + TOPOLOGY_LANE_PADDING_Y * 2, laneMaxY - laneTop);
-    lanes.push({ id: layer.id, layerId: layer.id, order: layer.order, x: laneX, y: laneTop, width: laneWidth, height: laneHeight, blockIds: laneBlockIds });
-    laneY = laneTop + laneHeight + TOPOLOGY_LAYOUT_GAP_Y;
+  // Section grid: uniform column widths and row heights, column count closest to the target aspect.
+  let best = { columns: 1, widths: [] as number[], heights: [] as number[], score: Number.POSITIVE_INFINITY };
+  for (let columns = 1; columns <= Math.max(1, sections.length); columns++) {
+    const widths = Array.from({ length: columns }, (_, column) => Math.max(0, ...sections.filter((_, index) => index % columns === column).map((section) => section.width)));
+    const rows = Math.ceil(sections.length / columns);
+    const heights = Array.from({ length: rows }, (_, row) => Math.max(0, ...sections.slice(row * columns, row * columns + columns).map((section) => section.height)));
+    const width = widths.reduce((sum, value) => sum + value, 0) + (columns - 1) * TOPOLOGY_SECTION_GAP;
+    const height = heights.reduce((sum, value) => sum + value, 0) + (rows - 1) * TOPOLOGY_SECTION_GAP;
+    const score = height > 0 ? Math.abs(Math.log(width / height / aspect)) : 0;
+    if (score < best.score) best = { columns, widths, heights, score };
   }
 
-  return {
-    positions,
-    nodePositions: positions,
-    blocks,
-    lanes,
-    width: lanes.length ? Math.max(...lanes.map((lane) => lane.x + lane.width)) : 0,
-    height: lanes.length ? laneY - TOPOLOGY_LAYOUT_GAP_Y : 0,
-  };
+  let rowY = origin.y;
+  best.heights.forEach((height, row) => {
+    let columnX = origin.x;
+    best.widths.forEach((width, column) => {
+      const section = sections[row * best.columns + column];
+      if (section) {
+        const firstBlock = result.blocks.length;
+        for (const offset of section.packed.offsets) {
+          offset.item.place(columnX + TOPOLOGY_SECTION_PADDING + offset.x, rowY + TOPOLOGY_SECTION_HEADER + TOPOLOGY_SECTION_PADDING + offset.y, result, section.layer.id);
+        }
+        result.lanes.push({
+          id: section.layer.id,
+          layerId: section.layer.id,
+          order: section.layer.order,
+          x: columnX,
+          y: rowY,
+          width,
+          height,
+          blockIds: result.blocks.slice(firstBlock).map((block) => block.id),
+          nodeIds: section.items.flatMap((item) => item.nodeIds),
+        });
+        result.width = Math.max(result.width, columnX + width - origin.x);
+        result.height = Math.max(result.height, rowY + height - origin.y);
+      }
+      columnX += width + TOPOLOGY_SECTION_GAP;
+    });
+    rowY += height + TOPOLOGY_SECTION_GAP;
+  });
+
+  return result;
 }
 
 export const projectTopologyLayout = layoutTopology;

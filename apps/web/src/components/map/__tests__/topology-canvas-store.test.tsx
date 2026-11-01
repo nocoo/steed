@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getNodesBounds, getViewportForBounds, type ReactFlowInstance } from "reactflow";
 import type { Topology } from "@steed/api/shared";
-import { layoutTopology, TOPOLOGY_HOST_HEIGHT, TOPOLOGY_HOST_WIDTH } from "@/lib/topology-layout";
+import { layoutTopology } from "@/lib/topology-layout";
 import { TopologyCanvas, type TopologyCanvasEdge, type TopologyCanvasNode } from "../topology-canvas";
 
 function sample(): Topology {
@@ -11,24 +11,27 @@ function sample(): Topology {
     title: "Store topology",
     description: "",
     revision: 9,
-    layers: [{ id: "cloud", label: "Cloud", provider: "Fixture", order: 0, description: "" }],
+    layers: [
+      { id: "cloud", label: "Cloud", provider: "Fixture", order: 0, description: "" },
+      { id: "edge", label: "Edge", provider: "Fixture", order: 1, description: "" },
+    ],
     types: [{ id: "host", label: "Host", shape: "rect", description: "", attrs: [] }],
     boundaries: [],
     nodes: [
       { id: "a", type: "host", label: "A", layerId: "cloud", boundaryIds: [], lifecycle: "active", description: "", tags: [], attrs: {} },
-      { id: "b", type: "host", label: "B", layerId: "cloud", boundaryIds: [], lifecycle: "active", description: "", tags: [], attrs: {} },
+      { id: "b", type: "host", label: "B", layerId: "edge", boundaryIds: [], lifecycle: "active", description: "", tags: [], attrs: {} },
     ],
     edges: [],
     views: [{ id: "store", label: "Store", description: "", filter: { layerIds: [], typeIds: [], boundaryIds: [], tags: [] }, pins: { a: { x: 900, y: 360 }, b: { x: 4000, y: 180 } }, focusLayerId: "cloud" }],
   };
 }
 
-function projectedViewport(topology: Topology, viewId: string, nodeId: string) {
-  const view = topology.views.find((candidate) => candidate.id === viewId)!;
-  const layout = layoutTopology(topology, { view });
-  const position = layout.positions[nodeId]!;
-  const bounds = getNodesBounds([{ id: nodeId, position, width: TOPOLOGY_HOST_WIDTH, height: TOPOLOGY_HOST_HEIGHT }]);
-  return getViewportForBounds(bounds, 500, 500, 0.05, 1, 0.15);
+function projectedViewport(topology: Topology, viewId: string, layerId: string) {
+  const view = topology.views.find((candidate) => candidate.id === viewId);
+  const layout = layoutTopology(topology, view ? { view } : {});
+  const lane = layout.lanes.find((candidate) => candidate.layerId === layerId);
+  if (!lane) throw new Error(`missing lane ${layerId}`);
+  return getViewportForBounds(getNodesBounds([{ id: lane.id, position: { x: lane.x, y: lane.y }, width: lane.width, height: lane.height }]), 500, 500, 0.05, 1, 0.06);
 }
 
 beforeEach(() => {
@@ -60,54 +63,46 @@ beforeEach(() => {
 });
 
 describe("topology canvas real React Flow store", () => {
-  it("auto fits the current visible ID instead of stale store coordinates", async () => {
+  it("auto fits the sections of the visible nodes", async () => {
     const topology = sample();
     let instance: ReactFlowInstance<TopologyCanvasNode, TopologyCanvasEdge> | null = null;
     const onInit = (value: ReactFlowInstance<TopologyCanvasNode, TopologyCanvasEdge>) => { instance = value; };
     const { rerender } = render(<div style={{ width: 1000, height: 700 }}><TopologyCanvas topology={topology} visibleNodes={[topology.nodes[1]!]} visibleEdges={[]} view={topology.views[0]} selectedNodeId="" onSelect={vi.fn()} onInit={onInit} /></div>);
 
-    await waitFor(() => expect(instance?.getViewport()).toEqual(projectedViewport(topology, "store", "b")));
+    await waitFor(() => expect(instance?.getViewport()).toEqual(projectedViewport(topology, "store", "edge")));
     const oldViewport = instance?.getViewport();
 
     rerender(<div style={{ width: 1000, height: 700 }}><TopologyCanvas topology={topology} visibleNodes={[topology.nodes[0]!]} visibleEdges={[]} view={topology.views[0]} selectedNodeId="" onSelect={vi.fn()} onInit={onInit} /></div>);
 
-    await waitFor(() => expect(instance?.getViewport()).toEqual(projectedViewport(topology, "store", "a")));
+    await waitFor(() => expect(instance?.getViewport()).toEqual(projectedViewport(topology, "store", "cloud")));
     expect(instance?.getViewport()).not.toEqual(oldViewport);
   });
 
-  it("auto fits a new pin for the same ID and preserves manual viewport through keyboard selection", async () => {
+  it("refits on a new revision and preserves a manual viewport through keyboard selection", async () => {
     const topology = sample();
     let instance: ReactFlowInstance<TopologyCanvasNode, TopologyCanvasEdge> | null = null;
     const onInit = (value: ReactFlowInstance<TopologyCanvasNode, TopologyCanvasEdge>) => { instance = value; };
-    const oldView = topology.views[0]!;
-    const oldViewCopy = { ...oldView, pins: { a: { x: 4000, y: 180 }, b: oldView.pins.b } };
-    const { rerender } = render(<div style={{ width: 1000, height: 700 }}><TopologyCanvas topology={topology} visibleNodes={[topology.nodes[0]!]} visibleEdges={[]} view={oldViewCopy} selectedNodeId="" onSelect={vi.fn()} onInit={onInit} /></div>);
+    const { rerender } = render(<div style={{ width: 1000, height: 700 }}><TopologyCanvas topology={topology} visibleNodes={[topology.nodes[0]!]} visibleEdges={[]} view={undefined} selectedNodeId="" onSelect={vi.fn()} onInit={onInit} /></div>);
+    await waitFor(() => expect(instance?.getViewport()).toEqual(projectedViewport(topology, "none", "cloud")));
 
-    const oldTopology = { ...topology, views: [{ ...oldViewCopy }] };
-    await waitFor(() => expect(instance?.getViewport()).toEqual(projectedViewport(oldTopology, "store", "a")));
-
-    const newView = { ...oldViewCopy, pins: { a: { x: 900, y: 360 }, b: oldView.pins.b } };
-    rerender(<div style={{ width: 1000, height: 700 }}><TopologyCanvas topology={topology} visibleNodes={[topology.nodes[0]!]} visibleEdges={[]} view={newView} selectedNodeId="" onSelect={vi.fn()} onInit={onInit} /></div>);
-
-    const newTopology = { ...topology, views: [{ ...newView }] };
-    await waitFor(() => expect(instance?.getViewport()).toEqual(projectedViewport(newTopology, "store", "a")));
-
-    const manualViewport = { x: -500, y: -200, zoom: 0.65 };
+    const manualViewport = { x: 10, y: 10, zoom: 0.65 };
     act(() => instance?.setViewport(manualViewport, { duration: 0 }));
     await waitFor(() => expect(instance?.getViewport()).toEqual(manualViewport));
 
     const onSelect = vi.fn();
-    rerender(<div style={{ width: 1000, height: 700 }}><TopologyCanvas topology={topology} visibleNodes={[topology.nodes[0]!]} visibleEdges={[]} view={newView} selectedNodeId="" onSelect={onSelect} onInit={onInit} /></div>);
+    rerender(<div style={{ width: 1000, height: 700 }}><TopologyCanvas topology={topology} visibleNodes={[topology.nodes[0]!]} visibleEdges={[]} view={undefined} selectedNodeId="" onSelect={onSelect} onInit={onInit} /></div>);
     const positionBefore = instance?.getNodes().find((node) => node.id === "a")?.position;
     await screen.findByRole("button", { name: "Select A" });
     fireEvent.keyDown(screen.getByRole("button", { name: "Select A" }), { key: "Enter" });
     expect(onSelect).toHaveBeenCalledWith("a");
+    rerender(<div style={{ width: 1000, height: 700 }}><TopologyCanvas topology={topology} visibleNodes={[topology.nodes[0]!]} visibleEdges={[]} view={undefined} selectedNodeId="a" onSelect={onSelect} onInit={onInit} /></div>);
     await waitFor(() => expect(instance?.getViewport()).toEqual(manualViewport));
-
     fireEvent.keyDown(screen.getByRole("button", { name: "Select A" }), { key: " " });
-    expect(onSelect).toHaveBeenCalledWith("a");
     await waitFor(() => expect(instance?.getViewport()).toEqual(manualViewport));
-    const positionAfter = instance?.getNodes().find((node) => node.id === "a")?.position;
-    expect(positionAfter).toEqual(positionBefore);
+    expect(instance?.getNodes().find((node) => node.id === "a")?.position).toEqual(positionBefore);
+
+    const next = { ...topology, revision: topology.revision + 1 };
+    rerender(<div style={{ width: 1000, height: 700 }}><TopologyCanvas topology={next} visibleNodes={[next.nodes[0]!]} visibleEdges={[]} view={undefined} selectedNodeId="a" onSelect={onSelect} onInit={onInit} /></div>);
+    await waitFor(() => expect(instance?.getViewport()).toEqual(projectedViewport(next, "none", "cloud")));
   });
 });
