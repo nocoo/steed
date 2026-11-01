@@ -570,6 +570,23 @@ bypassed, no force-push, no autofix. No mirror registry URLs in `bun.lock`.
 Commits 2–3 are independent; 4–7 are pure and can be reviewed before any UI
 change; 8–13 wire them in; 14 proves the acceptance criteria end to end.
 
+## Implementation decisions
+
+- Routing uses a coordinate grid per section and one for the gutters, not a
+  sparse sweep-line graph. Estimated typed-array allocations are capped at
+  64 MiB per pass; exceeding the limit produces recorded fallbacks. This is
+  not a bound on total process memory.
+- The search reserves 2 px around protected geometry for the widest edge
+  stroke, 3 px around headers for the section border and stroke, and 5 px
+  for the widest overview bundle stroke. Bends remain square rather than
+  the planned 8 px radius: rounding can cut into protected geometry.
+  Arrowheads and fallback segments also need renderer-side geometry checks;
+  a safe centerline alone does not establish safe painted output.
+- The routing deadlines are cooperative, not hard preemption. Bounded nudging
+  separates some shared channels but cannot guarantee 6 px separation for
+  all fanout arms or after candidate capacity is exhausted. The narrow
+  unresolved-channel diagnostic is not an exhaustive overlap inventory.
+
 ## Version and development path
 
 - Version: **0.6.0** (Y+1: new canvas capabilities; no API or data change,

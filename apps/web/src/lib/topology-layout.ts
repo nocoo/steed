@@ -13,6 +13,11 @@ export const TOPOLOGY_STACK_GAP = 12;
 export const TOPOLOGY_ITEM_GAP = 64;
 export const TOPOLOGY_FRAME_PADDING = 32;
 export const TOPOLOGY_FRAME_HEADER = 36;
+export const TOPOLOGY_ROUTE_CURVE_RADIUS = 0;
+export const TOPOLOGY_ROUTE_PAINT_MARGIN = 2;
+export const TOPOLOGY_ROUTE_STROKE_MARGIN = 2;
+export const TOPOLOGY_ROUTE_MARKER_CLEARANCE = 14;
+export const TOPOLOGY_ROUTE_HEADER_CLEARANCE = 3;
 export const TOPOLOGY_SECTION_PADDING = 40;
 export const TOPOLOGY_SECTION_HEADER = 96;
 export const TOPOLOGY_SECTION_GAP = 160;
@@ -21,6 +26,19 @@ export const TOPOLOGY_FRAME_MAX_DEPTH = 8;
 export const TOPOLOGY_FRAME_VISUAL_DEPTH_LIMIT = 6;
 
 const BOUNDARY_KIND_PRIORITY: Record<TopologyBoundary["kind"], number> = { trust: 0, site: 1, network: 2, account: 3 };
+
+export function topologyRouteObstacle(rect: { x: number; y: number; width: number; height: number }, margin = TOPOLOGY_ROUTE_HEADER_CLEARANCE): { x: number; y: number; width: number; height: number } {
+  return {
+    x: rect.x - margin,
+    y: rect.y - margin,
+    width: rect.width + margin * 2,
+    height: rect.height + margin * 2,
+  };
+}
+
+export function topologyHeaderObstacle(rect: { x: number; y: number; width: number; height: number }, height: number): { x: number; y: number; width: number; height: number } {
+  return topologyRouteObstacle({ ...rect, height });
+}
 
 export interface TopologyLayoutPosition extends TopologyPoint {
   width: number;
