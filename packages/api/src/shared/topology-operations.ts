@@ -81,6 +81,39 @@ function removeBoundary(topology: Topology, id: string): void {
   topology.views = topology.views.map((view) => ({ ...view, filter: { ...view.filter, boundaryIds: view.filter.boundaryIds.filter((boundaryId) => boundaryId !== id) } }));
 }
 
+const PUT_COLLECTIONS = {
+  put_layer: "layers", put_type: "types", put_boundary: "boundaries", put_node: "nodes", put_edge: "edges", put_view: "views",
+} as const;
+const METADATA_KEYS = ["title", "description", "provenance"] as const;
+
+/**
+ * Validation runs on the merged graph, so its issues point at graph positions such as
+ * ["nodes", 245, "attrs"]. Rewrite each issue on an entity or metadata field written by this
+ * batch to the request position of the last operation that wrote it (["operations", i, "value", ...]
+ * or ["operations", i, "description"]), matching the structural-error paths. Issues on entities
+ * the batch did not write keep their graph path.
+ */
+function requestIssuePaths(next: Topology, operations: TopologyOperation[], issues: TopologyValidationIssue[]): TopologyValidationIssue[] {
+  const written = new Map<string, number>();
+  operations.forEach((operation, index) => {
+    if (operation.op === "set_metadata") {
+      for (const key of METADATA_KEYS) if (operation[key] !== undefined) written.set(`metadata\0${key}`, index);
+    } else if (operation.op in PUT_COLLECTIONS && "value" in operation) {
+      written.set(`${PUT_COLLECTIONS[operation.op as keyof typeof PUT_COLLECTIONS]}\0${operation.value.id}`, index);
+    }
+  });
+  return issues.map((issue) => {
+    const [head, position, ...rest] = issue.path;
+    if (typeof head === "string" && typeof position === "number" && (TOPOLOGY_COLLECTIONS as readonly string[]).includes(head)) {
+      const entity = next[head as TopologyCollection][position];
+      const index = entity && written.get(`${head}\0${entity.id}`);
+      return index === undefined ? issue : { ...issue, path: ["operations", index, "value", ...rest] };
+    }
+    const index = typeof head === "string" ? written.get(`metadata\0${head}`) : undefined;
+    return index === undefined ? issue : { ...issue, path: ["operations", index, ...issue.path] };
+  });
+}
+
 export function applyTopologyOperations(topology: Topology, operations: TopologyOperation[]): Topology {
   const next = structuredClone(topology);
   for (const operation of operations) {
@@ -114,7 +147,7 @@ export function applyTopologyOperations(topology: Topology, operations: Topology
     }
   }
   const result = validateTopology(next);
-  if (!result.data) throw new TopologyOperationError("invalid_topology", result.issues);
+  if (!result.data) throw new TopologyOperationError("invalid_topology", requestIssuePaths(next, operations, result.issues));
   return result.data;
 }
 

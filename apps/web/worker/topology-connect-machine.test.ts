@@ -204,4 +204,34 @@ describe("prepared topology Connect machine API", () => {
     }
     expect(database.sqlite.prepare("SELECT revision FROM topology_meta").get()?.revision).toBe(1);
   });
+
+  it("reports semantic errors at request paths and names all-secret failures in the top-level code", async () => {
+    const required = { key: "region", label: "Region", valueType: "string", badge: false, order: 0, required: true };
+    const graph = { ...emptyTopology("Fixture"), layers: [{ id: "cloud", label: "Cloud", provider: "Cloud", order: 0 }],
+      types: [{ id: "host", label: "Host", shape: "rect", attrs: [required] }],
+      nodes: ["web", "db"].map((id) => ({ id, label: id, type: "host", layerId: "cloud", attrs: { region: "tokyo" } })) };
+    expect((await api("/topology", "PUT", graph, intent("semantic-setup", 0))).status).toBe(200);
+    const secret = btoa(String.fromCharCode(...Array.from({ length: 36 }, (_, index) => (index * 97 + 13) % 256)));
+    const node = { id: "cache", label: "Cache", type: "host", layerId: "cloud" };
+    const cases: [string, string, unknown, Record<string, string>, string, [(string | number)[], string][]][] = [
+      ["/topology/validate", "POST", { operations: [{ op: "set_metadata", title: "Renamed" }, { op: "put_node", value: node }] }, {},
+        "invalid_topology", [[["operations", 1, "value", "attrs"], "required_attr_missing"]]],
+      ["/topology/operations", "POST", { operations: [{ op: "put_node", value: { ...node, attrs: { region: "tokyo", note: secret } } }] }, intent("semantic-ops", 1),
+        "secret_like_value", [[["operations", 0, "value", "attrs", "note"], "secret_like_value"]]],
+      ["/topology/validate", "POST", { operations: [{ op: "put_node", value: { ...node, attrs: { note: secret } } }] }, {},
+        "invalid_topology", [[["operations", 0, "value", "attrs"], "required_attr_missing"], [["operations", 0, "value", "attrs", "note"], "secret_like_value"]]],
+      ["/topology/nodes/cache", "PUT", node, intent("semantic-entity", 1), "invalid_topology", [[["attrs"], "required_attr_missing"]]],
+    ];
+    for (const [path, method, body, headers, code, issues] of cases) {
+      const response = await api(path, method, body, headers);
+      expect(response.status, path).toBe(422);
+      const text = await response.text();
+      const error = JSON.parse(text).error;
+      expect(error.code, path).toBe(code);
+      expect(error.issues.map((issue: { path: unknown; code: string }) => [issue.path, issue.code]), path).toEqual(expect.arrayContaining(issues));
+      expect(error.issues).toHaveLength(issues.length);
+      expect(text).not.toContain(secret);
+    }
+    expect(database.sqlite.prepare("SELECT revision FROM topology_meta").get()?.revision).toBe(1);
+  });
 });

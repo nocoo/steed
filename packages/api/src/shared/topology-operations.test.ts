@@ -159,4 +159,27 @@ describe("topology operations", () => {
     expect(diffTopology(before, revertTopologyChange(after, changes, []))).toEqual([]);
     expect(after.nodes.some((node) => node.id === "added")).toBe(true);
   });
+
+  it("reports semantic issues at the request position of the operation that wrote them", () => {
+    const issuesOf = (operations: unknown[]) => {
+      try { apply(fixture(), operations); } catch (error) { return (error as TopologyOperationError).issues; }
+      throw new Error("operations were accepted");
+    };
+    const secret = btoa(String.fromCharCode(...Array.from({ length: 36 }, (_, index) => (index * 97 + 13) % 256)));
+    const late = { id: "late", type: "host", label: "Late", layerId: "layer" };
+    expect(issuesOf([{ op: "set_metadata", title: "Renamed" }, { op: "put_node", value: { ...late, layerId: "missing" } }]))
+      .toEqual([expect.objectContaining({ path: ["operations", 1, "value", "layerId"] })]);
+    // The last write of an entity owns its issues.
+    expect(issuesOf([{ op: "put_node", value: late }, { op: "put_node", value: { ...late, layerId: "missing" } }]))
+      .toEqual([expect.objectContaining({ path: ["operations", 1, "value", "layerId"] })]);
+    expect(issuesOf([{ op: "put_node", value: { ...late, attrs: { note: secret } } }]))
+      .toEqual([expect.objectContaining({ path: ["operations", 0, "value", "attrs", "note"], code: "secret_like_value" })]);
+    expect(issuesOf([{ op: "set_metadata", description: secret }]))
+      .toEqual([expect.objectContaining({ path: ["operations", 0, "description"], code: "secret_like_value" })]);
+    // A type change that invalidates nodes the batch did not write keeps their graph paths.
+    const required = { key: "region", label: "Region", valueType: "string", badge: false, order: 0, required: true };
+    const issues = issuesOf([{ op: "put_type", value: { ...fixture().types[0], attrs: [required] } }]);
+    expect(issues.length).toBeGreaterThan(0);
+    expect(issues.every((issue) => issue.path[0] === "nodes" && issue.code === "required_attr_missing")).toBe(true);
+  });
 });

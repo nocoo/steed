@@ -973,11 +973,17 @@ The former open questions, answered in order:
   revocation and expiry are checked again in the batch.
 - The prepared machine handler returns `valid: true`, warnings and change
   counts for a successful dry run; invalid graphs return 422 with redacted
-  issues. Every 422 `invalid_topology`, whether from a full document, an
+  issues. Every validation 422, whether from a full document, an
   operations batch or an entity write, carries one `{ path, code, message }`
-  issue per schema failure: batch paths start at the operation
-  (`["operations", 0, "value", "style", "dash"]`), entity-write paths are
-  relative to the body, and the message is generic, never the value. In-use and satellite-removal conflicts return 409 with their
+  issue per failure (`rule` too for secret-like hits), and the message is
+  generic, never the value. Paths are in request terms, for structural and
+  semantic failures alike: a full document uses graph paths
+  (`["nodes", 3, "attrs"]`); a batch uses the position of the last operation
+  that wrote the entity or metadata field (`["operations", 0, "value",
+  "style", "dash"]`, `["operations", 1, "value", "attrs"]`,
+  `["operations", 0, "description"]`); an entity write is relative to its body
+  (`["attrs"]`). Only issues on entities the batch did not write, such as
+  nodes made invalid by a type change, keep their graph path. In-use and satellite-removal conflicts return 409 with their
   operation code. An invalid idempotency-key format returns 400. A stored
   matching receipt is checked before the revision precondition for replay.
 - The top-level `error.code` of a validation 422 is `secret_like_value` when
