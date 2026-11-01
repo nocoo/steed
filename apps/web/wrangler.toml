@@ -38,6 +38,16 @@ CONNECT_DEPLOYMENT_ID = "steed-production"
 [env.production.secrets]
 required = ["CONNECT_MANAGERS", "CONNECT_TOKEN_KEYS"]
 
+# Every /api request makes serial D1 round trips, and the D1 primary is in APAC
+# (`wrangler d1 execute` reports served_by_colo NRT). Run the Worker next to it so
+# each round trip is local; only the client hop crosses regions. Smart Placement
+# is not used because it only picks colos the Worker already receives traffic in
+# and needs sustained multi-location traffic before it moves anything. Static
+# assets are unaffected: run_worker_first covers only /api/*.
+[env.production.placement]
+mode = "targeted"
+region = "aws:ap-northeast-1"
+
 [[env.production.d1_databases]]
 binding = "DB"
 database_name = "steed"
