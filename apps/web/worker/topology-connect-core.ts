@@ -3,6 +3,7 @@ import { pruneTopologyHistoryStatement } from "./topology-history";
 import { apiResponse, errorResponse, HttpError, requireSameOrigin } from "./http";
 import { fingerprint } from "./connect-crypto";
 import { isLocalRequest } from "./access-jwt";
+import { ServerTiming } from "./server-timing";
 
 export type ConnectEnv = Pick<Cloudflare.ProductionEnv, "DB"> & Pick<WorkerBindings, "CONNECT_DEPLOYMENT_ID" | "CONNECT_TOKEN_KEYS" | "CONNECT_MANAGERS" | "CF_ACCESS_DEV_BYPASS">;
 export interface TokenRow {
@@ -21,6 +22,7 @@ export interface ConnectContext {
   audited: boolean;
   execution?: Pick<ExecutionContext, "waitUntil">;
   pending: Promise<unknown>[];
+  timing: ServerTiming;
 }
 export const nowSeconds = () => Math.floor(Date.now() / 1000);
 export const iso = (value: number | null) => value === null ? null : new Date(value * 1000).toISOString();
@@ -55,13 +57,15 @@ async function bearer(ctx: ConnectContext) {
   const writing = !["GET", "HEAD"].includes(ctx.request.method);
   const now = nowSeconds();
   const db = ctx.env.DB;
-  const [lookup, charge] = await db.batch<Record<string, unknown>>([
+  const batch = await db.batch<Record<string, unknown>>([
     db.prepare("SELECT * FROM connect_tokens WHERE token_hash = ?").bind(hash),
     db.prepare(`INSERT INTO connect_rate_limits (key, window, count)
       SELECT 'token:' || id || ':' || ?, ?, 1 FROM connect_tokens WHERE ${LIVE_TOKEN}${writing ? " AND scope = 'topology:write'" : ""}
       ON CONFLICT(key, window) DO UPDATE SET count = count + 1 WHERE count < ? RETURNING count`)
       .bind(writing ? "write" : "read", Math.floor(now / 60) * 60, hash, now, writing ? CONNECT_LIMITS.writePerMinute : CONNECT_LIMITS.readPerMinute),
   ]);
+  ctx.timing.sql("auth-sql", batch);
+  const [lookup, charge] = batch;
   const row = lookup?.results[0] as TokenRow | undefined;
   if (!row || row.revoked_at !== null || (row.expires_at !== null && row.expires_at <= now)) throw new HttpError(401, "invalid_token", "The token is invalid, expired or revoked.");
   ctx.token = row; ctx.tokenId = row.id; ctx.actor = `token:${row.id}`;
@@ -102,15 +106,15 @@ export function topologyValidationCode(issues: readonly { code: string }[]): "in
   return issues.length > 0 && issues.every((issue) => issue.code === "secret_like_value") ? "secret_like_value" : "invalid_topology";
 }
 
-export async function runConnect(request: Request, env: ConnectEnv, mode: "bearer" | "manager", action: (ctx: ConnectContext) => Promise<Response>, user?: AccessUser, execution?: Pick<ExecutionContext, "waitUntil">): Promise<Response> {
+export async function runConnect(request: Request, env: ConnectEnv, mode: "bearer" | "manager", action: (ctx: ConnectContext) => Promise<Response>, user?: AccessUser, execution?: Pick<ExecutionContext, "waitUntil">, timing = new ServerTiming()): Promise<Response> {
   const result = await apiResponse(async (requestId) => {
-    const ctx: ConnectContext = { request, env, requestId, actor: "anonymous", operation: `${mode}.request`, audited: false, execution, pending: [] };
+    const ctx: ConnectContext = { request, env, requestId, actor: "anonymous", operation: `${mode}.request`, audited: false, execution, pending: [], timing };
     let response: Response;
     let code: string | null = null;
     try {
       if (request.method === "OPTIONS" || request.headers.get("Sec-Fetch-Site") === "cross-site" ||
         (request.headers.has("Origin") && request.headers.get("Origin") !== new URL(request.url).origin)) throw new HttpError(403, "origin_denied", "Connect does not allow cross-origin browser requests.");
-      if (mode === "manager") await manager(ctx, user); else await bearer(ctx);
+      await timing.time("auth", () => mode === "manager" ? manager(ctx, user) : bearer(ctx));
       response = await action(ctx);
     } catch (error) {
       if (error instanceof TopologyOperationError) {
@@ -125,7 +129,8 @@ export async function runConnect(request: Request, env: ConnectEnv, mode: "beare
       }
     }
     if (!ctx.audited) defer(ctx, auditStatement(ctx, response.status, code).run());
-    await Promise.all(ctx.pending);
+    // With waitUntil the audit runs after the response and is not timed; without it, it is awaited here.
+    if (ctx.pending.length) await timing.time("audit", () => Promise.all(ctx.pending));
     return response;
   });
   for (const [name, value] of Object.entries({ Pragma: "no-cache", "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff", "Cross-Origin-Resource-Policy": "same-origin", "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'" })) result.headers.set(name, value);

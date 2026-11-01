@@ -5,6 +5,7 @@ import { topologyConnectMachineApi } from "./topology-connect-machine";
 import { topologyConnectManagementApi } from "./topology-connect-management";
 import { topologyBrowserApi } from "./topology-api";
 import { coloLookup, TRACE_URL } from "./worker-colo";
+import { applyServerTiming, ServerTiming } from "./server-timing";
 
 type Env = Pick<Cloudflare.ProductionEnv, "DB" | "CF_ACCESS_TEAM" | "CF_ACCESS_AUD">
   & Pick<WorkerBindings, "CF_ACCESS_DEV_BYPASS" | "CONNECT_DEPLOYMENT_ID" | "CONNECT_MANAGERS" | "CONNECT_TOKEN_KEYS">
@@ -23,6 +24,8 @@ function traceUrl(env: Env): string | undefined {
 }
 
 const workerColo = coloLookup();
+/** True until this isolate has served its first API request; that request is marked `cold`. */
+let coldIsolate = true;
 
 /**
  * Where the request entered Cloudflare, from validated request metadata only: `request.cf.colo` is
@@ -38,8 +41,8 @@ export function ingressLocation(req: Request): Record<string, string> {
   return location;
 }
 
+/** Copies the response so its headers are mutable, then sets the location headers. */
 function withLocation(response: Response, location: Record<string, string>): Response {
-  if (Object.keys(location).length === 0) return response;
   const located = new Response(response.body, response);
   for (const [name, value] of Object.entries(location)) located.headers.set(name, value);
   return located;
@@ -49,13 +52,16 @@ export default {
   async fetch(req: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
     const url = new URL(req.url);
     if (!url.pathname.startsWith("/api/")) return env.ASSETS.fetch(req);
+    const timing = new ServerTiming();
+    if (coldIsolate) { coldIsolate = false; timing.cold(); }
     const trace = traceUrl(env);
-    const [response, colo] = await Promise.all([api(req, env, url, ctx), trace ? workerColo(trace) : null]);
-    return withLocation(response, { ...ingressLocation(req), ...(colo ? { "X-Steed-Colo": colo } : {}) });
+    const [response, colo] = await Promise.all([api(req, env, url, ctx, timing), trace ? timing.time("colo", () => workerColo(trace)) : null]);
+    const located = withLocation(response, { ...ingressLocation(req), ...(colo ? { "X-Steed-Colo": colo } : {}) });
+    return applyServerTiming(located, timing);
   },
 } satisfies ExportedHandler<Env>;
 
-async function api(req: Request, env: Env, url: URL, ctx?: ExecutionContext): Promise<Response> {
+async function api(req: Request, env: Env, url: URL, ctx: ExecutionContext | undefined, timing: ServerTiming): Promise<Response> {
   if (url.pathname === "/api/live") {
     return Response.json(
       { status: "ok", version: pkg.version },
@@ -65,7 +71,7 @@ async function api(req: Request, env: Env, url: URL, ctx?: ExecutionContext): Pr
 
   // /api/v1/* — Connect machine API only. The handler authenticates the
   // Bearer token first (401 without one) and answers unknown routes with 404.
-  if (url.pathname === "/api/v1" || url.pathname.startsWith("/api/v1/")) return topologyConnectMachineApi(req, env, ctx);
+  if (url.pathname === "/api/v1" || url.pathname.startsWith("/api/v1/")) return topologyConnectMachineApi(req, env, ctx, timing);
 
   // /api/* — Browser-facing API. Requires CF Access JWT.
   const verifyResult: VerifyResult = await verifyAccessJwt(req, {
