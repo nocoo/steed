@@ -1,4 +1,4 @@
-export { userProfileSchema, type UserProfile } from "./profile";
+export { avatarSchema, userProfileSchema, type UserProfile } from "./profile";
 export * from "./connect";
 export * from "./secret-scan";
 export * from "./topology";

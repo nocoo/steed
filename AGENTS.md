@@ -57,7 +57,7 @@ Dev entry must be `https://steed.dev.hexly.ai`: Caddy → Vite 7035 → full Web
 
 ## Operations / release
 
-Keep authorized development releases prompt through the existing CI → `apps/web --env production` workflow. The release workflow does not apply D1 migrations; back up production D1, then apply them manually after deploy. Verify trusted HTTPS, `/api/live`, actual topology and Connect before claiming dev ready; record new reservations in nmem.
+Keep authorized development releases prompt through the existing CI → `apps/web --env production` workflow. The release workflow does not apply D1 migrations; back up production D1, then apply them manually after deploy. Production secret `CONNECT_MANAGERS` is a comma-separated list of exact `email:<lowercase address>` or `subject:<Access sub>` entries (a bare email never matches); see docs/19. Verify trusted HTTPS, `/api/live`, actual topology and Connect before claiming dev ready; record new reservations in nmem.
 
 ## Retrospective
 

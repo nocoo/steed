@@ -694,6 +694,14 @@ Executed by the repo steward after merge and a green release run:
    `/connect` and hands it to the topology owner privately; no Access change
    is needed. Tag `v0.5.0` and publish the GitHub Release.
 
+`CONNECT_MANAGERS` is a production Worker secret (`wrangler secret put
+CONNECT_MANAGERS --env production`). Its value is a comma-separated list
+whose entries are `email:<lowercase address>` or `subject:<Access sub>`.
+Entries are trimmed and matched exactly against the verified Access JWT,
+whose email is lowercased first; a bare email or a mixed-case entry never
+matches and `/connect` answers `manager_required`. The secret cannot be read
+back, so record who is listed whenever it changes.
+
 ## Decisions (requirements owner, 2026-10-31)
 
 The former open questions, answered in order:

@@ -29,6 +29,17 @@ const inspectorPort = inspector.port;
 reservation.stop(true);
 inspector.stop(true);
 const base = `http://127.0.0.1:${port}`;
+// Stub for the lizheng.blog author profile service, reached through the real Workers runtime fetch.
+const profileHits: string[] = [];
+const profileUpstream = Bun.serve({
+  hostname: "127.0.0.1",
+  port: 0,
+  fetch(request) {
+    const url = new URL(request.url);
+    profileHits.push(`${url.pathname}?${url.searchParams.toString()}`);
+    return Response.json({ name: "E2E Author", avatar: "https://avatars.example/e2e.png" });
+  },
+});
 const env = { ...process.env, NODE_ENV: "test", CI: "1", WRANGLER_SEND_METRICS: "false" };
 let server: ReturnType<typeof Bun.spawn> | undefined;
 let serverOutput: Promise<string> | undefined;
@@ -40,6 +51,7 @@ const commands = new Set<ReturnType<typeof Bun.spawn>>();
 function cleanup() {
   cleanupPromise ??= (async () => {
     await Promise.all([...commands, ...(server ? [server] : [])].map((child) => stopProcessGroup(child)));
+    void profileUpstream.stop(true);
     assertOwnedState();
     await rm(state, { recursive: true });
   })();
@@ -125,7 +137,8 @@ try {
   assertOwnedState();
   if (interrupted) throw new Error("Topology E2E interrupted.");
   server = Bun.spawn(["bun", "x", "--no-install", "wrangler", "dev", "--env", "dev", "--local", "--persist-to", state,
-    "--ip", "127.0.0.1", "--port", String(port), "--inspector-port", String(inspectorPort)], {
+    "--ip", "127.0.0.1", "--port", String(port), "--inspector-port", String(inspectorPort),
+    "--var", `AUTHOR_PROFILE_ORIGIN:http://127.0.0.1:${profileUpstream.port}`], {
     cwd: web,
     env,
     stdin: "ignore",
@@ -187,6 +200,17 @@ try {
   await check("cross-origin reads and unknown topology routes are denied", async () => {
     await expectStatus(await request("/api/topology", "GET", undefined, { Origin: "https://attacker.example" }), 403);
     await expectStatus(await request("/api/topology/unknown"), 404);
+  });
+
+  await check("profile endpoint fetches and caches the author profile in the Workers runtime", async () => {
+    const hash = new Bun.CryptoHasher("sha256").update("dev@local").digest("hex");
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const response = await request("/api/me");
+      await expectStatus(response, 200);
+      assert.equal(response.headers.get("Cache-Control"), "no-store");
+      assert.deepEqual(await response.json(), { email: "dev@local", name: "E2E Author", avatar: "https://avatars.example/e2e.png" });
+    }
+    assert.deepEqual(profileHits, [`/api/authors/profile?hash=${hash}`]);
   });
 
   await check("retired diagram browser APIs return 404", async () => {
