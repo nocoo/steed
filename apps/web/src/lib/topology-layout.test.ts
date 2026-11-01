@@ -6,6 +6,7 @@ import {
   TOPOLOGY_FRAME_PADDING,
   TOPOLOGY_HOST_HEIGHT,
   TOPOLOGY_HOST_WIDTH,
+  TOPOLOGY_ITEM_GAP,
   TOPOLOGY_SATELLITE_HEIGHT,
   TOPOLOGY_SATELLITE_INDENT,
   TOPOLOGY_SATELLITE_WIDTH,
@@ -19,6 +20,7 @@ import {
   primaryBoundaryId,
   projectTopologyLayout,
 } from "./topology-layout";
+import { TOPOLOGY_HOST_SIZE_TABLE } from "./topology-style";
 
 interface Box { x: number; y: number; width: number; height: number }
 
@@ -105,6 +107,61 @@ describe("partitioned topology layout", () => {
     const second = result.lanes[1];
     expect(second.x).toBe(first.x + first.width + TOPOLOGY_SECTION_GAP);
     expect(result.positions["second-root"]).toMatchObject({ x: second.x + TOPOLOGY_SECTION_PADDING, y: second.y + TOPOLOGY_SECTION_HEADER + TOPOLOGY_SECTION_PADDING });
+  });
+
+  it("uses resolved host sizes and root-host satellite widths without overlap", () => {
+    const topology = sample();
+    topology.nodes = topology.nodes.map((node) => {
+      if (node.id === "host-alpha") return { ...node, style: { size: "s" as const } };
+      if (node.id === "host-beta") return { ...node, style: { size: "l" as const } };
+      return node;
+    });
+    topology.nodes.push(
+      { id: "beta-service", type: "host", label: "Beta service", layerId: "second", parentId: "host-beta", role: "service", lifecycle: "active", description: "", tags: [], attrs: {}, style: { size: "l" } },
+      { id: "beta-port", type: "host", label: "Beta port", layerId: "second", parentId: "beta-service", role: "subresource", lifecycle: "active", description: "", tags: [], attrs: {}, style: { size: "s" } },
+    );
+
+    const result = layoutTopology(topology, { aspect: 100 });
+    const small = result.positions["host-alpha"]!;
+    const large = result.positions["host-beta"]!;
+    const smallSatellite = result.positions.service!;
+    const smallSub = result.positions["port-a"]!;
+    const largeSatellite = result.positions["beta-service"]!;
+    const largeSub = result.positions["beta-port"]!;
+
+    expect(small).toMatchObject({ width: TOPOLOGY_HOST_SIZE_TABLE.s.width, height: TOPOLOGY_HOST_SIZE_TABLE.s.height });
+    expect(large).toMatchObject({ width: TOPOLOGY_HOST_SIZE_TABLE.l.width, height: TOPOLOGY_HOST_SIZE_TABLE.l.height });
+    expect(smallSatellite).toMatchObject({ x: small.x + TOPOLOGY_SATELLITE_INDENT, width: TOPOLOGY_HOST_SIZE_TABLE.s.width - TOPOLOGY_SATELLITE_INDENT, height: TOPOLOGY_SATELLITE_HEIGHT });
+    expect(smallSub).toMatchObject({ x: small.x + TOPOLOGY_SUB_SATELLITE_INDENT, width: TOPOLOGY_HOST_SIZE_TABLE.s.width - TOPOLOGY_SUB_SATELLITE_INDENT, height: TOPOLOGY_SATELLITE_HEIGHT });
+    expect(largeSatellite).toMatchObject({ x: large.x + TOPOLOGY_SATELLITE_INDENT, width: TOPOLOGY_HOST_SIZE_TABLE.l.width - TOPOLOGY_SATELLITE_INDENT, height: TOPOLOGY_SATELLITE_HEIGHT });
+    expect(largeSub).toMatchObject({ x: large.x + TOPOLOGY_SUB_SATELLITE_INDENT, width: TOPOLOGY_HOST_SIZE_TABLE.l.width - TOPOLOGY_SUB_SATELLITE_INDENT, height: TOPOLOGY_SATELLITE_HEIGHT });
+
+    const smallBlock = result.blocks.find((block) => block.hostId === "host-alpha")!;
+    const largeBlock = result.blocks.find((block) => block.hostId === "host-beta")!;
+    expect(smallBlock).toMatchObject({ width: TOPOLOGY_HOST_SIZE_TABLE.s.width, nodeIds: ["host-alpha", "service", "port-a", "port-b"] });
+    expect(largeBlock).toMatchObject({ width: TOPOLOGY_HOST_SIZE_TABLE.l.width, nodeIds: ["host-beta", "beta-service", "beta-port"] });
+    for (const id of smallBlock.nodeIds) expect(contains({ x: smallBlock.x, y: smallBlock.y, width: smallBlock.width, height: smallBlock.height }, result.positions[id]!)).toBe(true);
+    for (const id of largeBlock.nodeIds) expect(contains({ x: largeBlock.x, y: largeBlock.y, width: largeBlock.width, height: largeBlock.height }, result.positions[id]!)).toBe(true);
+
+    const cards = Object.values(result.positions);
+    for (let i = 0; i < cards.length; i++) for (let j = i + 1; j < cards.length; j++) expect(overlap(cards[i], cards[j])).toBe(false);
+  });
+
+  it("widened routing gaps preserve section, frame and pin constraints", () => {
+    expect(TOPOLOGY_ITEM_GAP).toBe(64);
+    expect(TOPOLOGY_FRAME_PADDING).toBe(32);
+
+    const topology = sample();
+    topology.boundaries = [];
+    topology.nodes = topology.nodes.map((node) => ({ ...node, boundaryIds: [], style: node.id === "host-alpha" ? { size: "s" as const } : node.id === "host-beta" ? { size: "l" as const } : node.style }));
+    const result = layoutTopology(topology, { pins: { "host-beta": { x: 100, y: 10 }, "host-alpha": { x: 200, y: 20 } }, aspect: 100 });
+
+    expect(result.lanes.map((lane) => lane.order)).toEqual([10, 20]);
+    expect(result.lanes[0]!.nodeIds).not.toContain("second-root");
+    expect(result.lanes[1]!.nodeIds).not.toContain("host-alpha");
+    const firstLaneBlocks = result.blocks.filter((block) => result.lanes[0]!.blockIds.includes(block.id)).map((block) => block.hostId);
+    expect(firstLaneBlocks.slice(0, 2)).toEqual(["host-beta", "host-alpha"]);
+    for (const lane of result.lanes) for (const id of lane.nodeIds) expect(contains(lane, result.positions[id]!)).toBe(true);
   });
 
   it("frames hosts by primary boundary, nests parent boundaries and never overlaps", () => {
