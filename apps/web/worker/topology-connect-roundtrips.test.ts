@@ -8,7 +8,8 @@ import { ServerTiming } from "./server-timing";
 
 // Production latency is dominated by serial D1 round trips (each one crosses to the D1 primary),
 // so every Connect endpoint has a fixed budget on the request's critical path. Deferred work
-// (audit row, last-used stamp) goes to waitUntil and is counted separately.
+// (audit row, last-used stamp, and for reads the rate-limit increment) goes to waitUntil and is
+// counted separately. Writes fold the rate-limit increment into their critical write batch.
 const origin = "https://fixture.example";
 const writer = `steedc_${"A".repeat(43)}`;
 let database: ReturnType<typeof testDatabase>;
@@ -51,16 +52,16 @@ describe("Connect D1 round-trip budget", () => {
     results.receipt = await measure("/requests/budget-ops-1");
     expect(Object.fromEntries(Object.entries(results).map(([name, value]) => [name, [value.status, value.critical, value.deferred]]))).toEqual({
       unauthenticated: [401, 0, 1],
-      capabilities: [200, 1, 2],
+      capabilities: [200, 1, 3],
       replace: [200, 3, 1],
-      read: [200, 2, 2],
-      delta: [200, 2, 2],
-      validate: [200, 2, 2],
+      read: [200, 2, 3],
+      delta: [200, 2, 3],
+      validate: [200, 2, 3],
       operations: [200, 3, 1],
-      replay: [200, 2, 2],
-      entity: [200, 2, 2],
-      changes: [200, 2, 2],
-      receipt: [200, 2, 2],
+      replay: [200, 2, 3],
+      entity: [200, 2, 3],
+      changes: [200, 2, 3],
+      receipt: [200, 2, 3],
     });
   });
 
@@ -80,6 +81,38 @@ describe("Connect D1 round-trip budget", () => {
   });
 });
 
+describe("Connect rate-limit charge placement", () => {
+  const countOf = (kind: "read" | "write") =>
+    Number(database.sqlite.prepare("SELECT count FROM connect_rate_limits WHERE key = ?").get(`token:writer:${kind}`)?.count ?? 0);
+
+  it("rejects an over-limit write before any topology mutation and does not charge again", async () => {
+    const window = Math.floor(Date.now() / 60_000) * 60;
+    database.sqlite.prepare("INSERT INTO connect_rate_limits (key, window, count) VALUES (?, ?, ?)").run("token:writer:write", window, 30);
+    const before = database.sqlite.prepare("SELECT revision FROM topology_meta WHERE id = 'main'").get() as { revision: number };
+    expect(await measure("/topology", "PUT", graph, intent("rate-denied", before.revision))).toEqual({ status: 429, critical: 1, deferred: 1 });
+    expect(countOf("write")).toBe(30);
+    expect(database.sqlite.prepare("SELECT revision FROM topology_meta WHERE id = 'main'").get()).toEqual(before);
+  });
+
+  it("folds a successful write charge into the write batch and defers only last-used", async () => {
+    expect(await measure("/topology", "PUT", graph, intent("rate-put", 0))).toEqual({ status: 200, critical: 3, deferred: 1 });
+    expect(countOf("write")).toBe(1);
+  });
+
+  it("still charges exactly once when a write is rejected with 412 before the write batch", async () => {
+    await measure("/topology", "PUT", graph, intent("rate-base", 0));
+    expect(countOf("write")).toBe(1);
+    expect(await measure("/topology/operations", "POST", { operations: [{ op: "set_metadata", title: "Stale" }] }, intent("rate-412", 0)))
+      .toEqual({ status: 412, critical: 3, deferred: 3 });
+    expect(countOf("write")).toBe(2);
+  });
+
+  it("defers the read charge via waitUntil", async () => {
+    expect(await measure("/topology")).toEqual({ status: 200, critical: 2, deferred: 3 });
+    expect(countOf("read")).toBe(1);
+  });
+});
+
 describe("Connect Server-Timing segments", () => {
   async function timed(path: string, method = "GET", body?: unknown, headers: Record<string, string> = {}, execution = true) {
     const timing = new ServerTiming();
@@ -96,7 +129,7 @@ describe("Connect Server-Timing segments", () => {
     expect(await timed("/topology/validate", "POST", { operations: [{ op: "set_metadata", title: "Dry run" }] })).toEqual({ status: 200,
       metrics: ["auth", "auth-sql", "read", "validate", "total"] });
     expect(await timed("/topology")).toEqual({ status: 200, metrics: ["auth", "auth-sql", "read", "total"] });
-    // Without waitUntil the deferred audit and last-used writes are awaited before the response and timed.
+    // Without waitUntil deferred rate/last-used/audit writes are awaited before the response and timed.
     expect(await timed("/topology/nodes/web", "GET", undefined, {}, false)).toEqual({ status: 200, metrics: ["auth", "auth-sql", "read", "audit", "total"] });
     // A version conflict still reports the segments that ran.
     expect(await timed("/topology/operations", "POST", { operations: [{ op: "set_metadata", title: "Late" }] }, intent("timing-ops-1", 0))).toEqual({ status: 412,

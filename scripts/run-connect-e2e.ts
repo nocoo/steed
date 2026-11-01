@@ -228,6 +228,15 @@ try {
     const window = Math.floor(Date.now() / 60_000) * 60;
     await sql(`INSERT OR REPLACE INTO connect_rate_limits (key, window, count) VALUES ('token:${readToken.id}:read', ${window}, ${CONNECT_LIMITS.readPerMinute}), ('token:${readToken.id}:read', ${window + 60}, ${CONNECT_LIMITS.readPerMinute})`);
     const limited = await api(reader, "/topology"); await status(limited, 429); assert.equal(limited.headers.get("Retry-After"), "60");
+    // Write bucket: auth reads the count and rejects before mutating; a 412 still charges exactly once.
+    await sql(`INSERT OR REPLACE INTO connect_rate_limits (key, window, count) VALUES ('token:${token.id}:write', ${window}, ${CONNECT_LIMITS.writePerMinute})`);
+    const writeLimited = await api(credential, "/topology/operations", "POST", { operations: [{ op: "set_metadata", title: "Denied" }] }, intent("rate-write", 3));
+    await status(writeLimited, 429);
+    await sql(`UPDATE connect_rate_limits SET count = ${CONNECT_LIMITS.writePerMinute - 1} WHERE key = 'token:${token.id}:write' AND window = ${window}`);
+    const conflict = await api(credential, "/topology/operations", "POST", { operations: [{ op: "set_metadata", title: "Stale" }] }, intent("rate-412", 0));
+    await status(conflict, 412);
+    const afterCharge = await api(credential, "/topology/operations", "POST", { operations: [{ op: "set_metadata", title: "Blocked" }] }, intent("rate-after-412", 0));
+    await status(afterCharge, 429);
     await sql("DELETE FROM connect_rate_limits");
     await status((await sensitive(readToken, "revoke")).response, 200);
     await status(await api(reader, "/topology"), 401);

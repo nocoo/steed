@@ -3,7 +3,7 @@ import { fingerprint } from "./connect-crypto";
 import { HttpError, readJson, readText } from "./http";
 import { topologyPositiveInteger, topologyQuery } from "./topology-api";
 import { topologyConnectCapabilities, topologyConnectOpenApi } from "./topology-connect-contract";
-import { nowSeconds, requireToken, runConnect, type ConnectContext, type ConnectEnv } from "./topology-connect-core";
+import { nowSeconds, requireToken, runConnect, takeRateCharge, type ConnectContext, type ConnectEnv } from "./topology-connect-core";
 import { planTopologyConnectMutation } from "./topology-connect-mutation";
 import { topologyConnectRead } from "./topology-connect-read";
 import { topologyIfMatch } from "./topology-connect-request";
@@ -82,7 +82,10 @@ async function mutate(ctx: ConnectContext, route: Route) {
     actor: ctx.actor, tokenId: token.id, tokenHash, keyHash, requestHash: hash, operation: route.operation.id,
     kind: route.operation.id === "changes.revert" ? "revert" : route.operation.id === "topology.put" ? "replace" : "operations", revertsChangeId,
     warnings: plan.warnings, createdAt: now, updatedAt: new Date().toISOString() }));
-  const results = await timing.time("write", () => env.DB.batch<RequestRow>(statements));
+  // Fold the rate-limit increment into this batch so writes pay one commit, not two. SELECT stays last.
+  const charge = takeRateCharge(ctx);
+  const batch = charge ? [charge, ...statements] : statements;
+  const results = await timing.time("write", () => env.DB.batch<RequestRow>(batch));
   timing.sql("write-sql", results);
   const row = results.at(-1)?.results[0];
   if (!row) throw new HttpError(503, "unavailable", "The request outcome is unavailable; inspect the original idempotency key.");

@@ -15,10 +15,10 @@ segments map to the request path:
 
 | Segment | D1 work | Notes |
 |---|---|---|
-| `auth` / `auth-sql` | 1 batch: token lookup + rate-limit charge (`INSERT … ON CONFLICT … RETURNING`) | The charge is a write. |
+| `auth` / `auth-sql` | 1 batch: token lookup + current rate-limit count (read-only since v0.5.7) | Rejects with 429 when `count >= limit`. |
 | `read` / `read-sql` | 1 batch: full snapshot (8 statements) + idempotency receipt | Read-only. |
 | `validate` | none | CPU only; reads 0 in production because Workers clocks only advance across I/O. |
-| `write` / `write-sql` | 1 batch, see below | Single transaction. |
+| `write` / `write-sql` | 1 batch, see below (includes rate-limit increment since v0.5.7) | Single transaction. |
 | `audit` | deferred work awaited inline | Appears only without `waitUntil` (tests, scripts). |
 | `colo` | none | Per-isolate `/cdn-cgi/trace` lookup. |
 
@@ -89,25 +89,19 @@ Worker is co-located with the primary.
 ### Auth tail (item d)
 
 `auth` is not a first-connection cost: the other cold sample (#0) had
-`auth=16`, and the warm sample #25 had `auth=160`. The auth batch contains a
-write — the atomic rate-limit charge — so it pays the same durable-commit tail
-as `write`, at a lower rate. Warming does not help, and merging auth into the
-read batch would save one ≈ 18 ms round trip but keep the commit.
+`auth=16`, and the warm sample #25 had `auth=160`. Through v0.5.6 the auth
+batch contained a write — the atomic rate-limit charge — so it paid the same
+durable-commit tail as `write`. Fixed in v0.5.7 (proposal A below).
 
-Proposed (not done in v0.5.6, it changes rate-limit semantics): make the auth
-batch read-only by checking the current window count and moving the increment
-to `waitUntil` (or into the write batch for mutations). Bursts of concurrent
-requests could then briefly exceed the per-minute limit, which today is exact.
-
-### Snapshot read (item g)
+### Snapshot read (item g / proposal B)
 
 `read` is ≈ 25% of p50 and grows with the graph, but is never in the tail.
 Narrowing it to the affected entities is not small: planning an operation
 validates references, parent and boundary cycles, layer/type usage and secret
 values against the whole graph, and the write statements diff `before` against
-`after`. Proposed for later: per-operation read sets (the node, its
-neighbourhood, referenced layer/type/boundaries) with plan-level fallbacks to
-the full snapshot.
+`after`. **Deferred (拓扑大师, 2026-11-01):** revisit only if read p95 rises
+above about 70 ms after real data is imported. A cheaper interim is to
+re-measure read at ~400 nodes first.
 
 ### ETag weakened by Cloudflare compression
 
@@ -128,6 +122,61 @@ weakened its ETag to `W/"topology:35"`, which strong-only If-Match rejected.
 
 With 30 samples p95 is the second-worst value; N=100 is needed to tell whether
 the commit tail is ≈ 5% of writes or two unlucky samples.
+
+## v0.5.6 production re-measure (N=100)
+
+Run by 拓扑大师, 2026-11-01 13:51–13:56 UTC+8, stock probe, gap 2200 ms.
+Revision 67 → 169, 0 entities afterwards. **PASS:** server total p95 = 280 ms.
+
+| ms | p50 | p90 | p95 | p99 | max |
+|---|---|---|---|---|---|
+| total | 89 | 242 | 280 | 410 | 478 |
+| auth-net | 20.7 | 76.6 | 184.6 | 247.2 | 267.7 |
+| write-net | 37.1 | 56.7 | 174.9 | 358.2 | 423 |
+
+Write-net > 100 ms in 7/100; auth-net > 100 ms in 9/100; they never co-occur.
+The write-latency item is closed at the p95 target; remaining p99 is accepted
+as D1 durable-commit latency with no app-level fix.
+
+## Proposals after N=100 (拓扑大师)
+
+| Proposal | Decision |
+|---|---|
+| **A.** Move the rate-limit increment off the auth critical path | **Do it** (v0.5.7), with the mutation fold below |
+| **B.** Narrow the snapshot read | **Not now**; revisit if read p95 > ~70 ms after real data |
+
+## v0.5.7 changes — proposal A
+
+Auth is a **read-only** batch: token lookup + `SELECT` of the current window
+count. If `count >= limit` the request is rejected with 429 **before** any
+topology read or write.
+
+- **Writes that reach their D1 batch:** `takeRateCharge` folds an unconditional
+  `count = count + 1` into that same batch (SELECT stays last). One commit,
+  count stays transactional with the mutation. Expected p95 ≈ 240 ms.
+- **Reads:** the increment is deferred via `waitUntil` (or awaited in tests
+  without an execution context).
+- **Writes that never reach the batch** (412 / 422 / validate / idempotent
+  replay): `runConnect` defers the same increment so the bucket is charged
+  exactly once. Rejected tokens never arm a charge.
+
+### Check vs increment semantics
+
+1. Auth reads the stored count. At `count >= limit` → 429; the increment is
+   never armed.
+2. A request that passes the check always increments exactly once, either in
+   the write batch or via the deferred path. The increment statement has no
+   `WHERE count < limit`, so it cannot silently under-count.
+3. **Brief overshoot on concurrent requests:** two writes can both observe
+   `count = limit - 1`, both proceed, and both increment → stored count may
+   reach `limit + concurrency - 1` for that window. Subsequent requests still
+   see `count >= limit` and get 429. Bound by in-flight concurrency; single-
+   owner tokens at 30/min make this rare in practice.
+4. **Read under-count:** a deferred read increment can be dropped if the
+   isolate is killed before `waitUntil` runs. That under-counts the read
+   bucket only.
+
+Manager rate limiting is unchanged (still an atomic check-and-increment).
 
 ## Production data operations
 
@@ -151,3 +200,4 @@ back to an empty topology.
 | Run | Version | N | Revision before → after | Entities after |
 |---|---|---|---|---|
 | 2026-11-01 13:36 UTC+8 | v0.5.5 | 30 | 35 → 67 | 0 |
+| 2026-11-01 13:51 UTC+8 | v0.5.6 | 100 | 67 → 169 | 0 |
