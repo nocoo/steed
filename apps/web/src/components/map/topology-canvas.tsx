@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef } from "react";
-import ReactFlow, { Background, ControlButton, Controls, Handle, MarkerType, Position, ReactFlowProvider, getNodesBounds, getViewportForBounds, useNodesState, useReactFlow, useStore, type Edge, type Node, type NodeProps, type ReactFlowInstance } from "reactflow";
+import ReactFlow, { Background, ControlButton, Controls, Handle, MarkerType, Position, ReactFlowProvider, getNodesBounds, getViewportForBounds, useReactFlow, useStore, type Edge, type Node, type NodeMouseHandler, type NodeProps, type ReactFlowInstance } from "reactflow";
 import { Badge } from "@nocoo/basalt";
 import { Layers, Maximize, Network, Server } from "lucide-react";
 import type { Topology, TopologyEdge, TopologyNode, TopologyView } from "@steed/api/shared";
@@ -172,7 +172,6 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
         height: kind === "host" ? TOPOLOGY_HOST_HEIGHT : TOPOLOGY_SATELLITE_HEIGHT,
         selectable: true,
         ariaLabel: `Select ${node.label}`,
-        selected: node.id === selectedNodeId,
         draggable: false,
         zIndex: 2,
         data: {
@@ -210,13 +209,21 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
         data: { edge },
       }));
     return { nodes: [...laneNodes, ...nodeLayer], edges, layout };
-  }, [topology, visibleNodes, visibleEdges, view, selectedNodeId]);
+  }, [topology, visibleNodes, visibleEdges, view, onSelect]);
 
-  const [canvasNodes, setCanvasNodes, onNodesChange] = useNodesState(projected.nodes);
-  useEffect(() => { setCanvasNodes(projected.nodes); }, [projected.nodes, setCanvasNodes]);
-  const handleNodesChange = useCallback((changes: Parameters<typeof onNodesChange>[0]) => {
-    onNodesChange(changes.filter((change) => change.type === "select" || change.type === "dimensions"));
-  }, [onNodesChange]);
+  // Selection is fully controlled by `selectedNodeId`. Only the nodes whose
+  // selected flag changes get new objects, and the edge array never depends on
+  // selection, so a click cannot feed back into React Flow's store.
+  const canvasNodes = useMemo(() => projected.nodes.map((node) => {
+    const selected = node.id === selectedNodeId;
+    return selected === (node.selected === true) ? node : { ...node, selected };
+  }), [projected.nodes, selectedNodeId]);
+  const selectRef = useRef({ onSelect, selectedNodeId });
+  selectRef.current = { onSelect, selectedNodeId };
+  const handleNodeClick = useCallback<NodeMouseHandler>((_, node) => {
+    const id = (node.data as TopologyCanvasNode).node?.id;
+    if (id && id !== selectRef.current.selectedNodeId) selectRef.current.onSelect(id);
+  }, []);
 
   const { setViewport } = useReactFlow();
   const canvas = useStore((state) => ({ width: state.width, height: state.height }));
@@ -249,9 +256,7 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
         nodes={canvasNodes}
         edges={projected.edges}
         nodeTypes={nodeTypes}
-        onNodeClick={(_, node) => { if (node.data.node) onSelect(node.data.node.id); }}
-        onSelectionChange={({ nodes }) => { const node = nodes.find((candidate) => candidate.data.node); if (node?.data.node) onSelect(node.data.node.id); }}
-        onNodesChange={handleNodesChange}
+        onNodeClick={handleNodeClick}
         nodesDraggable={false}
         nodesConnectable={false}
         nodesFocusable={false}

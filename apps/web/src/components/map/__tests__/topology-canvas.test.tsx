@@ -7,7 +7,7 @@ import { inheritedBoundaryIds, TopologyCanvas, topologyNodeBadgeValues, topology
 import type { TopologyCanvasEdge, TopologyCanvasNode } from "../topology-canvas";
 import { layoutTopology, TOPOLOGY_HOST_HEIGHT, TOPOLOGY_HOST_WIDTH, TOPOLOGY_SATELLITE_HEIGHT, TOPOLOGY_SATELLITE_WIDTH } from "@/lib/topology-layout";
 
-const state = vi.hoisted(() => ({ zoom: 1, width: 1000, height: 700, setViewport: vi.fn(), nodeChanges: [] as unknown[] }));
+const state = vi.hoisted(() => ({ zoom: 1, width: 1000, height: 700, setViewport: vi.fn(), nodeChanges: [] as unknown[], renders: [] as { nodes: unknown[]; edges: unknown[]; selectionHandler: boolean; nodesHandler: boolean }[] }));
 vi.mock("reactflow", async (original) => {
   const actual = await original<typeof import("reactflow")>();
   return {
@@ -21,7 +21,7 @@ vi.mock("reactflow", async (original) => {
     Handle: ({ type, id, isConnectable }: { type: string; id?: string; isConnectable?: boolean }) => (
       <span data-testid={`handle-${type}-${id}`} data-connectable={String(isConnectable)} />
     ),
-    default: (props: ReactFlowProps<TopologyCanvasNode, TopologyCanvasEdge>) => (
+    default: (props: ReactFlowProps<TopologyCanvasNode, TopologyCanvasEdge>) => { state.renders.push({ nodes: props.nodes ?? [], edges: props.edges ?? [], selectionHandler: props.onSelectionChange !== undefined, nodesHandler: props.onNodesChange !== undefined }); return (
       <div
         data-testid="topology-flow"
         data-draggable={props.nodesDraggable}
@@ -60,7 +60,7 @@ vi.mock("reactflow", async (original) => {
           >{edge.label}</button>
         ))}
       </div>
-    ),
+    ); },
   };
 });
 
@@ -98,7 +98,7 @@ function sample(): Topology {
   };
 }
 
-beforeEach(() => { state.zoom = 1; state.width = 1000; state.height = 700; state.nodeChanges = []; vi.clearAllMocks(); });
+beforeEach(() => { state.zoom = 1; state.width = 1000; state.height = 700; state.nodeChanges = []; state.renders = []; vi.clearAllMocks(); });
 
 describe("topology canvas", () => {
   it("layouts the full topology and then projects only visible nodes and edges read-only", () => {
@@ -113,9 +113,32 @@ describe("topology canvas", () => {
     expect(flow).toHaveAttribute("data-only-visible", "true");
     expect(flow).toHaveAttribute("data-delete-key", "none");
     fireEvent.click(screen.getByRole("button", { name: "service" }));
-    expect(onSelect).toHaveBeenCalledWith("service");
+    expect(onSelect).not.toHaveBeenCalled();
     expect(screen.queryByRole("button", { name: "root" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "lane:cloud" })).toBeInTheDocument();
+  });
+
+  it("keeps selection controlled so clicks cannot loop through React Flow", () => {
+    const topology = sample();
+    const onSelect = vi.fn();
+    const visible = [topology.nodes[0]!, topology.nodes[1]!];
+    const { rerender } = render(<TopologyCanvas topology={topology} visibleNodes={visible} visibleEdges={topology.edges} view={undefined} selectedNodeId="" onSelect={onSelect} />);
+    fireEvent.click(screen.getByRole("button", { name: "root" }));
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    expect(onSelect).toHaveBeenCalledWith("root");
+    fireEvent.click(screen.getByRole("button", { name: "lane:cloud" }));
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    const before = state.renders.at(-1)!;
+    rerender(<TopologyCanvas topology={topology} visibleNodes={visible} visibleEdges={topology.edges} view={undefined} selectedNodeId="root" onSelect={onSelect} />);
+    const after = state.renders.at(-1)!;
+    expect(after.selectionHandler).toBe(false);
+    expect(after.nodesHandler).toBe(false);
+    expect(after.edges).toBe(before.edges);
+    const changed = after.nodes.filter((node, index) => node !== before.nodes[index]) as Node[];
+    expect(changed.map((node) => node.id)).toEqual(["root"]);
+    expect(changed[0]!.selected).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "root" }));
+    expect(onSelect).toHaveBeenCalledTimes(1);
   });
 
   it("uses a fixed card budget and exposes complete boundary overflow detail without clipping badges", () => {
