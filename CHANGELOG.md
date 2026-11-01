@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.5.2] - 2026-11-01
+
+### Fixed
+
+- The topology page no longer crashes with React error #185: selection no
+  longer feeds an update loop, and an error boundary keeps a render failure
+  from blanking the page (#107).
+- Long low-entropy text, such as repeated characters or long words, is no
+  longer rejected as `high_entropy`. Random base64 and hex runs are still
+  rejected (#106).
+- `?since=0` and any `since` one revision before the oldest retained change
+  now return a complete delta instead of `410 resync_required` (#106).
+- Structural errors in operation batches and entity writes now carry
+  per-issue `{ path, code, message }`, for example
+  `["operations", 0, "value", "style", "dash"]`, without echoing values (#106).
+
+### Changed
+
+- Connect API requests make fewer D1 round trips: authentication and rate
+  limiting share one batch, audit and last-used writes are deferred, and the
+  idempotency lookup joins the topology load. Production runs with targeted
+  placement in `aws:ap-northeast-1`, next to the D1 primary (#106).
+- The topology map is laid out as one section per layer, with boundary frames
+  and semantic zoom, in a compact full-height workspace with a floating
+  inspector (#107).
+
+### Added
+
+- `bun run latency:prod`: a read-only production latency probe (#106).
+- A browser E2E lane that seeds the 245-node acceptance topology and clicks
+  every node in headless Chromium (#107).
+
 ## [0.5.1] - 2026-11-01
 
 ### Fixed
