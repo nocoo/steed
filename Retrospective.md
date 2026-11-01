@@ -35,6 +35,11 @@ directory, and resumed them through symlinks. The unmodified lint and complete
 commit hook then passed. Keep parallel staging copies outside the project lint
 traversal from the start.
 
+A later commit attempt hit the same gate again: draft source files, direct
+TypeScript symlinks, and an active review copy were still inside the lint
+traversal. The hook rejected the commit. Preserve these artifacts outside the
+worktree and check active review scratch locations before running the hook.
+
 ## 2026-10-31: Bound rule-file searches to approved roots
 
 While locating the commit rules, the controller searched under the home
