@@ -19,6 +19,8 @@ describe("topology Connect discovery preparation", () => {
     }
     expect(spec.components.schemas.Topology).toMatchObject({ type: "object", properties: { schemaVersion: { const: 2 } } });
     expect(spec.components.schemas.ResyncError).toMatchObject({ required: expect.arrayContaining(["current_revision", "oldest_retained_revision"]) });
+    const validate = spec.paths["/topology/validate"]?.post as { responses: Record<string, { description: string; headers: Record<string, unknown> }> };
+    expect(validate.responses["422"]?.description).toContain("secret_like_value");
   });
 
   it("advertises only permitted operations and the topology operation limit", () => {

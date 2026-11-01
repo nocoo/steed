@@ -94,6 +94,14 @@ export function auditStatement(ctx: ConnectContext, status: number, code: string
     SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE ${guard}`)
     .bind(ctx.requestId, redact(ctx.tokenId), "topology", redact(ctx.actor), ctx.operation, status, code, nowSeconds());
 }
+/**
+ * The top-level code of a 422 validation failure: `secret_like_value` when every issue is a
+ * secret-like hit, otherwise `invalid_topology`. Both are 422 with `issues[]`.
+ */
+export function topologyValidationCode(issues: readonly { code: string }[]): "invalid_topology" | "secret_like_value" {
+  return issues.length > 0 && issues.every((issue) => issue.code === "secret_like_value") ? "secret_like_value" : "invalid_topology";
+}
+
 export async function runConnect(request: Request, env: ConnectEnv, mode: "bearer" | "manager", action: (ctx: ConnectContext) => Promise<Response>, user?: AccessUser, execution?: Pick<ExecutionContext, "waitUntil">): Promise<Response> {
   const result = await apiResponse(async (requestId) => {
     const ctx: ConnectContext = { request, env, requestId, actor: "anonymous", operation: `${mode}.request`, audited: false, execution, pending: [] };
@@ -106,9 +114,11 @@ export async function runConnect(request: Request, env: ConnectEnv, mode: "beare
       response = await action(ctx);
     } catch (error) {
       if (error instanceof TopologyOperationError) {
-        code = error.code;
-        response = Response.json({ error: { code, message: code === "invalid_topology" ? "Topology validation failed." : "The topology operation conflicts with the current graph.",
-          ...(code === "invalid_topology" ? { issues: error.issues } : {}), requestId } }, { status: code === "invalid_topology" ? 422 : 409 });
+        const invalid = error.code === "invalid_topology";
+        code = invalid ? topologyValidationCode(error.issues) : error.code;
+        response = Response.json({ error: { code, message: !invalid ? "The topology operation conflicts with the current graph."
+          : code === "secret_like_value" ? "A value looks like a secret." : "Topology validation failed.",
+          ...(invalid ? { issues: error.issues } : {}), requestId } }, { status: invalid ? 422 : 409 });
       } else {
         response = errorResponse(error, requestId);
         code = error instanceof HttpError ? error.code : response.status === 422 ? "invalid_document" : "unavailable";

@@ -225,8 +225,9 @@ Public keys, fingerprints and commit SHAs are rejected by `high_entropy` unless
 they sit in a TypeDef-declared attr of type `public_key`, `fingerprint` or
 `identifier` and match that type's format (see allowlisted attr types).
 
-Errors are `422 invalid_topology` with issues
-`{ path, code: "secret_like_value", rule }`. The value is never echoed in
+Errors are 422 with issues `{ path, code: "secret_like_value", rule }`; the
+top-level `error.code` is `secret_like_value` when every issue is a secret
+hit, otherwise `invalid_topology`. The value is never echoed in
 the response, the audit log, the change log or Worker logs, and a rejected
 request stores no idempotency receipt body beyond the error. Test fixtures
 are built at runtime (string concatenation) so gitleaks never sees a
@@ -979,6 +980,13 @@ The former open questions, answered in order:
   relative to the body, and the message is generic, never the value. In-use and satellite-removal conflicts return 409 with their
   operation code. An invalid idempotency-key format returns 400. A stored
   matching receipt is checked before the revision precondition for replay.
+- The top-level `error.code` of a validation 422 is `secret_like_value` when
+  every issue is a secret-like hit and `invalid_topology` otherwise, mixed
+  failures included (since v0.5.3; earlier releases always sent
+  `invalid_topology`). Both keep status 422 and the same `issues[]` shape, so
+  clients that branch on status or on `issues[].code` are unaffected; clients
+  that match `error.code === "invalid_topology"` should also accept
+  `secret_like_value`. The audit row records the same code.
 - Revert takes no request body and always requires explicit topology
   confirmation. It uses the same revision guard and idempotent receipt as
   other writes; invalid or missing change IDs fail before any write.

@@ -54,10 +54,10 @@ describe("prepared topology Connect machine API", () => {
     const invalid = await api("/topology", "PUT", { ...emptyTopology(), description: value }, intent("intent-05", 0));
     expect(invalid.status).toBe(422);
     const body = await invalid.text();
-    expect(body).toContain("secret_like_value"); expect(body).toContain("rule"); expect(body).not.toContain(value);
+    expect(JSON.parse(body).error.code).toBe("secret_like_value"); expect(body).toContain("rule"); expect(body).not.toContain(value);
     expect((await api("/topology", "PUT", "x".repeat(4 * 1024 * 1024 + 1), intent("intent-06", 0))).status).toBe(413);
     const audit = database.sqlite.prepare("SELECT status, code FROM connect_audit ORDER BY id DESC LIMIT 2").all();
-    expect(audit.some((item) => item.code === "invalid_topology")).toBe(true);
+    expect(audit.some((item) => item.code === "secret_like_value")).toBe(true);
   });
 
   it("handles current, stale, future and malformed revisions before conditional reads", async () => {

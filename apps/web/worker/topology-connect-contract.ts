@@ -56,7 +56,9 @@ export function topologyConnectOpenApi(origin: string) {
     const headers = { ETag: { schema: { type: "string" } }, "X-Request-Id": { schema: { type: "string" } }, "Cache-Control": { schema: { const: "no-store" } }, "Idempotency-Replayed": { schema: { const: "true" } }, "X-Original-Request-Id": { schema: { type: "string" } } };
     const responses: Record<string, unknown> = { "200": { description: "Successful response", headers, content: content(output) } };
     if (!operation.write && operation.id !== "capabilities" && operation.id !== "openapi" && operation.id !== "requests.get") responses["304"] = { description: "ETag matches", headers };
-    for (const code of [400, 401, 403, 404, 408, 409, 410, 412, 413, 415, 422, 428, 429, 503]) responses[String(code)] = { description: code === 410 ? "Resync required; current_revision and oldest_retained_revision are included." : "Structured error", headers, content: content(ref(code === 410 ? "ResyncError" : "Error")) };
+    for (const code of [400, 401, 403, 404, 408, 409, 410, 412, 413, 415, 422, 428, 429, 503]) responses[String(code)] = { description: code === 410 ? "Resync required; current_revision and oldest_retained_revision are included."
+      : code === 422 ? "Validation failed. error.code is secret_like_value when every issue is a secret-like value, otherwise invalid_topology (or id_mismatch, invalid_document); issues[] paths are relative to the request body."
+        : "Structured error", headers, content: content(ref(code === 410 ? "ResyncError" : "Error")) };
     const entry = { operationId: operation.id, summary: operation.summary, security: [{ ConnectBearer: [] }], parameters, responses,
       "x-required-scope": operation.write ? "topology:write" : "topology:read", "x-mutates": operation.mutates,
       ...(input ? { requestBody: { required: true, content: content(input) } } : {}) };
