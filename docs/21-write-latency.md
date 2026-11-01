@@ -178,6 +178,50 @@ topology read or write.
 
 Manager rate limiting is unchanged (still an atomic check-and-increment).
 
+## v0.5.7 retest and v0.5.8 fix — deferred writes start after the action
+
+拓扑大师 re-measured v0.5.7 (2026-11-01 14:17–14:27 UTC+8, 2 × N=100, gap
+2200 ms): server total p95 351 / 370 ms, **fail** against 300. Auth p95 fell
+185 → 16–18 ms as planned, but a new read tail appeared.
+
+Samples with a segment's `*-net` above 100 ms (D1 commit-tail events; SQL is
+≤ 12 ms everywhere):
+
+| Run | auth-net | read-net | write-net | Requests with any | read-net p95 / max |
+|---|---|---|---|---|---|
+| v0.5.5 (N=30) | 2 | 0 | 2 | 4 (13%) | 34.7 / 35.1 |
+| v0.5.6 (N=100) | 9 | 0 | 7 | 16 (16%) | 36.2 / 79.3 |
+| v0.5.7 run 1 | 1 | 6 | 8 | 15 (15%) | 135.5 / 797.5 |
+| v0.5.7 run 2 | 0 | 6 | 7 | 13 (13%) | 152.0 / 491.7 |
+
+- **Not noise:** read-net spikes went from 0 / 130 to 12 / 200 (at a 6% rate,
+  0 in 130 has probability ≈ 3·10⁻⁴), while the per-request event rate stayed
+  13–16% and write-net spikes stayed at 7–8. The tail **moved** from auth to read
+  instead of disappearing.
+- Spikes never share a request, are not adjacent to a write spike of the
+  previous request (one coincidence in 200), are spread over the run, and are
+  not on `cold` samples (cold: v0.5.6 #0/#5, v0.5.7 #0 only).
+- **Cause:** `last_used_at` is stamped by a deferred `UPDATE` that was issued
+  (`.run()`) at the end of auth, so it commits on the D1 primary concurrently
+  with the request's snapshot read, and the read's result waits for that
+  commit. Up to v0.5.6 the auth batch was itself a write, so the request's first
+  commit (and its tail) landed in auth; the `UPDATE` then followed a just-made
+  commit. With a read-only auth, the deferred `UPDATE` becomes the first commit
+  and its tail lands in `read`. Reads are not the only victim: GET requests
+  also issued their deferred rate increment before their snapshot read.
+
+**v0.5.8:** deferred work (last use, read rate increment, 412/422 increment,
+audit) is queued as thunks and started by `runConnect` only after the action
+has returned, so no write is in flight while the request's critical-path D1
+calls run. Critical/deferred round-trip counts are unchanged; a unit test
+traces the D1 call order. A mutation now pays one commit on its critical path
+(the write batch). Expected: read-net back to v0.5.6 (max < 80 ms), spikes
+only in write-net (~7%), total p95 ≈ write tail.
+
+**A/B probe:** `STEED_PROBE=read` runs N `GET /api/v1/topology` with the same
+gap and no topology writes (any prod state), and every probe summary now
+prints `net > 100 ms` counts per segment.
+
 ## Production data operations
 
 AGENTS.md requires an owner decision recorded in a numbered doc, and a D1
@@ -201,3 +245,5 @@ back to an empty topology.
 |---|---|---|---|---|
 | 2026-11-01 13:36 UTC+8 | v0.5.5 | 30 | 35 → 67 | 0 |
 | 2026-11-01 13:51 UTC+8 | v0.5.6 | 100 | 67 → 169 | 0 |
+| 2026-11-01 14:17 UTC+8 | v0.5.7 | 100 | 169 → 271 | 0 |
+| 2026-11-01 14:22 UTC+8 | v0.5.7 | 100 | 271 → 373 | 0 |
