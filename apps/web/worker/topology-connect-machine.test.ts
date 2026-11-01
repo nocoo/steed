@@ -159,4 +159,20 @@ describe("prepared topology Connect machine API", () => {
     expect(await response.json()).toMatchObject({ error: { code: "revert_conflict" } });
     expect(database.sqlite.prepare("SELECT revision FROM topology_meta").get()?.revision).toBe(2);
   });
+
+  it("validates long low-entropy text that once tripped the high-entropy rule", async () => {
+    const node = { id: "web", label: "Web", type: "host", layerId: "cloud" };
+    const graph = (patch: Record<string, unknown>) => ({ ...emptyTopology("Fixture"), layers: [{ id: "cloud", label: "Cloud", provider: "Cloud", order: 0 }],
+      types: [{ id: "host", label: "Host", shape: "rect" }], nodes: [{ ...node, ...patch }] });
+    for (const patch of [{ description: "x".repeat(41) }, { description: "x".repeat(39) },
+      { description: "Pneumonoultramicroscopicsilicovolcanoconiosis" }, { attrs: { note: "x".repeat(256) } }]) {
+      const response = await api("/topology/validate", "POST", graph(patch));
+      expect(response.status, JSON.stringify(patch).slice(0, 60)).toBe(200);
+    }
+    const randomLooking = btoa(String.fromCharCode(...Array.from({ length: 30 }, (_, index) => (index * 97 + 13) % 256)));
+    const rejected = await api("/topology/validate", "POST", graph({ description: randomLooking }));
+    expect(rejected.status).toBe(422);
+    expect(await rejected.json()).toMatchObject({ error: { issues: [{ path: ["nodes", 0, "description"], code: "secret_like_value", rule: "high_entropy" }] } });
+  });
 });
+
