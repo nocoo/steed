@@ -24,7 +24,9 @@ export interface ConnectContext {
    *  else (reads, validate, 412/422 before the write) defers it via waitUntil. */
   rateCharge?: { key: string; window: number };
   execution?: Pick<ExecutionContext, "waitUntil">;
-  pending: Promise<unknown>[];
+  /** Deferred writes, not yet started. They start only after the action finishes so no write
+   *  commit is in flight on the D1 primary while the request's own reads run. */
+  deferred: (() => Promise<unknown>)[];
   timing: ServerTiming;
 }
 export const nowSeconds = () => Math.floor(Date.now() / 1000);
@@ -69,7 +71,7 @@ function deferRateCharge(ctx: ConnectContext) {
   const charge = ctx.rateCharge;
   if (!charge) return;
   ctx.rateCharge = undefined;
-  defer(ctx, rateIncrementStatement(ctx.env.DB, charge.key, charge.window).run());
+  defer(ctx, () => rateIncrementStatement(ctx.env.DB, charge.key, charge.window).run());
 }
 // Auth is a read-only batch: token lookup + current window count. Writes fold their increment
 // into the mutation's single D1 batch; reads (and write paths that never reach that batch)
@@ -100,13 +102,23 @@ async function bearer(ctx: ConnectContext) {
   if (!Number.isFinite(count) || count >= limit) throw new HttpError(429, "rate_limited", "Too many requests. Retry after one minute.");
   ctx.rateCharge = { key: `token:${row.id}:${kind}`, window };
   if (!writing) deferRateCharge(ctx);
-  defer(ctx, db.prepare(`UPDATE connect_tokens SET last_used_at = ? WHERE id = ? AND ${LIVE_TOKEN}`).bind(now, row.id, hash, now).run());
+  defer(ctx, () => db.prepare(`UPDATE connect_tokens SET last_used_at = ? WHERE id = ? AND ${LIVE_TOKEN}`).bind(now, row.id, hash, now).run());
 }
-// Work the response does not depend on runs after it via waitUntil; without an execution
-// context (tests, scripts) it is awaited before the response so nothing is silently dropped.
-function defer(ctx: ConnectContext, work: Promise<unknown>) {
-  const tracked = work.catch((error: unknown) => { console.error("connect deferred write failed", error instanceof Error ? error.message : "unknown"); });
-  if (typeof ctx.execution?.waitUntil === "function") ctx.execution.waitUntil(tracked); else ctx.pending.push(tracked);
+// Work the response does not depend on is queued here and started by runConnect once the action
+// is done: a write issued mid-request (e.g. last_used_at right after auth) would otherwise commit
+// on the D1 primary concurrently with the snapshot read and hand its commit tail to that read.
+function defer(ctx: ConnectContext, start: () => Promise<unknown>) {
+  ctx.deferred.push(start);
+}
+// Started work runs after the response via waitUntil; without an execution context (tests,
+// scripts) it is awaited before the response so nothing is silently dropped.
+function startDeferred(ctx: ConnectContext): Promise<unknown>[] {
+  const pending: Promise<unknown>[] = [];
+  for (const start of ctx.deferred.splice(0)) {
+    const tracked = Promise.resolve().then(start).catch((error: unknown) => { console.error("connect deferred write failed", error instanceof Error ? error.message : "unknown"); });
+    if (typeof ctx.execution?.waitUntil === "function") ctx.execution.waitUntil(tracked); else pending.push(tracked);
+  }
+  return pending;
 }
 
 export type AccessUser = { email: string; sub: string };
@@ -136,7 +148,7 @@ export function topologyValidationCode(issues: readonly { code: string }[]): "in
 
 export async function runConnect(request: Request, env: ConnectEnv, mode: "bearer" | "manager", action: (ctx: ConnectContext) => Promise<Response>, user?: AccessUser, execution?: Pick<ExecutionContext, "waitUntil">, timing = new ServerTiming()): Promise<Response> {
   const result = await apiResponse(async (requestId) => {
-    const ctx: ConnectContext = { request, env, requestId, actor: "anonymous", operation: `${mode}.request`, audited: false, execution, pending: [], timing };
+    const ctx: ConnectContext = { request, env, requestId, actor: "anonymous", operation: `${mode}.request`, audited: false, execution, deferred: [], timing };
     let response: Response;
     let code: string | null = null;
     try {
@@ -158,9 +170,10 @@ export async function runConnect(request: Request, env: ConnectEnv, mode: "beare
     }
     // Writes that never reached their D1 batch (412/422/validate/replay) still owe exactly one charge.
     deferRateCharge(ctx);
-    if (!ctx.audited) defer(ctx, auditStatement(ctx, response.status, code).run());
+    if (!ctx.audited) defer(ctx, () => auditStatement(ctx, response.status, code).run());
     // With waitUntil deferred work runs after the response and is not timed; without it, it is awaited here.
-    if (ctx.pending.length) await timing.time("audit", () => Promise.all(ctx.pending));
+    const pending = startDeferred(ctx);
+    if (pending.length) await timing.time("audit", () => Promise.all(pending));
     return response;
   });
   // no-transform stops Cloudflare from compressing Connect JSON, which would weaken the ETag
