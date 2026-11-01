@@ -7,7 +7,13 @@ import { topologyBrowserApi } from "./topology-api";
 
 type Env = Pick<Cloudflare.ProductionEnv, "DB" | "CF_ACCESS_TEAM" | "CF_ACCESS_AUD">
   & Pick<WorkerBindings, "CF_ACCESS_DEV_BYPASS" | "CONNECT_DEPLOYMENT_ID" | "CONNECT_MANAGERS" | "CONNECT_TOKEN_KEYS">
-  & { ASSETS: Pick<WorkerBindings["ASSETS"], "fetch"> };
+  & { ASSETS: Pick<WorkerBindings["ASSETS"], "fetch">; AUTHOR_PROFILE_ORIGIN?: string };
+
+/** The author profile upstream can only be redirected by the explicit local dev deployment (E2E stub). */
+function profileOrigin(env: Env): string | undefined {
+  const local = env.CF_ACCESS_DEV_BYPASS === "true" && env.CONNECT_DEPLOYMENT_ID === "steed-development";
+  return local ? env.AUTHOR_PROFILE_ORIGIN || undefined : undefined;
+}
 
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
@@ -46,7 +52,7 @@ export default {
         if (req.method !== "GET" && req.method !== "HEAD") {
           return new Response(null, { status: 405, headers: { Allow: "GET, HEAD" } });
         }
-        const profile = await getUserProfile(verifyResult.user.email);
+        const profile = await getUserProfile(verifyResult.user.email, { host: url.host, origin: profileOrigin(env) });
         const headers = { "Cache-Control": "no-store" };
         return req.method === "HEAD"
           ? new Response(null, { headers })

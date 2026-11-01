@@ -89,9 +89,20 @@ describe("worker", () => {
     );
     expect(response.status).toBe(200);
     expect(response.headers.get("Cache-Control")).toBe("no-store");
-    expect(mocks.getUserProfile).toHaveBeenCalledWith("verified@example.com");
+    expect(mocks.getUserProfile).toHaveBeenCalledWith("verified@example.com", { host: "example.com", origin: undefined });
     if (method === "GET") expect(await response.json()).toEqual(profile);
     else expect(await response.text()).toBe("");
+  });
+
+  it.each([
+    [{ CF_ACCESS_DEV_BYPASS: "true", CONNECT_DEPLOYMENT_ID: "steed-development" }, "http://127.0.0.1:9"],
+    [{ CF_ACCESS_DEV_BYPASS: "true", CONNECT_DEPLOYMENT_ID: "steed-production" }, undefined],
+    [{ CONNECT_DEPLOYMENT_ID: "steed-development" }, undefined],
+  ])("only lets the local dev deployment override the profile upstream (%o)", async (vars, origin) => {
+    mocks.verifyAccessJwt.mockResolvedValue({ ok: true, user: { email: "dev@local", sub: "dev" } });
+    mocks.getUserProfile.mockResolvedValue({ name: "dev", email: "dev@local", avatar: null });
+    await worker.fetch(new Request("http://127.0.0.1:8787/api/me"), { ...baseEnv, ...vars, AUTHOR_PROFILE_ORIGIN: "http://127.0.0.1:9" }, {} as ExecutionContext);
+    expect(mocks.getUserProfile).toHaveBeenCalledWith("dev@local", { host: "127.0.0.1:8787", origin });
   });
 
   it("rejects mutations to /api/me", async () => {
