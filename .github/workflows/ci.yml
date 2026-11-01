@@ -20,3 +20,5 @@ jobs:
       lint-command: "bun run lint"
       l2: true
       l2-command: "bun run test:e2e"
+      l3: true
+      l3-command: "bun run test:browser"

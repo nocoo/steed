@@ -1,17 +1,26 @@
 import { describe, expect, it } from "vitest";
 import { topologySchema, type Topology } from "@steed/api/shared";
+import fixture from "../../e2e/acceptance-topology.json";
 import {
+  TOPOLOGY_FRAME_HEADER,
+  TOPOLOGY_FRAME_PADDING,
   TOPOLOGY_HOST_HEIGHT,
   TOPOLOGY_HOST_WIDTH,
-  TOPOLOGY_LAYOUT_GAP_X,
-  TOPOLOGY_LAYOUT_GAP_Y,
-  TOPOLOGY_LANE_PADDING_X,
-  TOPOLOGY_LANE_PADDING_Y,
   TOPOLOGY_SATELLITE_HEIGHT,
+  TOPOLOGY_SATELLITE_INDENT,
+  TOPOLOGY_SATELLITE_WIDTH,
+  TOPOLOGY_SECTION_GAP,
+  TOPOLOGY_SECTION_HEADER,
+  TOPOLOGY_SECTION_PADDING,
+  TOPOLOGY_STACK_GAP,
   TOPOLOGY_SUB_SATELLITE_INDENT,
+  TOPOLOGY_SUB_SATELLITE_WIDTH,
   layoutTopology,
+  primaryBoundaryId,
   projectTopologyLayout,
 } from "./topology-layout";
+
+interface Box { x: number; y: number; width: number; height: number }
 
 function sample(): Topology {
   return {
@@ -25,17 +34,20 @@ function sample(): Topology {
     ],
     types: [{ id: "host", label: "Host", shape: "rect", description: "", attrs: [] }],
     boundaries: [
-      { id: "alpha", label: "Alpha", kind: "site", description: "" },
-      { id: "beta", label: "Beta", kind: "site", description: "" },
+      { id: "alpha", label: "Alpha", kind: "trust", description: "" },
+      { id: "beta", label: "Beta", kind: "trust", description: "" },
+      { id: "site", label: "Site", kind: "site", description: "" },
+      { id: "lan", label: "LAN", kind: "network", parentId: "site", description: "" },
     ],
     nodes: [
       { id: "host-beta", type: "host", label: "Beta host", layerId: "first", boundaryIds: ["beta"], lifecycle: "active", description: "", tags: [], attrs: {} },
-      { id: "host-alpha", type: "host", label: "Alpha host", layerId: "first", boundaryIds: ["alpha"], lifecycle: "active", description: "", tags: [], attrs: {} },
+      { id: "host-alpha", type: "host", label: "Alpha host", layerId: "first", boundaryIds: ["site", "alpha"], lifecycle: "active", description: "", tags: [], attrs: {} },
+      { id: "net-host", type: "host", label: "Net host", layerId: "first", boundaryIds: ["lan"], lifecycle: "active", description: "", tags: [], attrs: {} },
       { id: "host-unbounded", type: "host", label: "No boundary", layerId: "first", boundaryIds: [], lifecycle: "active", description: "", tags: [], attrs: {} },
       { id: "second-root", type: "host", label: "Second root", layerId: "second", boundaryIds: [], lifecycle: "active", description: "", tags: [], attrs: {} },
       { id: "service", type: "host", label: "Service", layerId: "first", parentId: "host-alpha", role: "service", lifecycle: "active", description: "", tags: [], attrs: {} },
-      { id: "port-a", type: "host", label: "Port A", layerId: "first", parentId: "service", role: "subresource", lifecycle: "active", description: "", tags: [], attrs: {} },
       { id: "port-b", type: "host", label: "Port B", layerId: "first", parentId: "service", role: "subresource", lifecycle: "active", description: "", tags: [], attrs: {} },
+      { id: "port-a", type: "host", label: "Port A", layerId: "first", parentId: "service", role: "subresource", lifecycle: "active", description: "", tags: [], attrs: {} },
     ],
     edges: [],
     views: [{
@@ -43,292 +55,139 @@ function sample(): Topology {
       label: "Overview",
       description: "",
       filter: { layerIds: [], typeIds: [], boundaryIds: [], tags: [] },
-      pins: { "host-alpha": { x: 700, y: 180 }, service: { x: 980, y: 210 } },
+      pins: { "net-host": { x: 700, y: 180 } },
       focusLayerId: "first",
     }],
   };
 }
 
-function overlap(a: { x: number; y: number; width: number; height: number }, b: { x: number; y: number; width: number; height: number }) {
+function overlap(a: Box, b: Box) {
   return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
 }
 
-describe("interim topology lane layout", () => {
-  it.each(["host-alpha", "service", "port-a"])("treats a constructor ID as unpinned at %s", (originalId) => {
+function contains(outer: Box, inner: Box) {
+  return inner.x >= outer.x && inner.y >= outer.y && inner.x + inner.width <= outer.x + outer.width && inner.y + inner.height <= outer.y + outer.height;
+}
+
+describe("partitioned topology layout", () => {
+  it("is valid for the fixture and treats a constructor ID like any other ID", () => {
     const topology = sample();
     topology.nodes = topology.nodes.map((node) => ({
       ...node,
-      id: node.id === originalId ? "constructor" : node.id,
-      ...(node.parentId === originalId ? { parentId: "constructor" } : {}),
+      id: node.id === "host-alpha" ? "constructor" : node.id,
+      ...(node.parentId === "host-alpha" ? { parentId: "constructor" } : {}),
     }));
     topology.views = [];
     expect(topologySchema.safeParse(topology).success).toBe(true);
-
-    const unpinned = layoutTopology(topology);
-    for (const position of Object.values(unpinned.positions)) {
-      expect(Object.values(position).every(Number.isFinite)).toBe(true);
-    }
-    for (const lane of unpinned.lanes) {
-      expect([lane.x, lane.y, lane.width, lane.height].every(Number.isFinite)).toBe(true);
-    }
-    const pinned = layoutTopology(topology, { pins: { constructor: { x: 1200, y: 800 } } });
-    expect(pinned.positions.constructor).toMatchObject({ x: 1200, y: 800 });
+    const result = layoutTopology(topology, { pins: { constructor: { x: 1, y: 1 } } });
+    expect(Object.keys(result.positions).sort()).toEqual(topology.nodes.map((node) => node.id).sort());
+    for (const position of Object.values(result.positions)) expect(Object.values(position).every(Number.isFinite)).toBe(true);
+    expect(result.blocks[0]?.hostId).toBe("constructor");
   });
 
-  it("orders layers by order and root hosts by first boundary then ID", () => {
-    const result = layoutTopology(sample());
+  it("orders sections by layer order and stacks satellites under their host", () => {
+    const result = layoutTopology(sample(), { aspect: 100 });
     expect(result.lanes.map((lane) => lane.layerId)).toEqual(["first", "second"]);
-    expect(result.lanes.map((lane) => lane.order)).toEqual([10, 20]);
-
-    const firstLane = result.blocks.filter((block) => block.kind === "host" && block.id !== "second-root");
-    expect(firstLane.map((block) => block.id)).toEqual(["host-alpha", "host-beta", "host-unbounded"]);
-    expect(result.positions["host-alpha"]?.x).toBe(TOPOLOGY_LANE_PADDING_X);
-    expect(result.positions["host-beta"]?.x).toBeGreaterThan(result.positions["host-alpha"]!.x);
-    expect(result.positions["host-unbounded"]?.y).toBe(result.positions["host-beta"]?.y);
+    expect(result.nodePositions).toBe(result.positions);
+    const host = result.positions["host-alpha"];
+    const service = result.positions.service;
+    const portA = result.positions["port-a"];
+    const portB = result.positions["port-b"];
+    expect(service).toEqual({ x: host.x + TOPOLOGY_SATELLITE_INDENT, y: host.y + TOPOLOGY_HOST_HEIGHT + TOPOLOGY_STACK_GAP, width: TOPOLOGY_SATELLITE_WIDTH, height: TOPOLOGY_SATELLITE_HEIGHT });
+    expect(portA).toEqual({ x: host.x + TOPOLOGY_SUB_SATELLITE_INDENT, y: service.y + TOPOLOGY_SATELLITE_HEIGHT + TOPOLOGY_STACK_GAP, width: TOPOLOGY_SUB_SATELLITE_WIDTH, height: TOPOLOGY_SATELLITE_HEIGHT });
+    expect(portB.y).toBe(portA.y + TOPOLOGY_SATELLITE_HEIGHT + TOPOLOGY_STACK_GAP);
+    const block = result.blocks.find((item) => item.hostId === "host-alpha");
+    expect(block).toMatchObject({ kind: "host", x: host.x, y: host.y, width: TOPOLOGY_HOST_WIDTH, nodeIds: ["host-alpha", "service", "port-a", "port-b"] });
+    expect(block?.height).toBe(TOPOLOGY_HOST_HEIGHT + 3 * TOPOLOGY_SATELLITE_HEIGHT + 3 * TOPOLOGY_STACK_GAP);
+    const first = result.lanes[0];
+    expect(first.nodeIds.sort()).toEqual(["host-alpha", "host-beta", "host-unbounded", "net-host", "port-a", "port-b", "service"]);
+    expect(first.blockIds).toHaveLength(4);
+    const second = result.lanes[1];
+    expect(second.x).toBe(first.x + first.width + TOPOLOGY_SECTION_GAP);
+    expect(result.positions["second-root"]).toMatchObject({ x: second.x + TOPOLOGY_SECTION_PADDING, y: second.y + TOPOLOGY_SECTION_HEADER + TOPOLOGY_SECTION_PADDING });
   });
 
-  it("places two satellite levels beside and indented below their host", () => {
-    const result = layoutTopology(sample(), { origin: { x: 100, y: 200 } });
-    const host = result.positions["host-alpha"]!;
-    const satellite = result.positions.service!;
-    const subA = result.positions["port-a"]!;
-    const subB = result.positions["port-b"]!;
-
-    expect(host.width).toBe(TOPOLOGY_HOST_WIDTH);
-    expect(satellite.x).toBe(host.x + TOPOLOGY_HOST_WIDTH + TOPOLOGY_LAYOUT_GAP_X);
-    expect(satellite.y).toBe(host.y);
-    expect(subA.x).toBe(satellite.x + TOPOLOGY_SUB_SATELLITE_INDENT);
-    expect(subA.y).toBe(satellite.y + TOPOLOGY_SATELLITE_HEIGHT + TOPOLOGY_LAYOUT_GAP_Y);
-    expect(subB.y).toBe(subA.y + TOPOLOGY_SATELLITE_HEIGHT + TOPOLOGY_LAYOUT_GAP_Y);
-
-    const satelliteBlock = result.blocks.find((block) => block.id === "service")!;
-    expect(satelliteBlock.nodeIds).toEqual(["service", "port-a", "port-b"]);
-    expect(satelliteBlock.hostId).toBe("host-alpha");
-    expect(satelliteBlock.height).toBeGreaterThan(TOPOLOGY_SATELLITE_HEIGHT);
+  it("frames hosts by primary boundary, nests parent boundaries and never overlaps", () => {
+    const result = layoutTopology(sample());
+    expect(result.frames.map((frame) => [frame.id, frame.depth])).toEqual([
+      ["frame:first:alpha", 0],
+      ["frame:first:beta", 0],
+      ["frame:first:site", 0],
+      ["frame:first:lan", 1],
+    ]);
+    const byId = new Map(result.frames.map((frame) => [frame.boundaryId, frame]));
+    expect(contains(byId.get("site") as Box, byId.get("lan") as Box)).toBe(true);
+    expect(byId.get("lan")?.nodeIds).toEqual(["net-host"]);
+    expect(byId.get("alpha")?.nodeIds).toEqual(["host-alpha", "service", "port-a", "port-b"]);
+    for (const frame of result.frames) {
+      const lane = result.lanes.find((item) => item.layerId === frame.layerId) as Box;
+      expect(contains(lane, frame)).toBe(true);
+      for (const id of frame.nodeIds) {
+        const position = result.positions[id];
+        expect(contains({ x: frame.x + TOPOLOGY_FRAME_PADDING, y: frame.y + TOPOLOGY_FRAME_HEADER, width: frame.width - 2 * TOPOLOGY_FRAME_PADDING, height: frame.height - TOPOLOGY_FRAME_HEADER - TOPOLOGY_FRAME_PADDING }, position)).toBe(true);
+      }
+    }
+    const frames = result.frames;
+    for (const a of frames) for (const b of frames) {
+      if (a === b) continue;
+      expect(!overlap(a, b) || contains(a, b) || contains(b, a)).toBe(true);
+    }
+    const unbounded = result.positions["host-unbounded"];
+    for (const frame of frames) expect(overlap(frame, unbounded)).toBe(false);
   });
 
-  it("computes composite block size before grid packing so satellites cannot overlap peers", () => {
+  it("picks the primary boundary by kind priority, then ID, ignoring unknown IDs", () => {
     const topology = sample();
-    const extra = {
-      id: "peer",
-      type: "host",
-      label: "Peer with satellite",
-      layerId: "first",
-      boundaryIds: ["beta"],
-      lifecycle: "active",
-      description: "",
-      tags: [],
-      attrs: {},
-    } as const;
-    topology.nodes.push(extra, {
-      id: "peer-service",
-      type: "host",
-      label: "Peer service",
-      layerId: "first",
-      parentId: "peer",
-      role: "service",
-      lifecycle: "active",
-      description: "",
-      tags: [],
-      attrs: {},
-    });
+    const node = { ...topology.nodes[0], boundaryIds: ["missing", "site", "beta", "alpha"] };
+    expect(primaryBoundaryId(topology, node)).toBe("alpha");
+    expect(primaryBoundaryId(topology, { ...node, boundaryIds: ["site", "lan"] })).toBe("site");
+    expect(primaryBoundaryId(topology, { ...node, boundaryIds: ["missing"] })).toBeUndefined();
+  });
+
+  it("stops at boundary parent cycles", () => {
+    const topology = sample();
+    topology.boundaries = topology.boundaries.map((boundary) => boundary.id === "site" ? { ...boundary, parentId: "lan" } : boundary);
     const result = layoutTopology(topology);
-    const hosts = result.blocks.filter((block) => block.kind === "host");
-    for (let a = 0; a < hosts.length; a++) {
-      for (let b = a + 1; b < hosts.length; b++) {
-        expect(overlap(hosts[a]!, hosts[b]!)).toBe(false);
-      }
-    }
-    expect(result.positions["peer-service"]!.x).toBe(result.positions.peer!.x + TOPOLOGY_HOST_WIDTH + TOPOLOGY_LAYOUT_GAP_X);
+    expect(result.frames.filter((frame) => frame.boundaryId === "lan" || frame.boundaryId === "site")).toHaveLength(2);
   });
 
-  it("moves a host pin and its complete composite block together", () => {
-    const result = layoutTopology(sample(), { pins: { "host-alpha": { x: 700, y: 180 } } });
-    expect(result.positions["host-alpha"]).toMatchObject({ x: 700, y: 180, width: expect.any(Number), height: expect.any(Number) });
-    const host = result.positions["host-alpha"]!;
-    const satellite = result.positions.service!;
-    expect(satellite.x).toBe(host.x + TOPOLOGY_HOST_WIDTH + TOPOLOGY_LAYOUT_GAP_X);
-    expect(satellite.y).toBe(host.y);
-  });
-
-  it("pre-reserves a pinned host before packing unpinned peers", () => {
-    const result = layoutTopology(sample(), { pins: { "host-beta": { x: 32, y: 32 } } });
-    const pinned = result.blocks.find((block) => block.id === "host-beta")!;
-    const unpinned = result.blocks.find((block) => block.id === "host-alpha")!;
-    expect(pinned).toMatchObject({ x: 32, y: 32 });
-    expect(overlap(pinned, unpinned)).toBe(false);
-    expect(unpinned.x).not.toBe(32);
-  });
-
-  it("terminates when a fixed satellite and pinned host are far apart", () => {
-    const result = layoutTopology(sample(), {
-      pins: {
-        service: { x: 1000, y: 350 },
-        "host-beta": { x: 700, y: 400 },
-      },
-    });
-    expect(result.positions.service).toMatchObject({ x: 1000, y: 350 });
-    expect(result.positions["host-beta"]).toMatchObject({ x: 700, y: 400 });
-
-    const pinnedHost = result.blocks.find((block) => block.id === "host-beta")!;
-    const fixedSatellite = result.blocks.find((block) => block.id === "service")!;
-    const pinnedHostBlock = { x: pinnedHost.x, y: pinnedHost.y, width: pinnedHost.width, height: pinnedHost.height };
-    const satelliteBlock = { x: fixedSatellite.x, y: fixedSatellite.y, width: fixedSatellite.width, height: fixedSatellite.height };
-    expect(overlap(pinnedHostBlock, satelliteBlock)).toBe(false);
-  });
-
-  it("allows pinned-vs-pinned overlap while keeping pins absolute", () => {
-    const result = layoutTopology(sample(), { pins: {
-      "host-beta": { x: 32, y: 32 },
-      service: { x: 32, y: 32 },
-    } });
-    expect(result.positions["host-beta"]?.x).toBe(32);
-    expect(result.positions["host-beta"]?.y).toBe(32);
-    expect(result.positions.service?.x).toBe(32);
-    expect(result.positions.service?.y).toBe(32);
-
-    const pinnedHost = result.blocks.find((block) => block.id === "host-beta")!;
-    const pinnedSatellite = result.blocks.find((block) => block.id === "service")!;
-    expect(overlap(pinnedHost, pinnedSatellite)).toBe(true);
-  });
-
-  it("moves an unpinned host away from a satellite pinned at 32,32 and leaves default satellites clear", () => {
+  it("orders hosts by pins first (y then x then ID), from options or the selected view", () => {
     const topology = sample();
-    topology.nodes.push({
-      id: "worker",
-      type: "host",
-      label: "Worker",
-      layerId: "first",
-      parentId: "host-alpha",
-      role: "service",
-      lifecycle: "active",
-      description: "",
-      tags: [],
-      attrs: {},
-    });
-    const result = layoutTopology(topology, { pins: { service: { x: 32, y: 32 } } });
-    const pinnedSatellite = result.positions.service!;
-    const unpinnedHost = result.positions["host-alpha"]!;
-    const defaultSatellite = result.positions.worker!;
-    expect(pinnedSatellite).toMatchObject({ x: 32, y: 32 });
-    expect(overlap(unpinnedHost, pinnedSatellite)).toBe(false);
-    expect(overlap(defaultSatellite, pinnedSatellite)).toBe(false);
-
-    const hosts = result.blocks.filter((block) => block.kind === "host");
-    for (let a = 0; a < hosts.length; a++) {
-      for (let b = a + 1; b < hosts.length; b++) {
-        expect(overlap(hosts[a]!, hosts[b]!)).toBe(false);
-      }
-    }
+    const order = (pins?: Record<string, { x: number; y: number }>, viewId?: string) =>
+      layoutTopology(topology, { pins, viewId, aspect: 100 }).blocks.map((block) => block.hostId);
+    const unbounded = (ids: string[]) => ids.indexOf("host-unbounded");
+    expect(order()).toEqual(["host-alpha", "host-beta", "net-host", "host-unbounded", "second-root"]);
+    topology.boundaries = [];
+    topology.nodes = topology.nodes.map((node) => ({ ...node, boundaryIds: [] }));
+    expect(order()).toEqual(["host-alpha", "host-beta", "host-unbounded", "net-host", "second-root"]);
+    expect(order({ "net-host": { x: 5, y: 5 }, "host-beta": { x: 9, y: 1 }, "host-unbounded": { x: 1, y: 1 } })).toEqual(["host-unbounded", "host-beta", "net-host", "host-alpha", "second-root"]);
+    expect(order({ b: { x: 1, y: 1 }, "host-beta": { x: 1, y: 1 }, "host-alpha": { x: 1, y: 1 } })[0]).toBe("host-alpha");
+    expect(order(undefined, "overview")[0]).toBe("net-host");
+    expect(unbounded(layoutTopology(topology, { view: topology.views[0], aspect: 100 }).blocks.map((block) => block.hostId))).toBe(3);
+    expect(order(undefined, "missing")[0]).toBe("host-alpha");
   });
 
-  it("pre-reserves moved satellite geometry before packing a peer host", () => {
-    const result = layoutTopology(sample(), { pins: { service: { x: 296, y: 32 } } });
-    const peer = result.blocks.find((block) => block.id === "host-beta")!;
-    const satellite = result.blocks.find((block) => block.id === "service")!;
-    expect(satellite.x).toBe(296);
-    expect(satellite.y).toBe(32);
-    expect(overlap(peer, satellite)).toBe(false);
-
-    const hosts = result.blocks.filter((block) => block.kind === "host");
-    for (let a = 0; a < hosts.length; a++) {
-      for (let b = a + 1; b < hosts.length; b++) {
-        expect(overlap(hosts[a]!, hosts[b]!)).toBe(false);
-      }
-    }
+  it("keeps every card and composite clear of each other on the acceptance fixture", () => {
+    const topology = topologySchema.parse(fixture);
+    const result = layoutTopology(topology, { origin: { x: 10, y: 20 } });
+    expect(Object.keys(result.positions)).toHaveLength(topology.nodes.length);
+    const cards = Object.values(result.positions);
+    for (let i = 0; i < cards.length; i++) for (let j = i + 1; j < cards.length; j++) expect(overlap(cards[i], cards[j])).toBe(false);
+    for (let i = 0; i < result.lanes.length; i++) for (let j = i + 1; j < result.lanes.length; j++) expect(overlap(result.lanes[i], result.lanes[j])).toBe(false);
+    for (const lane of result.lanes) for (const id of lane.nodeIds) expect(contains(lane, result.positions[id])).toBe(true);
+    expect(Math.min(...result.lanes.map((lane) => lane.x))).toBe(10);
+    expect(Math.min(...result.lanes.map((lane) => lane.y))).toBe(20);
+    expect(result.width / result.height).toBeGreaterThan(1);
+    expect(result.width / result.height).toBeLessThan(3);
   });
 
-  it("gives a host pin precedence over inconsistent descendant pins", () => {
-    const result = layoutTopology(sample(), { pins: {
-      "host-alpha": { x: 700, y: 180 },
-      service: { x: 980, y: 210 },
-      "port-a": { x: 1100, y: 400 },
-    } });
-    expect(result.positions.service).toMatchObject({ x: 964, y: 180 });
-    expect(result.positions["port-a"]?.x).toBe(996);
-    expect(result.positions["port-a"]?.y).toBe(180 + TOPOLOGY_SATELLITE_HEIGHT + TOPOLOGY_LAYOUT_GAP_Y);
-  });
-
-  it("gives a direct satellite pin precedence over child pins", () => {
-    const direct = layoutTopology(sample(), { pins: {
-      service: { x: 1000, y: 350 },
-      "port-a": { x: 1100, y: 400 },
-      "port-b": { x: 1080, y: 500 },
-    } });
-    expect(direct.positions.service).toMatchObject({ x: 1000, y: 350 });
-    expect(direct.positions["port-a"]?.x).toBe(1032);
-    expect(direct.positions["port-a"]?.y).toBe(350 + TOPOLOGY_SATELLITE_HEIGHT + TOPOLOGY_LAYOUT_GAP_Y);
-  });
-
-  it("moves a satellite pin with all of its sub-satellites and accepts direct pins", () => {
-    const direct = layoutTopology(sample(), { pins: { service: { x: 1000, y: 350 } } });
-    expect(direct.positions.service).toMatchObject({ x: 1000, y: 350 });
-    expect(direct.positions["port-a"]?.x).toBe(1000 + TOPOLOGY_SUB_SATELLITE_INDENT);
-    expect(direct.positions["port-a"]?.y).toBe(350 + TOPOLOGY_SATELLITE_HEIGHT + TOPOLOGY_LAYOUT_GAP_Y);
-    expect(direct.positions["port-b"]?.y).toBeGreaterThan(direct.positions["port-a"]!.y);
-  });
-
-  it("supports pins on sub-satellites by translating their containing satellite block", () => {
-    const result = layoutTopology(sample(), { pins: { "port-a": { x: 1100, y: 400 } } });
-    const satelliteY = 400 - TOPOLOGY_SATELLITE_HEIGHT - TOPOLOGY_LAYOUT_GAP_Y;
-    expect(result.positions.service).toMatchObject({ x: 1068, y: satelliteY });
-    expect(result.positions["port-a"]?.x).toBe(1100);
-    expect(result.positions["port-a"]?.y).toBe(400);
-    expect(result.positions["port-b"]?.x).toBe(1100);
-    expect(result.positions["port-b"]?.y).toBe(satelliteY + TOPOLOGY_SATELLITE_HEIGHT + TOPOLOGY_LAYOUT_GAP_Y + TOPOLOGY_SATELLITE_HEIGHT + TOPOLOGY_LAYOUT_GAP_Y);
-  });
-
-  it("puts the lowest-ID sub-satellite pin exactly at its coordinates when multiple children are pinned", () => {
-    const result = layoutTopology(sample(), { pins: {
-      "port-a": { x: 1100, y: 400 },
-      "port-b": { x: 1080, y: 500 },
-    } });
-    const satelliteY = 400 - TOPOLOGY_SATELLITE_HEIGHT - TOPOLOGY_LAYOUT_GAP_Y;
-    expect(result.positions["port-a"]?.x).toBe(1100);
-    expect(result.positions["port-a"]?.y).toBe(400);
-    expect(result.positions.service).toMatchObject({ x: 1068, y: satelliteY });
-    expect(result.positions["port-b"]?.x).toBe(1100);
-    expect(result.positions["port-b"]?.y).toBe(satelliteY + TOPOLOGY_SATELLITE_HEIGHT + TOPOLOGY_LAYOUT_GAP_Y + TOPOLOGY_SATELLITE_HEIGHT + TOPOLOGY_LAYOUT_GAP_Y);
-  });
-
-  it("translates the block from the requested second child offset", () => {
-    const result = layoutTopology(sample(), { pins: { "port-b": { x: 1200, y: 500 } } });
-    const satelliteY = 500 - TOPOLOGY_SATELLITE_HEIGHT - TOPOLOGY_LAYOUT_GAP_Y - TOPOLOGY_SATELLITE_HEIGHT - TOPOLOGY_LAYOUT_GAP_Y;
-    expect(result.positions.service).toMatchObject({ x: 1168, y: satelliteY });
-    expect(result.positions["port-a"]?.x).toBe(1200);
-    expect(result.positions["port-a"]?.y).toBe(satelliteY + TOPOLOGY_SATELLITE_HEIGHT + TOPOLOGY_LAYOUT_GAP_Y);
-    expect(result.positions["port-b"]?.x).toBe(1200);
-    expect(result.positions["port-b"]?.y).toBe(500);
-  });
-
-  it("is deterministic, handles empty topology, and exposes the compatibility projection alias", () => {
+  it("handles empty topologies and layers without hosts", () => {
     const topology = sample();
-    const first = layoutTopology(topology);
-    const second = layoutTopology(topology);
-    expect(second).toEqual(first);
-    expect(projectTopologyLayout(topology)).toEqual(first);
-
-    const empty = layoutTopology({ ...topology, layers: [], nodes: [], edges: [], views: [] });
-    expect(empty.positions).toEqual({});
-    expect(empty.blocks).toEqual([]);
-    expect(empty.lanes).toEqual([]);
-    expect(empty.width).toBe(0);
-    expect(empty.height).toBe(0);
-
-    expect(layoutTopology({ ...topology, nodes: [], layers: [{ id: "empty-lane", label: "Empty", provider: "Fixture", order: 0, description: "" }], views: [] }).lanes[0]).toMatchObject({ layerId: "empty-lane", blockIds: [] });
-  });
-
-  it("does not overlap unpinned host blocks in fixed-grid packing", () => {
-    const topology = sample();
-    topology.nodes = topology.nodes.filter((node) => node.parentId === undefined || node.id === "second-root");
+    topology.nodes = [];
     const result = layoutTopology(topology);
-    const hosts = result.blocks.filter((block) => block.kind === "host");
-    for (let a = 0; a < hosts.length; a++) {
-      for (let b = a + 1; b < hosts.length; b++) {
-        expect(overlap(hosts[a]!, hosts[b]!)).toBe(false);
-      }
-    }
-    const laneHeight = result.lanes.find((lane) => lane.layerId === "first")!.height;
-    expect(laneHeight).toBeGreaterThanOrEqual(TOPOLOGY_HOST_HEIGHT + TOPOLOGY_LANE_PADDING_Y * 2);
+    expect(result.lanes.map((lane) => lane.width)).toEqual([TOPOLOGY_HOST_WIDTH + 2 * TOPOLOGY_SECTION_PADDING, TOPOLOGY_HOST_WIDTH + 2 * TOPOLOGY_SECTION_PADDING]);
+    expect(result.blocks).toEqual([]);
+    expect(layoutTopology({ ...topology, layers: [] })).toMatchObject({ lanes: [], width: 0, height: 0 });
+    expect(projectTopologyLayout).toBe(layoutTopology);
   });
 });

@@ -12,3 +12,56 @@
     @apply bg-basalt-background text-basalt-foreground antialiased;
   }
 }
+
+/* Topology semantic zoom: far shows sections, frames and hosts; mid adds satellites; near adds edge labels.
+   Unlayered so it wins over reactflow/dist/style.css. */
+.topology-canvas {
+  --topology-edge-cross: #94a3b8;
+}
+.topology-card-far {
+  display: none;
+}
+.topology-zoom-far .topology-card-far {
+  display: flex;
+}
+.topology-zoom-far .react-flow__node.topology-rf-satellite,
+.topology-zoom-far .react-flow__edge.topology-edge-satellite {
+  display: none;
+}
+.topology-zoom-far .react-flow__edge-textwrapper,
+.topology-zoom-mid .react-flow__edge-textwrapper {
+  display: none;
+}
+.topology-zoom-far .react-flow__handle {
+  opacity: 0;
+}
+.topology-zoom-far .react-flow__edge.topology-edge-cross path {
+  stroke-opacity: 0.3;
+}
+.topology-canvas .react-flow__node-topologyLane,
+.topology-canvas .react-flow__node-topologyFrame {
+  pointer-events: none;
+}
+.topology-canvas .react-flow__node-topologyLane button {
+  pointer-events: all;
+}
+.topology-canvas .react-flow__edge-text {
+  font-size: 11px;
+}
+:is(.dark, [data-mode="dark"]) .topology-canvas .react-flow__edge-textbg {
+  fill: var(--color-basalt-card);
+}
+:is(.dark, [data-mode="dark"]) .topology-canvas .react-flow__edge-text {
+  fill: var(--color-basalt-card-foreground);
+}
+:is(.dark, [data-mode="dark"]) .topology-canvas .react-flow__controls {
+  box-shadow: none;
+}
+:is(.dark, [data-mode="dark"]) .topology-canvas .react-flow__controls-button {
+  background: var(--color-basalt-card);
+  color: var(--color-basalt-card-foreground);
+  border-bottom-color: var(--color-basalt-border);
+}
+:is(.dark, [data-mode="dark"]) .topology-canvas .react-flow__controls-button svg {
+  fill: currentColor;
+}
