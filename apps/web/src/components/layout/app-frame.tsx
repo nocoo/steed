@@ -34,6 +34,8 @@ export function AppFrame() {
   const location = useLocation();
   const { theme } = useTheme();
   const { breadcrumbs, title } = getHeaderTrail(location.pathname);
+  // The topology map is a full-height workspace: compact header, slim island padding.
+  const workspace = location.pathname === "/topology";
 
   useEffect(() => {
     setMobileOpen(false);
@@ -80,6 +82,7 @@ export function AppFrame() {
         ) : null}
       <AppMain tabIndex={-1}>
         <AppHeader
+          density={workspace ? "compact" : "comfortable"}
           leading={
             isMobile ? (
               <HeaderTooltip label="Open navigation">
@@ -126,7 +129,7 @@ export function AppFrame() {
           }
         />
         <div className="flex min-h-0 flex-1 flex-col px-2 pb-2 md:px-3 md:pb-3">
-          <ContentIsland>
+          <ContentIsland className={workspace ? "flex flex-col md:p-3 lg:px-3" : undefined}>
             <Outlet />
           </ContentIsland>
         </div>

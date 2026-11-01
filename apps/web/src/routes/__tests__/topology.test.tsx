@@ -14,7 +14,7 @@ vi.mock("@/components/map/topology-canvas", async (original) => {
   return {
     ...actual,
     TopologyCanvas: (props: ComponentProps<typeof TopologyCanvas>) => (
-      <div data-testid="canvas" data-visible-nodes={props.visibleNodes.length} data-visible-edges={props.visibleEdges.length}>
+      <div data-testid="canvas" data-visible-nodes={props.visibleNodes.length} data-visible-edges={props.visibleEdges.length} data-selected={props.selectedNodeId} data-focus={props.focus ? `${props.focus.kind}:${props.focus.id}:${props.focus.seq}` : ""}>
         {props.visibleNodes.map((node) => <button key={node.id} type="button" onClick={() => props.onSelect(node.id)}>Canvas {node.id}</button>)}
       </div>
     ),
@@ -80,8 +80,11 @@ describe("read-only topology page", () => {
   it("loads the canonical snapshot, exports full topology, and has no edit controls", async () => {
     setup();
     await screen.findByRole("heading", { name: "Fixture topology" });
-    expect(screen.getByText("Read-only fixture")).toBeInTheDocument();
-    expect(screen.getByText("Revision 7")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Fixture topology" })).toHaveAttribute("title", "Read-only fixture");
+    expect(screen.getByText("Rev 7")).toBeInTheDocument();
+    expect(screen.getByRole("toolbar", { name: "Topology toolbar" })).toBeInTheDocument();
+    expect(screen.getByText("4 nodes · 1 edges")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Enter fullscreen" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Save|Delete|New|Import/i })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Export JSON" }));
     expect(download).toHaveBeenCalledWith(expect.objectContaining({ title: "Fixture topology", revision: 7 }));
@@ -118,7 +121,13 @@ describe("read-only topology page", () => {
     expect(screen.getByLabelText("Type filter")).toBeInTheDocument();
     expect(screen.getByLabelText("Boundary filter")).toBeInTheDocument();
     expect(screen.getByLabelText("Tag filter")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Hide details" }));
+    expect(screen.getByTestId("canvas")).toHaveAttribute("data-focus", "node:root:1");
+    fireEvent.click(within(inspector).getByRole("button", { name: /Center/ }));
+    expect(screen.getByTestId("canvas")).toHaveAttribute("data-focus", "node:root:2");
+    fireEvent.click(screen.getByRole("button", { name: "Hide inspector" }));
+    expect(screen.queryByLabelText("Topology inspector")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Show inspector" }));
+    fireEvent.click(screen.getByRole("button", { name: "Close inspector" }));
     expect(screen.queryByLabelText("Topology inspector")).not.toBeInTheDocument();
   });
 
@@ -143,7 +152,7 @@ describe("read-only topology page", () => {
     client.get.mockResolvedValue({ data: topology, updatedAt: "2026-10-31T00:00:00.000Z" });
     setup();
     await screen.findByRole("heading", { name: "Fixture topology" });
-    expect(screen.getByText("Canonical topology map.")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Fixture topology" })).toHaveAttribute("title", "Canonical topology map.");
     fireEvent.click(screen.getByRole("button", { name: "Canvas peer" }));
     expect(screen.getByText("No description.")).toBeInTheDocument();
   });
@@ -204,11 +213,11 @@ describe("read-only topology page", () => {
     client.get.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
     setup();
     expect(screen.getByRole("status")).toHaveTextContent("Loading topology");
-    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    fireEvent.click(screen.getByRole("button", { name: "Refresh topology" }));
     await act(async () => { finish({ data: sample(), updatedAt: "2026-10-31T00:01:00.000Z" }); });
 
     client.get.mockRejectedValueOnce(new Error("Topology unavailable"));
-    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    fireEvent.click(screen.getByRole("button", { name: "Refresh topology" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Topology unavailable");
   });
 
@@ -219,7 +228,47 @@ describe("read-only topology page", () => {
     const inspector = screen.getByLabelText("Topology inspector");
     expect(within(inspector).getByText("command")).toBeInTheDocument();
     expect(within(inspector).getByText("diagnostic")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    fireEvent.click(screen.getByRole("button", { name: "Refresh topology" }));
     await waitFor(() => expect(client.get).toHaveBeenCalledTimes(2));
+  });
+  it("clears the selection with Escape outside inputs and hints when nothing is selected", async () => {
+    setup();
+    await screen.findByRole("heading", { name: "Fixture topology" });
+    expect(screen.getByText(/Select a node to see its details/)).toBeInTheDocument();
+    fireEvent.keyDown(screen.getByTestId("topology-workspace"), { key: "Escape" });
+    fireEvent.click(screen.getByRole("button", { name: "Canvas root" }));
+    expect(screen.getByTestId("canvas")).toHaveAttribute("data-selected", "root");
+    fireEvent.keyDown(screen.getByLabelText("Find a node"), { key: "Escape" });
+    fireEvent.keyDown(screen.getByTestId("topology-workspace"), { key: "Enter" });
+    expect(screen.getByTestId("canvas")).toHaveAttribute("data-selected", "root");
+    fireEvent.keyDown(screen.getByRole("button", { name: "Canvas root" }), { key: "Escape" });
+    expect(screen.getByTestId("canvas")).toHaveAttribute("data-selected", "");
+  });
+
+  it("toggles fullscreen on the workspace when the browser supports it", async () => {
+    let current: Element | null = null;
+    Object.defineProperty(document, "fullscreenEnabled", { configurable: true, value: true });
+    Object.defineProperty(document, "fullscreenElement", { configurable: true, get: () => current });
+    const request = vi.fn(function (this: Element) { current = this; return Promise.resolve(); });
+    const exit = vi.fn(() => { current = null; return Promise.reject(new Error("denied")); });
+    Object.defineProperty(HTMLElement.prototype, "requestFullscreen", { configurable: true, value: request });
+    Object.defineProperty(document, "exitFullscreen", { configurable: true, value: exit });
+    try {
+      setup();
+      await screen.findByRole("heading", { name: "Fixture topology" });
+      fireEvent.click(screen.getByRole("button", { name: "Enter fullscreen" }));
+      expect(request).toHaveBeenCalledTimes(1);
+      act(() => { document.dispatchEvent(new Event("fullscreenchange")); });
+      expect(screen.getByTestId("topology-workspace")).toHaveAttribute("data-fullscreen", "true");
+      fireEvent.click(screen.getByRole("button", { name: "Exit fullscreen" }));
+      expect(exit).toHaveBeenCalledTimes(1);
+      await act(async () => { document.dispatchEvent(new Event("fullscreenchange")); });
+      expect(screen.getByTestId("topology-workspace")).toHaveAttribute("data-fullscreen", "false");
+    } finally {
+      delete (document as { fullscreenEnabled?: boolean }).fullscreenEnabled;
+      delete (document as { fullscreenElement?: Element | null }).fullscreenElement;
+      delete (document as { exitFullscreen?: unknown }).exitFullscreen;
+      delete (HTMLElement.prototype as { requestFullscreen?: unknown }).requestFullscreen;
+    }
   });
 });
