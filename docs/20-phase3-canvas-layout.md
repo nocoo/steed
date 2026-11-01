@@ -9,7 +9,8 @@ focused section, every node shape and border style from the v2 schema, and a
 navigation sidebar that can be hidden for more canvas. The work starts from
 `main` at `86be6c8` (v0.5.4; Phases 1 and 2 were delivered by document 19
 and the 0.5.x patches). Implementation starts only after the requirements owner
-approves this document.
+approves this document. The requirements owner approved it on 2026-11-01;
+the nine decisions are recorded in [Decisions](#decisions-requirements-owner-2026-11-01).
 
 Inputs: the roadmap (section 7 Phase 3, sections 4, 6 and 8, kept privately
 by the requirements owner) and the requirements owner's Phase 3 brief of
@@ -28,6 +29,8 @@ Decisions taken in this document (each explained below):
 4. **Upgrade `reactflow@11` to `@xyflow/react@12`** as its own commit with no
    behaviour change.
 5. **Release `0.6.0`** (minor: new canvas features, no breaking API change).
+6. **The overview bundles cross-layer edges** into one counted bundle per
+   layer pair, expanded at the standard level (decision 4).
 
 ### Traceability
 
@@ -38,6 +41,7 @@ Decisions taken in this document (each explained below):
 | ELK (Web Worker) | roadmap §4, §7 Phase 3 | [Router decision](#router-decision-custom-orthogonal-router-not-elk) |
 | Layout result cache, pin support | roadmap §4.3–4.4, §7 | [Worker, cache and determinism](#worker-cache-and-determinism) |
 | Three semantic zoom levels | roadmap §4.5, §7; limitation 3 | [Semantic zoom](#semantic-zoom-three-levels) |
+| Readable large topology at a glance (layer-pair edge bundles) | decision 4 | [Overview edge bundles](#overview-edge-bundles) |
 | Node shapes, colour, size, icon, border, lifecycle light, label chips | roadmap §7 | [Shapes and styles](#shapes-and-border-styles) |
 | Orthogonal edges, label capsule, protocol/port, arrows, animation | roadmap §6, §7 | [Edge rendering](#edge-rendering) |
 | Limitation 1: edges must avoid frames and nodes, keep zero overlaps | brief | [Edge routing](#edge-routing) |
@@ -51,8 +55,9 @@ Decisions taken in this document (each explained below):
 
 ### Non-goals
 
-- Ghost nodes for cross-layer neighbours, aggregation blocks ("N nodes"),
-  node upstream/downstream focus redesign, boundary collapse, ⌘K palette,
+- Ghost nodes for cross-layer neighbours (decision 5) and boundary collapse
+  (Phase 4's only aggregation; layer-pair edge bundles are Phase 3), node
+  upstream/downstream focus redesign, boundary collapse, ⌘K palette,
   change-history panel, saved views (Phase 4).
 - Satellite badge tiers beyond what the three zoom levels need, VPS
   attribute templates (Phase 4).
@@ -61,7 +66,8 @@ Decisions taken in this document (each explained below):
 - Browser editing, drag-to-pin or any write from the browser (the browser
   stays read-only; pins are written through the API as today).
 - Any change to the topology API, D1, Connect or production data.
-- Pixel-diff screenshot baselines (see [open questions](#open-questions)).
+- Pixel-diff screenshot baselines (decision 8): geometry assertions are the
+  gate; screenshots are archived only.
 
 ## Current-state evidence
 
@@ -166,8 +172,10 @@ overlap, and nesting depth equals the chain length (validated maximum is
 8 memberships per node; the renderer caps visual nesting at 6 levels and
 lists deeper ones on the card chip). A boundary that spans layers or is not
 laminar with others appears as several **fragments**. Fragments share the
-boundary's label, colour and border style, carry a small "part n/m" marker,
-and hovering any fragment highlights all of them. Satellites inherit the
+boundary's title, colour and border style (decision 2); the title gets a
+suffix `(i/n)`, for example `Tailnet (1/3)`, numbered in section order then
+frame position. Hovering any fragment highlights all of them. A boundary
+drawn once has no suffix. Satellites inherit the
 root host's frames, as today.
 
 ### Router decision: custom orthogonal router, not ELK
@@ -177,7 +185,7 @@ root host's frames, as today.
 | ELK Layered, full layout (positions + routes) | No: layered places partitions in one row/column, not the section grid; replacing placement loses the proven grid | Yes inside one hierarchy with `INCLUDE_CHILDREN` | +472–477 kB (more than today's whole app) | Yes | Rejected |
 | ELK rectpacking for sections + layered inside | Partly | No: cross-section edges are not routed across rectpacking parents | +477 kB | Yes | Rejected |
 | ELK `fixed` + routing on our coordinates | Yes | No: `elkjs` has no obstacle-avoiding router for fixed nodes (libavoid is not in `elkjs`) | +477 kB | Yes | Rejected |
-| `libavoid-js` (WASM libavoid) | Yes | Yes | ~250–350 kB WASM | Yes | Fallback only: LGPL-2.1 and beta |
+| `libavoid-js` (WASM libavoid) | Yes | Yes | ~250–350 kB WASM | Yes | Rejected: LGPL-2.1 and beta (decision 1) |
 | **Custom orthogonal router (pure TS)** | **Yes** | **Yes** | **~10–15 kB** | **Yes, by construction** | **Chosen** |
 
 The custom router follows the standard orthogonal connector routing method
@@ -208,13 +216,20 @@ The custom router follows the standard orthogonal connector routing method
 6. **Labels.** The label capsule is placed on the longest horizontal
    segment; if it would overlap a card or an earlier label it slides along
    the route, then hides at that zoom level (always listed in the inspector).
-7. **Fallback.** If no orthogonal path exists (should not happen with
-   gutters), the edge falls back to a straight segment marked
-   `data-route="fallback"`; the L1 and L3 tests fail on any fallback in the
-   fixtures.
+7. **Fallback (decision 1).** Routing never blocks rendering. If an edge
+   has no orthogonal solution, or the routing time budget (20 ms per edge,
+   1500 ms per layout pass) is exhausted, that edge and every edge not yet
+   routed get a straight segment between their ports, marked
+   `fallback: "no_path" | "timeout"` in the result. Failures are recorded in
+   `result.diagnostics.routeFailures` (edge ID and reason), exposed on the
+   edge as `data-route="fallback"` and on the canvas as
+   `data-route-failures`; one `console.warn` summarises them. Cards and
+   frames render regardless. Unit tests force both failure modes (an
+   enclosed endpoint, and an injected clock) and assert the straight
+   fallback, the recorded failure and a complete result. The fixtures must
+   produce zero fallbacks (L1 and L3 fail otherwise).
 
-ELK stays an option for the future if placement itself must change; this
-decision is revisited only if the router misses the budgets below.
+ELK stays an option for the future only if placement itself must change.
 
 ### Worker, cache and determinism
 
@@ -226,8 +241,8 @@ decision is revisited only if the router misses the budgets below.
 - **Cache.** In-memory LRU (4 entries) keyed by
   `revision : viewId : pinsHash : layoutVersion`. Filters and focus are
   projections of the full layout and never re-run it (current behaviour).
-  A persistent IndexedDB cache is deferred unless 500-node first paint
-  needs it (open question).
+  A persistent IndexedDB cache is deferred; it is added (in commit 8) only
+  if the 500-node first paint misses its budget.
 - **Determinism.** No `Math.random`, `Date` or locale-dependent comparison;
   all sorts are by explicit numeric keys then code-unit ID comparison; all
   coordinates are integers; Map iteration only over arrays sorted first. A
@@ -266,12 +281,12 @@ colour (for colour) → theme default. Satellites use the same precedence.
 | | `diamond` | rhombus through the four side midpoints |
 | | `circle` | ellipse inscribed in the card box (circle for square sizes) |
 | | `cloud` | fixed, scaled cloud path through the four side midpoints |
-| `size` | `s`, `m`, `l` | host 176×88, 240×112, 320×144; satellites 64 / 64 / 80 high, width follows the host column |
+| `size` | `s`, `m`, `l` | hosts 176×88, 240×112, 320×144 (decision 7); satellites and sub-satellites use `s` or `m` only (64 high; `l` resolves to `m`), width follows the host column |
 | `color` | `#rrggbb` or palette token | fill tint (8 %) and accent; tokens map to CSS variables, unknown tokens fall back to the layer colour |
 | `border.style` | `solid`, `dashed`, `dotted`, `double` | SVG stroke; dashed `6 4`, dotted `1.5 3` with round caps, double = two strokes with a 2 px gap |
 | `border.width` | 0–4 | stroke width; 0 = no outline (selection ring still shows) |
 | `border.color` | colour | stroke colour, default theme border |
-| `icon` | icon key | lucide icon from a fixed map (server, database, globe, cloud, network, laptop, monitor, hard-drive, bot, git-branch, shield, key, box, cpu, …); unknown keys use the type default, then `circle-dot`. Brand icons are Phase 5 |
+| `icon` | icon key | lucide icon from a fixed table until Phase 5 (decision 9: server, database, globe, cloud, network, laptop, monitor, hard-drive, bot, git-branch, shield, key, box, cpu, …); unknown keys use the type default, then `circle-dot`. Brand icons are Phase 5 |
 | `lifecycle` | active, planned, deprecated, retired | status light: none, dashed outline + "planned", amber light, grey 50 % opacity + "retired" |
 | tags / boundary chips | — | label capsules, as today, capped per zoom level |
 | boundary `style` | colour, border, icon | frame stroke, tint and header icon; default border dashed for `trust`, solid otherwise |
@@ -303,8 +318,8 @@ Levels are chosen from the on-screen width of a medium host card
 
 | Level | Zoom (m card on screen) | Shows | Hides |
 |---|---|---|---|
-| Overview | < 0.35 (< 84 px) | sections with large titles, provider and counts; frames with labels; hosts as shape + colour with the label only if it fits at ≥ 12 px; edges thin, cross-layer dimmed | satellites, badges, chips, edge labels, ports |
-| Standard | 0.35–0.8 | host cards with icon, label, type; satellites as compact cards; frame labels; edges | badges beyond 2, edge labels that do not fit, tags |
+| Overview | < 0.35 (< 84 px) | sections with large titles, provider and counts; frames with labels; hosts as shape + colour with the label only if it fits at ≥ 12 px; same-layer edges thin; cross-layer edges as counted layer-pair bundles | satellites, badges, chips, edge labels, ports |
+| Standard | 0.35–0.8 | host cards with icon, label, type; satellites as compact cards; frame labels; every edge routed individually (bundles expanded) | badges beyond 2, edge labels that do not fit, tags |
 | Detail | ≥ 0.8 (≥ 192 px) | everything: badges (up to 6), boundary and tag chips, edge label capsules with protocol/port, lifecycle text | — |
 
 Legibility rule (fixes limitation 3): **no visible text renders below 11 px
@@ -313,6 +328,25 @@ counter-scaled (`font-size = target / zoom`, clamped to the element box);
 anything that would still be under 11 px is not rendered at that level. A
 unit test checks the size table; the L3 test samples computed font sizes ×
 zoom for every visible text node at each level.
+
+### Overview edge bundles
+
+Decision 4: at the overview level a large topology must read at a glance.
+
+- Every cross-layer edge belongs to the bundle of its unordered layer pair.
+  Same-layer edges are not bundled.
+- Each bundle is routed once, section border to section border through the
+  gutters (ports on the facing section sides), drawn with width
+  `2 + 2·log2(count)` px (capped at 10) in the cross-layer colour, with a
+  capsule such as `Cloudflare ⇄ VPS · 14`. Bundles show no direction; the
+  capsule tooltip lists counts per edge kind.
+- Bundle routes are computed in the same worker pass as individual routes,
+  so a level switch is a class change, never a re-layout.
+- At the standard and detail levels bundles are hidden and individual
+  routed edges show. Clicking a bundle zooms to the standard level framing
+  both sections.
+- Filters apply before bundling (counts are visible edges only). In layer
+  focus, stubs replace bundles.
 
 ## Layer focus clipped to its section
 
@@ -323,7 +357,8 @@ Focus becomes a state (`focusedLayerId`), not a one-shot viewport fit:
   the viewport aspect.
 - Cross-layer edges are drawn up to the section border and end in a stub
   capsule naming the other layer and the count (`→ Cloudflare · 3`);
-  clicking the stub focuses that layer. Ghost neighbour nodes are Phase 4.
+  clicking the stub focuses that layer. Ghost neighbour nodes are deferred
+  to Phase 4 (decision 5).
 - The viewport fits the section; `translateExtent` limits panning to the
   section plus padding.
 - A **layer navigator** in the toolbar (always in the DOM, not a canvas
@@ -335,17 +370,21 @@ Focus becomes a state (`focusedLayerId`), not a one-shot viewport fit:
 
 ## Collapsible sidebar
 
-- On `/topology` the sidebar gets a third state, **hidden** (0 px), in
-  addition to expanded and icon rail. A toolbar button ("Hide navigation" /
-  "Show navigation", `PanelLeftClose`/`PanelLeftOpen`) and the shortcut
-  `\` toggle it; a small edge tab reveals it on hover/focus.
-- The state persists in `localStorage` (`steed-topology-nav`), separate from
-  the global `sidebar-expanded`, and falls back to visible when storage is
-  unavailable. Other pages keep today's expand/rail behaviour; mobile keeps
-  the sheet.
-- Hiding triggers a canvas re-fit only if the user has not panned since the
-  last fit.
-- Fullscreen keeps working and already hides everything.
+Decision 6:
+
+- On `/topology` the sidebar **defaults to the narrow icon rail** and can be
+  **fully hidden** (0 px); expanded stays available. A toolbar button
+  ("Hide navigation" / "Show navigation", `PanelLeftClose`/`PanelLeftOpen`)
+  and the shortcut `\` toggle hidden; a small edge tab reveals the rail on
+  hover/focus.
+- **Fullscreen always hides the sidebar completely** and restores the
+  previous state on exit.
+- The topology state persists in `localStorage` (`steed-topology-nav`:
+  `rail` | `hidden` | `expanded`, default `rail`), separate from the global
+  `sidebar-expanded`, and falls back to `rail` when storage is unavailable.
+  Other pages keep today's expand/rail behaviour; mobile keeps the sheet.
+- A state change re-fits the canvas only if the user has not panned since
+  the last fit.
 
 ## Local fixture datasets
 
@@ -379,15 +418,21 @@ Every acceptance criterion maps to automated tests:
 | Satellites stay inside host block | every satellite/sub-satellite rect inside its root host block, block inside its innermost frame | L1 |
 | Every membership framed | for each host and each boundary membership (with ancestors), the host lies inside a frame fragment of that boundary | L1 |
 | Edges do not pass through nodes | every route segment misses every card rect except its endpoints; never crosses a header; no fallback routes | L1 |
+| Routing failure never blocks (decision 1) | forced no-path and injected-clock timeout: the edge falls back to a straight segment, the failure is recorded in `diagnostics.routeFailures` with its reason, the result is complete; the canvas still renders and exposes `data-route-failures` | L1 |
+| Overview bundles (decision 4) | one bundle per layer pair with the right count after filters; bundle routes miss non-endpoint sections; hidden at standard/detail; click zooms to standard | L1 + L3 |
+| Fragment titles (decision 2) | all fragments of a boundary share colour, border style and title; suffixes `(1/n)`…`(n/n)` in stable order; single frames unsuffixed | L1 |
 | 200-node overview: no overlaps, no cross-layer misplacement | Playwright on `topology-200`: read rendered bboxes of cards, frames, sections at overview fit; same assertions as L1 on screen geometry | L3 |
 | 200-node: no edge passes through a node (bbox) | Playwright samples each rendered edge path (`getPointAtLength` every 4 px, mapped by `getScreenCTM`) and checks no sample lies inside a non-endpoint card bbox shrunk by 2 px | L3 |
-| 500-node first paint < 2 s | Playwright on `topology-500`: cold context, `performance.mark("steed:topology-painted")` after nodes **and routed edges** are committed; measured from navigation start; 3 runs, each < 2000 ms; results printed | L3 |
-| Light and dark screenshots | overview, standard, detail, each layer focused, sidebar hidden, in light and dark, written with `--screens` and uploaded as CI artifacts | L3 |
+| 500-node first paint < 2 s (decision 3) | Playwright on `topology-500`: cold context; `performance.mark("steed:topology-painted")` only after nodes **and every edge** (routed, bundled or fallback) are drawn; measured from navigation start; 3 runs, each < 2000 ms; results printed | L3 |
+| Light and dark screenshots (decision 8) | archived, never diffed: `--screens <dir>` writes overview, standard, detail, each layer focused and sidebar hidden in light and dark, uploaded as CI artifacts; the six release files are `{light,dark}-overview.png`, `{light,dark}-layer-focus.png`, `{light,dark}-detail.png` | L3 |
 | Text ≥ 11 px on screen | sample visible text nodes at each zoom level | L3 |
 | Layer focus shows no neighbour fragments | focus each layer: no card/frame of another layer intersects the viewport; navigator reaches off-screen layers | L3 |
-| Sidebar collapsible | toggle, persistence, keyboard, canvas width grows | L1 (RTL) + L3 |
+| Sidebar collapsible (decision 6) | default rail, hide/show, persistence, keyboard, fully hidden in fullscreen and restored after, canvas width grows | L1 (RTL) + L3 |
 | Shapes and border styles | `shapePath`/`shapeInset` unit tests per shape; style resolver precedence; RTL renders each shape/border variant | L1 |
 | No regressions | existing click-every-node run and console-error check on the acceptance fixture | L3 |
+
+Geometry assertions are the gate (decision 8); screenshots fail a run only
+when they cannot be written.
 
 L1 keeps the root gate (statements/functions/lines 95 %, branches 90 %).
 L2 is unchanged (no API change). G2 unchanged. `bun run test:browser` gains
@@ -401,7 +446,8 @@ throttling) and recorded in the PR:
 
 | Metric | Budget |
 |---|---|
-| 500-node first paint (navigation → nodes + routed edges painted) | < 2000 ms, each of 3 cold runs |
+| 500-node first paint (navigation → nodes and all edges drawn) | < 2000 ms, each of 3 cold runs |
+| Routing hard limit (then straight fallback) | 1500 ms per pass, 20 ms per edge |
 | Placement, 500 nodes | < 50 ms |
 | Routing, 500 nodes / 1000 edges (worker) | < 600 ms |
 | Routing, 200 nodes / 400 edges | < 200 ms |
@@ -419,10 +465,10 @@ fixtures and the 1000/5000 Phase 1 design point (informational; above the
   crowd the 160 px gutters. Mitigations: per-section visibility graphs,
   gutter widening proportional to the number of edges that use it, bend and
   crossing penalties, early benchmarking on the 500 fixture in the router
-  commit. Fallback: `libavoid-js`, subject to the requirements owner
-  accepting LGPL-2.1 and its beta status.
+  commit, and the straight-line fallback with recorded failures, so a bad
+  case degrades instead of blocking. `libavoid-js` is not adopted.
 - **Boundary fragments** may look unfamiliar: one boundary drawn in several
-  places. Mitigated by shared label/colour, "part n/m" and hover
+  places. Mitigated by shared title, colour and border, the `(i/n)` suffix and hover
   highlighting; this is inherent to layers being separate sections.
 - **xyflow v12 migration** can change subtle behaviour (selection, fit,
   scroll). Isolated as one commit, verified by the existing L1/L3 tests
@@ -435,31 +481,39 @@ fixtures and the 1000/5000 Phase 1 design point (informational; above the
 - **Dependency noise**: daily dependency PRs may conflict with the
   lockfile change in the upgrade commit; rebase before merge.
 
-## Open questions
+## Decisions (requirements owner, 2026-11-01)
 
-For the requirements owner:
+The nine open questions of the first draft were decided by the requirements
+owner on 2026-11-01 (PR #113); the body above reflects them.
 
-1. **Router.** Approve the custom orthogonal router instead of ELK (reasons
-   above), with `libavoid-js` as the only fallback?
-2. **Fragments.** Is drawing a non-laminar or cross-layer boundary as
-   several labelled fragments acceptable for "nested boundaries are framed
-   too"?
-3. **First paint.** Confirm the definition: navigation start → nodes **and
-   routed edges** painted, 500-node fixture, CI runner, cold. Or should
-   edges be allowed to appear after 2 s?
-4. **Overview edges.** Phase 3 shows all edges thin at overview, cross-layer
-   dimmed. Layer-pair edge bundles ("Cloudflare → VPS · 14") would be
-   cleaner but overlap Phase 4 aggregation; include now or keep for Phase 4?
-5. **Layer focus stubs.** Are stub capsules to other layers enough for
-   Phase 3, with ghost nodes in Phase 4?
-6. **Sidebar.** Fully hidden on the topology page (proposed) or is the
-   existing icon rail sufficient?
-7. **Sizes.** Accept host sizes s 176×88, m 240×112, l 320×144, and
-   satellites honouring only s/m (l treated as m)?
-8. **Screenshots.** Screenshots as CI artifacts plus geometry assertions
-   (proposed), or pixel-diff baselines (fragile across fonts and runners)?
-9. **Icons.** Is a fixed lucide icon map with a fallback acceptable until
-   the Phase 5 brand icon library?
+1. **Router.** Custom orthogonal router; no ELK (and no `libavoid-js`). When
+   routing fails (no solution or timeout) the edge falls back to a straight
+   line, the failure is recorded, and rendering never blocks; a unit test
+   covers it (router step 7).
+2. **Fragments.** Splitting a boundary into fragments is accepted. All
+   fragments of one boundary share colour, border style and title; the
+   title gets a suffix such as `(1/3)`.
+3. **First paint.** Includes every edge drawn: a 500-node cold start
+   finishes with edges drawn in < 2 s.
+4. **Overview edges.** At the overview level cross-layer edges are bundled
+   into one bundle per layer pair labelled with its count, expanded at the
+   standard level. The owner's priority is reading a large topology at a
+   glance. Phase 4 aggregation covers only boundary collapse, so there is no
+   overlap.
+5. **Layer focus.** Stubs only; ghost nodes are deferred to Phase 4.
+6. **Sidebar.** Defaults to the narrow icon rail, can be fully hidden, and
+   is fully hidden in fullscreen.
+7. **Sizes.** Hosts s 176×88, m 240×112, l 320×144; satellites use s or m
+   only.
+8. **Screenshots.** Geometry assertions are the gate; screenshots are
+   archived only, no pixel diffs. Every release puts six screenshots in
+   `/workspace/steed-screens/` on the steward's box (outside the
+   repository): overview, focused layer and detail level, each in light and
+   dark.
+9. **Icons.** A fixed lucide icon table until Phase 5.
+
+Development path: herdr on a Mac allocated by 机器管家 (decided; allocation
+pending).
 
 ## Atomic commits
 
@@ -470,21 +524,25 @@ pre-push (local HTTP E2E, OSV, gitleaks) before every push. Hooks are never
 bypassed, no force-push, no autofix. No mirror registry URLs in `bun.lock`.
 
 1. `docs: add phase 3 canvas and layout plan` — this document and the docs
-   index (this PR, draft).
+   index, followed by `docs: record phase 3 decisions` (both already on the
+   branch; draft PR #113 becomes the development PR).
 2. `build(web): migrate to xyflow react 12` — replace `reactflow` with
    `@xyflow/react`, adapt imports/types/CSS, no behaviour change; tests
    updated.
 3. `test: add seeded topology fixture generator` — `topology-200` and
    `topology-500` generators, schema validation and pinned hashes.
-4. `feat(web): add topology style resolver` — precedence rules, size table,
-   colour tokens, icon map; pure, tested.
+4. `feat(web): add topology style resolver` — precedence rules, size table
+   (satellites s/m only), colour tokens, fixed lucide icon table; pure,
+   tested.
 5. `feat(web): size layout blocks by style` — placement uses resolved sizes
    and routing gaps; existing layout tests extended.
 6. `feat(web): frame every boundary membership` — laminar frame tree,
-   fragments, depth cap; geometry tests.
+   fragments with shared style and `(i/n)` titles, depth cap; geometry
+   tests.
 7. `feat(web): add orthogonal edge router` — obstacles, ports, visibility
-   graph, A*, nudging, label boxes; pure geometry and determinism tests,
-   not yet wired; `bench:layout`.
+   graph, A*, nudging, label boxes, layer-pair bundle routes, time budget
+   with straight fallback and recorded failures; geometry, determinism and
+   failure-path tests, not yet wired; `bench:layout`.
 8. `feat(web): run layout in a web worker` — worker, request/stale
    handling, sync fallback, LRU cache, worker = sync hash test.
 9. `feat(web): render routed edges` — `topologyRoute` edge, arrows, dash,
@@ -493,18 +551,21 @@ bypassed, no force-push, no autofix. No mirror registry URLs in `bun.lock`.
     border styles, icons, lifecycle lights, boundary frame styles and
     fragment markers.
 11. `feat(web): add three semantic zoom levels` — level selection with
-    hysteresis, counter-scaled labels, 11 px rule.
+    hysteresis, counter-scaled labels, 11 px rule, counted layer-pair
+    bundles at overview, expanded at standard.
 12. `feat(web): clip layer focus to its section` — focus state, projection,
     stubs, `translateExtent`, toolbar layer navigator, URL and keys.
-13. `feat(web): hide sidebar on topology page` — hidden state, toggle,
-    shortcut, persistence, re-fit.
+13. `feat(web): hide sidebar on topology page` — default rail, hidden
+    state, toggle, shortcut, persistence, hidden in fullscreen, re-fit.
 14. `test(e2e): check topology layout in browser` — `--fixture`, 200-node
     geometry and edge bbox checks, 500-node first-paint timing, text size,
-    focus checks, light/dark screenshots; CI artifacts.
+    focus and bundle checks, light/dark screenshots archived as CI
+    artifacts (no pixel diff).
 15. `docs: update agents and readme for phase 3` — L3 row in `AGENTS.md`,
     README, implementation decisions appended here.
 16. `chore(release): bump version to 0.6.0` — manifests, version
-    assertions, `CHANGELOG`.
+    assertions, `CHANGELOG`. Release step (not a commit): put the six
+    release screenshots in `/workspace/steed-screens/`.
 
 Commits 2–3 are independent; 4–7 are pure and can be reviewed before any UI
 change; 8–13 wire them in; 14 proves the acceptance criteria end to end.
@@ -520,15 +581,15 @@ change; 8–13 wire them in; 14 proves the acceptance criteria end to end.
   browser" at 0.89); both gates returned `ask_user` (confidence below 0.70;
   requests `3a1a3fbc-af18-4583-9dcd-9617ac50b9e6`,
   `f45431ff-861d-4121-b52d-26a3770398b7`).
-- **Proposed**: the herdr flow on a Mac allocated by 机器管家, as in Phase 1:
-  the work spans many modules, needs real Chromium for geometry and timing,
-  local Wrangler for L3, and long iteration on router quality. One Codex
-  controller on this PR's branch with a review loop (implement → review
-  until APPROVE → rebase onto `origin/main` → re-review), capped at three
-  review rounds per commit; remaining findings become documented known
-  limitations. All hooks on; no production deploy from the controller. A
-  Mac has not been requested yet; it is requested only after this document
-  is approved.
+- **Decided** (requirements owner, 2026-11-01): the herdr flow on a Mac
+  allocated by 机器管家, as in Phase 1; the allocation is pending. The work
+  spans many modules, needs real Chromium for geometry and timing, local
+  Wrangler for L3, and long iteration on router quality. One Codex
+  controller works on this PR's branch with a review loop (implement →
+  review until APPROVE → rebase onto `origin/main` → re-review), capped at
+  three review rounds per commit; remaining findings become documented known
+  limitations. All hooks on; no production deploy or release from the
+  controller; the repo steward releases after merge.
 
 ## Acceptance checklist
 
@@ -539,12 +600,20 @@ change; 8–13 wire them in; 14 proves the acceptance criteria end to end.
       cards.
 - [ ] Playwright `topology-200`: no overlaps, no cross-layer misplacement,
       no edge through a node (bbox), no fallback routes.
-- [ ] Playwright `topology-500`: first paint < 2 s on each of 3 runs.
-- [ ] Light and dark screenshots for overview, three zoom levels, each
-      layer focus and hidden sidebar, attached to the PR.
+- [ ] Playwright `topology-500`: first paint with all edges drawn < 2 s on
+      each of 3 runs.
+- [ ] Routing failures fall back to straight lines, are recorded and never
+      block rendering (unit-tested); zero fallbacks in the fixtures.
+- [ ] Overview shows one counted bundle per layer pair; standard expands
+      them.
+- [ ] Boundary fragments share colour, border style and title with `(i/n)`.
+- [ ] Screenshots archived as CI artifacts (no pixel diff); the six release
+      screenshots (overview, layer focus, detail × light, dark) are in
+      `/workspace/steed-screens/`.
 - [ ] All eight shapes, three sizes, four border styles, widths 0–4 and
       lifecycle states visible in the fixtures and screenshots.
 - [ ] Layer focus shows no other layer; navigator reaches every layer.
-- [ ] Sidebar hides on the topology page and the state persists.
+- [ ] Sidebar defaults to the rail on the topology page, hides fully,
+      persists, and is hidden in fullscreen.
 - [ ] Production untouched until release; after release, `/api/live` 200 and
       the page reports 0.6.0.
