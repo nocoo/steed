@@ -37,7 +37,7 @@ export function topologyConnectOpenApi(origin: string) {
       parameters.push(header("If-None-Match", false, { type: "string" }, "Return 304 when the current ETag matches."));
     }
     if (operation.mutates) {
-      parameters.push(header("If-Match", true, { type: "string" }, 'Current topology ETag, for example "topology:0".'),
+      parameters.push(header("If-Match", true, { type: "string" }, 'Current topology ETag, for example "topology:0"; the weak form W/"topology:0" is accepted.'),
         header("Idempotency-Key", true, schema(idempotencyKeySchema), "Use one persisted key per exact intent."),
         header("X-Steed-Confirm", Boolean(operation.dangerous), { const: "topology" }, "Required for removals, reverts and replacements that remove entities."));
     }
@@ -53,10 +53,11 @@ export function topologyConnectOpenApi(origin: string) {
     else if (operation.id === "changes.get") output = envelope(ref("ChangeDetail"));
     else if (operation.id === "topology.validate") output = envelope(ref("Validation"));
     else if (operation.id === "requests.get") output = envelope(ref("RequestOutcome"));
-    const headers = { ETag: { schema: { type: "string" } }, "X-Request-Id": { schema: { type: "string" } }, "Cache-Control": { schema: { const: "no-store" } }, "Idempotency-Replayed": { schema: { const: "true" } }, "X-Original-Request-Id": { schema: { type: "string" } },
+    const headers = { ETag: { schema: { type: "string" } }, "X-Request-Id": { schema: { type: "string" } }, "Cache-Control": { schema: { const: "no-store, no-transform" } }, "Idempotency-Replayed": { schema: { const: "true" } }, "X-Original-Request-Id": { schema: { type: "string" } },
       "X-Steed-Colo": { description: "Cloudflare data center (IATA code) the Worker executed in, read once per isolate from Cloudflare's trace endpoint; omitted when that lookup fails.", schema: { type: "string", pattern: "^[A-Z]{3}$" } },
       "X-Steed-Ingress-Colo": { description: "Cloudflare data center (IATA code) where the request entered Cloudflare (request.cf.colo); not where a placed Worker ran.", schema: { type: "string", pattern: "^[A-Z]{3}$" } },
-      "X-Steed-Placement": { description: "Cloudflare's cf-placement value, such as remote-NRT, echoed only when Cloudflare sends it.", schema: { type: "string", pattern: "^(local|remote)-[A-Z]{3}$" } } };
+      "X-Steed-Placement": { description: "Cloudflare's cf-placement value, such as remote-NRT, echoed only when Cloudflare sends it.", schema: { type: "string", pattern: "^(local|remote)-[A-Z]{3}$" } },
+      "Server-Timing": { description: "Server-side milliseconds per segment, in this order when present: auth (token check + rate-limit read), auth-sql, read (D1 snapshot read), read-sql, validate (planning; CPU-only, so 0 on Workers where clocks advance only across I/O), write (D1 write batch with revision, history and audit), write-sql, audit (only when deferred work is awaited), colo (isolate colo lookup), total; then the flag cold on an isolate's first request. *-sql is D1's reported SQL execution time; the rest of a segment is the round trip to D1. Names and durations only.", schema: { type: "string", pattern: "^[a-z-]+(;dur=\\d+\\.\\d)?(, [a-z-]+(;dur=\\d+\\.\\d)?)*$" } } };
     const responses: Record<string, unknown> = { "200": { description: "Successful response", headers, content: content(output) } };
     if (!operation.write && operation.id !== "capabilities" && operation.id !== "openapi" && operation.id !== "requests.get") responses["304"] = { description: "ETag matches", headers };
     for (const code of [400, 401, 403, 404, 408, 409, 410, 412, 413, 415, 422, 428, 429, 503]) responses[String(code)] = { description: code === 410 ? "Resync required; current_revision and oldest_retained_revision are included."

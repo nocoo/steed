@@ -929,8 +929,13 @@ The former open questions, answered in order:
   Collection projections use a validated snapshot and preserve its ID order.
 - Collection page size defaults to 50 and is limited to 1–500; unknown or
   repeated query keys and malformed cursors are rejected. Mutation If-Match
-  accepts one exact strong `"topology:<revision>"` ETag, including revision
-  zero; a conflicting If-None-Match is rejected.
+  accepts one exact `"topology:<revision>"` ETag, including revision zero,
+  either strong or with a `W/` prefix (since v0.5.6); a conflicting
+  If-None-Match is rejected. Weak comparison is safe because the ETag names a
+  revision, not a byte representation. Connect responses send
+  `Cache-Control: no-store, no-transform` so Cloudflare does not compress
+  them and weaken the ETag (it did for gzip-requesting clients such as Bun's
+  `fetch`, which then got 412 on a strong-only If-Match).
 - Machine collection and history pages return `data` arrays and `nextCursor`
   alongside `requestId`; a history detail includes its change items. History
   detail and its revision are read in one batch, so its snapshot ETag and
@@ -1010,6 +1015,34 @@ The former open questions, answered in order:
     is not sent in practice.
   Only validated values (`^[A-Z]{3}$`, `^(local|remote)-[A-Z]{3}$`) are
   echoed; each header is omitted when its value is unavailable.
+- `/api/*` responses carry `Server-Timing` (since v0.5.5), for example
+  `auth;dur=14.2, auth-sql;dur=0.3, read;dur=41.0, read-sql;dur=1.9,
+  validate;dur=0.0, write;dur=96.5, write-sql;dur=3.1, colo;dur=0.0,
+  total;dur=152.8`. Metrics appear in this fixed order, only when measured:
+  - `auth`: the Connect Bearer token lookup and rate-limit count read (one
+    D1 batch, read-only since v0.5.7); `auth-sql` is D1's SQL time for it.
+    Browser and management routes report only `colo` and `total`.
+  - `read`: the D1 snapshot read (writes, validate, reads); `read-sql` is its
+    SQL time, reported for writes.
+  - `validate`: planning and building the write statements. It is CPU-only,
+    and Workers clocks only advance across I/O, so it reads `0.0` in
+    production; local runs show real values.
+  - `write`: the single D1 write batch (rate-limit increment, revision bump,
+    entity rows, history rows, receipt and audit); `write-sql` is its SQL
+    time. Since v0.5.7 the token rate-limit increment rides in this batch for
+    mutations; reads defer theirs via `waitUntil`.
+  - `audit`: deferred work (audit, last-used, and for non-mutation paths the
+    rate-limit increment), only when no `waitUntil` is available (tests). In
+    production they run after the response and are not in the header.
+  - `colo`: the per-isolate trace lookup behind `X-Steed-Colo`, which runs in
+    parallel with the handler; it is near 0 once cached.
+  - `total`: the whole `/api/*` handler in the Worker. The client's time minus
+    `total` is network, TLS and the placement hop.
+  - `cold` (no duration) marks the first `/api/*` request an isolate serves.
+  A segment's time minus its `-sql` time is the D1 round trip and queueing.
+  The header holds only these names and durations, never ids, identities or
+  request data, and any timing failure drops values instead of failing the
+  response.
 - Revert takes no request body and always requires explicit topology
   confirmation. It uses the same revision guard and idempotent receipt as
   other writes; invalid or missing change IDs fail before any write.

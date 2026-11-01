@@ -89,7 +89,7 @@ const parse = async <T>(response: Response) => await response.json() as T;
 async function status(response: Response, expected: number) {
   assert.equal(response.status, expected, redact(await response.clone().text()));
   if (response.url.includes("/api/connect") || response.url.includes("/api/v1")) {
-    assert.equal(response.headers.get("Cache-Control"), "no-store");
+    assert.equal(response.headers.get("Cache-Control"), "no-store, no-transform");
     assert.ok(response.headers.get("X-Request-Id"));
     assert.equal(response.headers.get("Access-Control-Allow-Origin"), null);
   }
@@ -151,6 +151,11 @@ try {
     await status(await api(credential, "/topology/validate", "POST", graph), 200);
     const first = await api(credential, "/topology", "PUT", graph, intent("replace-01", 0)); await status(first, 200);
     assert.equal(first.headers.get("ETag"), '"topology:1"');
+    // Server-Timing from the real Workers runtime: fixed metric names and durations only, never identities.
+    const timing = first.headers.get("Server-Timing") ?? "";
+    const metrics = timing.split(", ").map((part) => { assert.match(part, /^[a-z-]+(;dur=\d+\.\d)?$/); return part.split(";")[0]; });
+    for (const metric of ["auth", "read", "validate", "write", "total"]) assert.ok(metrics.includes(metric), `Server-Timing lacks ${metric}: ${timing}`);
+    assert.ok(!timing.includes(credential) && !timing.includes(token.id), "Server-Timing leaks a token");
     const retry = await api(credential, "/topology", "PUT", graph, intent("replace-01", 0)); await status(retry, 200);
     assert.equal(retry.headers.get("Idempotency-Replayed"), "true");
     await status(await api(credential, "/requests/replace-01"), 200);
@@ -223,6 +228,17 @@ try {
     const window = Math.floor(Date.now() / 60_000) * 60;
     await sql(`INSERT OR REPLACE INTO connect_rate_limits (key, window, count) VALUES ('token:${readToken.id}:read', ${window}, ${CONNECT_LIMITS.readPerMinute}), ('token:${readToken.id}:read', ${window + 60}, ${CONNECT_LIMITS.readPerMinute})`);
     const limited = await api(reader, "/topology"); await status(limited, 429); assert.equal(limited.headers.get("Retry-After"), "60");
+    // Write bucket: auth reads the count and rejects before mutating; a 412 still charges exactly once.
+    await sql(`INSERT OR REPLACE INTO connect_rate_limits (key, window, count) VALUES ('token:${token.id}:write', ${window}, ${CONNECT_LIMITS.writePerMinute})`);
+    const writeLimited = await api(credential, "/topology/operations", "POST", { operations: [{ op: "set_metadata", title: "Denied" }] }, intent("rate-write", 3));
+    await status(writeLimited, 429);
+    await sql(`UPDATE connect_rate_limits SET count = ${CONNECT_LIMITS.writePerMinute - 1} WHERE key = 'token:${token.id}:write' AND window = ${window}`);
+    const conflict = await api(credential, "/topology/operations", "POST", { operations: [{ op: "set_metadata", title: "Stale" }] }, intent("rate-412", 0));
+    await status(conflict, 412);
+    // The 412 charge is deferred and starts after the response; give it time to land.
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    const afterCharge = await api(credential, "/topology/operations", "POST", { operations: [{ op: "set_metadata", title: "Blocked" }] }, intent("rate-after-412", 0));
+    await status(afterCharge, 429);
     await sql("DELETE FROM connect_rate_limits");
     await status((await sensitive(readToken, "revoke")).response, 200);
     await status(await api(reader, "/topology"), 401);
@@ -282,6 +298,20 @@ try {
     const snapshot = await parse<{ data: { layers: unknown[]; nodes: { id: string }[]; revision: number } }>(await api(bulk, "/topology"));
     assert.equal(snapshot.data.layers.length, 7); assert.equal(snapshot.data.nodes.length, 200); assert.equal(snapshot.data.revision, 26);
     assert.deepEqual(snapshot.data.nodes.map((item) => item.id).sort(), before.data.nodes.map((item) => item.id).filter((id) => id !== "node-200").sort());
+  });
+  await check("gzip clients read a strong ETag and may echo it weakened", async () => {
+    // Cloudflare weakens the ETag of responses it compresses; Connect opts out with no-transform
+    // and still accepts W/"topology:N" in If-Match because the validator names a revision.
+    const gzipToken = await createToken(); const gzip = await reveal(gzipToken);
+    const read = await api(gzip, "/topology", "GET", undefined, { "Accept-Encoding": "gzip, deflate, br" }); await status(read, 200);
+    const etag = read.headers.get("ETag") ?? "";
+    assert.match(etag, /^"topology:\d+"$/);
+    const revision = Number(/\d+/.exec(etag)?.[0]);
+    await status(await api(gzip, "/topology/operations", "POST", { operations: [{ op: "set_metadata", title: "Weak" }] },
+      { "Idempotency-Key": "weak-etag-01", "If-Match": `W/"topology:${revision - 1}"` }), 412);
+    const weak = await api(gzip, "/topology/operations", "POST", { operations: [{ op: "set_metadata", title: "Weak" }] },
+      { "Idempotency-Key": "weak-etag-02", "If-Match": `W/${etag}`, "Accept-Encoding": "gzip" });
+    await status(weak, 200); assert.equal(weak.headers.get("ETag"), `"topology:${revision + 1}"`);
   });
   await check("token rename, rotate and revoke", async () => {
     const renamed = await manage(`/tokens/${token.id}`, "PATCH", { name: "Renamed agent" }, version(token)); await status(renamed, 200);

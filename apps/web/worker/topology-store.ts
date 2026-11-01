@@ -60,17 +60,20 @@ async function readTopology(db: D1Database, extra: D1PreparedStatement[] = []) {
     schemaVersion: 2, ...metadata,
     layers: rows(1), types: rows(2), boundaries: rows(3), nodes, edges: rows(5), views: rows(6),
   });
-  return { snapshot: { topology, updatedAt: String(updatedAt) }, resultRows };
+  return { snapshot: { topology, updatedAt: String(updatedAt) }, resultRows, batch: results };
 }
 
 export async function loadTopology(db: D1Database): Promise<TopologySnapshot> {
   return (await readTopology(db)).snapshot;
 }
 
-/** Reads the snapshot and the extra statements' rows in the same D1 round trip. */
-export async function loadTopologyWith<T>(db: D1Database, extra: D1PreparedStatement[]): Promise<TopologySnapshot & { extra: T[][] }> {
-  const { snapshot, resultRows } = await readTopology(db, extra);
-  return { ...snapshot, extra: extra.map((_, index) => resultRows(8 + index) as T[]) };
+/**
+ * Reads the snapshot and the extra statements' rows in the same D1 round trip. `batch` is the raw
+ * D1 result list, for its per-statement `meta` (Server-Timing).
+ */
+export async function loadTopologyWith<T>(db: D1Database, extra: D1PreparedStatement[]): Promise<TopologySnapshot & { extra: T[][]; batch: unknown[] }> {
+  const { snapshot, resultRows, batch } = await readTopology(db, extra);
+  return { ...snapshot, extra: extra.map((_, index) => resultRows(8 + index) as T[]), batch };
 }
 
 export async function loadTopologyDelta(db: D1Database, since: number) {

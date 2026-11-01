@@ -1,6 +1,6 @@
 {
   "name": "@steed/api",
-  "version": "0.5.4",
+  "version": "0.5.8",
   "private": true,
   "type": "module",
   "exports": {

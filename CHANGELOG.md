@@ -1,5 +1,81 @@
 # Changelog
 
+## [0.5.8] - 2026-11-01
+
+### Fixed
+
+- Connect deferred writes (`last_used_at` stamp, read and 412/422 rate-limit
+  increment, audit row) now start only after the request's action has
+  finished. In v0.5.7 the `last_used_at` UPDATE was issued right after auth
+  and committed on the D1 primary while the snapshot read ran, moving the
+  commit tail from auth into read (read-net p95 135–152 ms, total p95
+  351/370 ms). Round-trip budgets are unchanged (#120).
+
+### Added
+
+- `STEED_PROBE=read` for `scripts/prod-write-latency.ts`: GET-only A/B mode
+  with no topology writes; every summary now counts `net > 100 ms` samples
+  per segment (#120).
+
+### Documentation
+
+- docs/21 records the v0.5.7 retest analysis, the v0.5.8 change and the
+  v0.5.7 production runs (revision 169 → 373) (#120).
+
+## [0.5.7] - 2026-11-01
+
+### Changed
+
+- Connect auth is a read-only D1 batch (token lookup + rate-limit count).
+  Mutations fold the rate-limit increment into their existing write batch so
+  writes pay one durable commit instead of two; reads and write paths that
+  never reach that batch (412/422/validate/replay) defer the same increment
+  via `waitUntil`. Over-limit requests still get 429 before any topology I/O.
+  Expected to bring incremental write server p95 from ~280 ms to ~240 ms
+  (#118).
+
+### Documentation
+
+- docs/21 records the v0.5.6 N=100 PASS (p95 280), 拓扑大师's decisions on
+  proposals A (done) and B (deferred), and the check-vs-increment semantics
+  including the brief concurrent overshoot window (#118).
+
+## [0.5.6] - 2026-11-01
+
+### Fixed
+
+- Connect writes no longer fail with 412 for clients that request gzip.
+  Cloudflare compressed the response and weakened its ETag to
+  `W/"topology:N"`; Connect responses now send
+  `Cache-Control: no-store, no-transform`, and mutation `If-Match` also
+  accepts the weak form, which names the same revision (#116).
+
+### Changed
+
+- `scripts/prod-write-latency.ts` runs 100 writes by default (up to 200),
+  reports p90 and p99, and derives `auth-net`, `read-net` and `write-net`
+  (segment minus D1 SQL time) (#116).
+
+### Documentation
+
+- docs/21 records the v0.5.5 production write measurement and findings: the
+  D1 primary is in NRT next to the Worker, a mutation is already one D1 batch
+  including its audit row, and the write and auth tails come from D1 commit
+  latency outside SQL. It also records the owner decision allowing `test-`
+  data in production for latency tests (#116).
+
+## [0.5.5] - 2026-11-01
+
+### Added
+
+- API responses carry a `Server-Timing` header with per-segment durations
+  (`auth`, `read`, `validate`, `write`, `audit`, the D1-reported `*-sql`
+  execution time, the `colo` lookup, `total`) and a `cold` flag on the first
+  request of an isolate. It is fail-soft and carries no identities (#114).
+- `scripts/prod-write-latency.ts` measures incremental `put_node` latency
+  against an empty production topology using `test-` data and clears it
+  afterwards (#114).
+
 ## [0.5.4] - 2026-11-01
 
 ### Fixed
