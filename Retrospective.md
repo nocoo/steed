@@ -49,6 +49,11 @@ TypeScript symlinks, and an active review copy were still inside the lint
 traversal. The hook rejected the commit. Preserve these artifacts outside the
 worktree and check active review scratch locations before running the hook.
 
+The controller later restored a direct `.ts` symlink to a browser runner and
+the next pre-commit lint rejected it as outside the TypeScript project. The
+link was renamed without changing its target, and the unchanged hook passed.
+Keep links to temporary scripts outside lint's source extensions too.
+
 ## 2026-10-31: Bound rule-file searches to approved roots
 
 While locating the commit rules, the controller searched under the home
