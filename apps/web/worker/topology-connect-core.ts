@@ -19,6 +19,8 @@ export interface ConnectContext {
   token?: TokenRow;
   tokenId?: string;
   audited: boolean;
+  execution?: Pick<ExecutionContext, "waitUntil">;
+  pending: Promise<unknown>[];
 }
 export const nowSeconds = () => Math.floor(Date.now() / 1000);
 export const iso = (value: number | null) => value === null ? null : new Date(value * 1000).toISOString();
@@ -42,18 +44,37 @@ export async function rate(db: D1Database, key: string, limit: number) {
   if (!row) throw new HttpError(429, "rate_limited", "Too many requests. Retry after one minute.");
 }
 
+const LIVE_TOKEN = "token_hash = ? AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?)";
+// One D1 round trip: the token lookup and its rate-limit charge share a batch. The charge is
+// guarded by the same token state so unknown, revoked, expired or under-scoped tokens never
+// consume a bucket; the last-used stamp is deferred because the response does not depend on it.
 async function bearer(ctx: ConnectContext) {
   const credential = /^Bearer (steedc_[A-Za-z0-9_-]{43})$/i.exec(ctx.request.headers.get("Authorization") ?? "")?.[1];
   if (!credential) throw new HttpError(401, "invalid_token", "A valid Connect Bearer token is required.");
   const hash = await fingerprint(`${deployment(ctx.env)}:${credential}`);
-  const row = await ctx.env.DB.prepare("SELECT * FROM connect_tokens WHERE token_hash = ?").bind(hash).first<TokenRow>();
-  if (!row || row.revoked_at !== null || (row.expires_at !== null && row.expires_at <= nowSeconds())) throw new HttpError(401, "invalid_token", "The token is invalid, expired or revoked.");
+  const writing = !["GET", "HEAD"].includes(ctx.request.method);
+  const now = nowSeconds();
+  const db = ctx.env.DB;
+  const [lookup, charge] = await db.batch<Record<string, unknown>>([
+    db.prepare("SELECT * FROM connect_tokens WHERE token_hash = ?").bind(hash),
+    db.prepare(`INSERT INTO connect_rate_limits (key, window, count)
+      SELECT 'token:' || id || ':' || ?, ?, 1 FROM connect_tokens WHERE ${LIVE_TOKEN}${writing ? " AND scope = 'topology:write'" : ""}
+      ON CONFLICT(key, window) DO UPDATE SET count = count + 1 WHERE count < ? RETURNING count`)
+      .bind(writing ? "write" : "read", Math.floor(now / 60) * 60, hash, now, writing ? CONNECT_LIMITS.writePerMinute : CONNECT_LIMITS.readPerMinute),
+  ]);
+  const row = lookup?.results[0] as TokenRow | undefined;
+  if (!row || row.revoked_at !== null || (row.expires_at !== null && row.expires_at <= now)) throw new HttpError(401, "invalid_token", "The token is invalid, expired or revoked.");
   ctx.token = row; ctx.tokenId = row.id; ctx.actor = `token:${row.id}`;
   if (!isManager(ctx.request, ctx.env, row.owner)) throw new HttpError(403, "authorization_revoked", "The issuing manager is no longer authorized.");
-  const writing = !["GET", "HEAD"].includes(ctx.request.method);
   if (writing && row.scope !== "topology:write") throw new HttpError(403, "insufficient_scope", "A write token is required.");
-  await rate(ctx.env.DB, `token:${row.id}:${writing ? "write" : "read"}`, writing ? CONNECT_LIMITS.writePerMinute : CONNECT_LIMITS.readPerMinute);
-  await ctx.env.DB.prepare("UPDATE connect_tokens SET last_used_at = ? WHERE id = ? AND token_hash = ? AND revoked_at IS NULL").bind(nowSeconds(), row.id, hash).run();
+  if (!charge?.results[0]) throw new HttpError(429, "rate_limited", "Too many requests. Retry after one minute.");
+  defer(ctx, db.prepare(`UPDATE connect_tokens SET last_used_at = ? WHERE id = ? AND ${LIVE_TOKEN}`).bind(now, row.id, hash, now).run());
+}
+// Work the response does not depend on runs after it via waitUntil; without an execution
+// context (tests, scripts) it is awaited before the response so nothing is silently dropped.
+function defer(ctx: ConnectContext, work: Promise<unknown>) {
+  const tracked = work.catch((error: unknown) => { console.error("connect deferred write failed", error instanceof Error ? error.message : "unknown"); });
+  if (typeof ctx.execution?.waitUntil === "function") ctx.execution.waitUntil(tracked); else ctx.pending.push(tracked);
 }
 
 export type AccessUser = { email: string; sub: string };
@@ -73,9 +94,9 @@ export function auditStatement(ctx: ConnectContext, status: number, code: string
     SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE ${guard}`)
     .bind(ctx.requestId, redact(ctx.tokenId), "topology", redact(ctx.actor), ctx.operation, status, code, nowSeconds());
 }
-export async function runConnect(request: Request, env: ConnectEnv, mode: "bearer" | "manager", action: (ctx: ConnectContext) => Promise<Response>, user?: AccessUser): Promise<Response> {
+export async function runConnect(request: Request, env: ConnectEnv, mode: "bearer" | "manager", action: (ctx: ConnectContext) => Promise<Response>, user?: AccessUser, execution?: Pick<ExecutionContext, "waitUntil">): Promise<Response> {
   const result = await apiResponse(async (requestId) => {
-    const ctx: ConnectContext = { request, env, requestId, actor: "anonymous", operation: `${mode}.request`, audited: false };
+    const ctx: ConnectContext = { request, env, requestId, actor: "anonymous", operation: `${mode}.request`, audited: false, execution, pending: [] };
     let response: Response;
     let code: string | null = null;
     try {
@@ -93,7 +114,8 @@ export async function runConnect(request: Request, env: ConnectEnv, mode: "beare
         code = error instanceof HttpError ? error.code : response.status === 422 ? "invalid_document" : "unavailable";
       }
     }
-    if (!ctx.audited) await auditStatement(ctx, response.status, code).run();
+    if (!ctx.audited) defer(ctx, auditStatement(ctx, response.status, code).run());
+    await Promise.all(ctx.pending);
     return response;
   });
   for (const [name, value] of Object.entries({ Pragma: "no-cache", "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff", "Cross-Origin-Resource-Policy": "same-origin", "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'" })) result.headers.set(name, value);

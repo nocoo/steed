@@ -67,6 +67,12 @@ export async function loadTopology(db: D1Database): Promise<TopologySnapshot> {
   return (await readTopology(db)).snapshot;
 }
 
+/** Reads the snapshot and the extra statements' rows in the same D1 round trip. */
+export async function loadTopologyWith<T>(db: D1Database, extra: D1PreparedStatement[]): Promise<TopologySnapshot & { extra: T[][] }> {
+  const { snapshot, resultRows } = await readTopology(db, extra);
+  return { ...snapshot, extra: extra.map((_, index) => resultRows(8 + index) as T[]) };
+}
+
 export async function loadTopologyDelta(db: D1Database, since: number) {
   const { snapshot, resultRows } = await readTopology(db, [
     db.prepare("SELECT MIN(revision) AS oldest FROM topo_changes"),

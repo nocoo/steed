@@ -47,10 +47,11 @@ describe("worker", () => {
     mocks.connectFetch.mockResolvedValueOnce(new Response(null, { status: 401 }));
 
     const req = new Request(`https://example.com${path}`);
-    const res = await worker.fetch(req, baseEnv, {} as ExecutionContext);
+    const execution = { waitUntil: vi.fn() } as unknown as ExecutionContext;
+    const res = await worker.fetch(req, baseEnv, execution);
 
     expect(res.status).toBe(401);
-    expect(mocks.connectFetch).toHaveBeenCalledWith(req, baseEnv);
+    expect(mocks.connectFetch).toHaveBeenCalledWith(req, baseEnv, execution);
     expect(mocks.verifyAccessJwt).not.toHaveBeenCalled();
   });
 
