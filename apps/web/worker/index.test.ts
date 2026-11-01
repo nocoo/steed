@@ -25,6 +25,7 @@ vi.mock("./worker-colo", () => ({
 vi.mock("./topology-api", () => ({ topologyBrowserApi: (...args: unknown[]) => mocks.topologyFetch(...args) }));
 
 import worker from "./index";
+import { ServerTiming } from "./server-timing";
 
 describe("worker", () => {
   const baseEnv = {
@@ -91,7 +92,7 @@ describe("worker", () => {
     const res = await worker.fetch(req, baseEnv, execution);
 
     expect(res.status).toBe(401);
-    expect(mocks.connectFetch).toHaveBeenCalledWith(req, baseEnv, execution);
+    expect(mocks.connectFetch).toHaveBeenCalledWith(req, baseEnv, execution, expect.any(ServerTiming));
     expect(mocks.verifyAccessJwt).not.toHaveBeenCalled();
   });
 
@@ -200,5 +201,31 @@ describe("worker", () => {
       aud: "test-aud",
       devBypass: true,
     });
+  });
+  it("adds Server-Timing with only fixed metric names to API responses and marks the isolate's first request cold", async () => {
+    mocks.workerColo.mockResolvedValue("NRT");
+    const execution = { waitUntil: vi.fn() } as unknown as ExecutionContext;
+    mocks.connectFetch.mockImplementationOnce((_req: Request, _env: unknown, _exec: unknown, timing: ServerTiming) => {
+      timing.add("auth", 12.34);
+      timing.add("write", 100);
+      return Promise.resolve(Response.json({ ok: true }));
+    });
+    const connect = await worker.fetch(new Request("https://example.com/api/v1/topology/operations", { method: "POST" }), baseEnv, execution);
+    const value = connect.headers.get("Server-Timing") ?? "";
+    expect(value).toMatch(/^auth;dur=12\.3, write;dur=100\.0, colo;dur=\d+\.\d, total;dur=\d+\.\d(, cold)?$/);
+    const live = await worker.fetch(new Request("https://example.com/api/live"), baseEnv, execution);
+    expect(live.headers.get("Server-Timing")).toMatch(/^colo;dur=\d+\.\d, total;dur=\d+\.\d$/);
+    for (const part of (live.headers.get("Server-Timing") ?? "").split(", ")) expect(part).toMatch(/^[a-z-]+(;dur=\d+\.\d)?$/);
+    mocks.assetsFetch.mockResolvedValueOnce(new Response("page"));
+    expect((await worker.fetch(new Request("https://example.com/topology"), baseEnv, execution)).headers.get("Server-Timing")).toBeNull();
+  });
+
+  it("marks only the first API request of an isolate as cold", async () => {
+    vi.resetModules();
+    const fresh = (await import("./index")).default;
+    const first = await fresh.fetch(new Request("https://example.com/api/live"), baseEnv, {} as ExecutionContext);
+    const second = await fresh.fetch(new Request("https://example.com/api/live"), baseEnv, {} as ExecutionContext);
+    expect(first.headers.get("Server-Timing")).toMatch(/, cold$/);
+    expect(second.headers.get("Server-Timing")).not.toMatch(/cold/);
   });
 });

@@ -151,6 +151,11 @@ try {
     await status(await api(credential, "/topology/validate", "POST", graph), 200);
     const first = await api(credential, "/topology", "PUT", graph, intent("replace-01", 0)); await status(first, 200);
     assert.equal(first.headers.get("ETag"), '"topology:1"');
+    // Server-Timing from the real Workers runtime: fixed metric names and durations only, never identities.
+    const timing = first.headers.get("Server-Timing") ?? "";
+    const metrics = timing.split(", ").map((part) => { assert.match(part, /^[a-z-]+(;dur=\d+\.\d)?$/); return part.split(";")[0]; });
+    for (const metric of ["auth", "read", "validate", "write", "total"]) assert.ok(metrics.includes(metric), `Server-Timing lacks ${metric}: ${timing}`);
+    assert.ok(!timing.includes(credential) && !timing.includes(token.id), "Server-Timing leaks a token");
     const retry = await api(credential, "/topology", "PUT", graph, intent("replace-01", 0)); await status(retry, 200);
     assert.equal(retry.headers.get("Idempotency-Replayed"), "true");
     await status(await api(credential, "/requests/replace-01"), 200);

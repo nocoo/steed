@@ -1010,6 +1010,32 @@ The former open questions, answered in order:
     is not sent in practice.
   Only validated values (`^[A-Z]{3}$`, `^(local|remote)-[A-Z]{3}$`) are
   echoed; each header is omitted when its value is unavailable.
+- `/api/*` responses carry `Server-Timing` (since v0.5.5), for example
+  `auth;dur=14.2, auth-sql;dur=0.3, read;dur=41.0, read-sql;dur=1.9,
+  validate;dur=0.0, write;dur=96.5, write-sql;dur=3.1, colo;dur=0.0,
+  total;dur=152.8`. Metrics appear in this fixed order, only when measured:
+  - `auth`: the Connect Bearer token lookup and rate-limit charge (one D1
+    batch); `auth-sql` is D1's SQL time for it. Browser and management
+    routes report only `colo` and `total`.
+  - `read`: the D1 snapshot read (writes, validate, reads); `read-sql` is its
+    SQL time, reported for writes.
+  - `validate`: planning and building the write statements. It is CPU-only,
+    and Workers clocks only advance across I/O, so it reads `0.0` in
+    production; local runs show real values.
+  - `write`: the single D1 write batch (revision bump, entity rows, history
+    rows, receipt and audit); `write-sql` is its SQL time.
+  - `audit`: deferred audit and last-used writes, only when no `waitUntil` is
+    available (tests). In production they run after the response and are
+    not in the header.
+  - `colo`: the per-isolate trace lookup behind `X-Steed-Colo`, which runs in
+    parallel with the handler; it is near 0 once cached.
+  - `total`: the whole `/api/*` handler in the Worker. The client's time minus
+    `total` is network, TLS and the placement hop.
+  - `cold` (no duration) marks the first `/api/*` request an isolate serves.
+  A segment's time minus its `-sql` time is the D1 round trip and queueing.
+  The header holds only these names and durations, never ids, identities or
+  request data, and any timing failure drops values instead of failing the
+  response.
 - Revert takes no request body and always requires explicit topology
   confirmation. It uses the same revision guard and idempotent receipt as
   other writes; invalid or missing change IDs fail before any write.

@@ -4,6 +4,7 @@ import { testDatabase } from "./__tests__/db";
 import { fingerprint } from "./connect-crypto";
 import { topologyConnectMachineApi } from "./topology-connect-machine";
 import type { ConnectEnv } from "./topology-connect-core";
+import { ServerTiming } from "./server-timing";
 
 // Production latency is dominated by serial D1 round trips (each one crosses to the D1 primary),
 // so every Connect endpoint has a fixed budget on the request's critical path. Deferred work
@@ -76,5 +77,29 @@ describe("Connect D1 round-trip budget", () => {
     expect((await measure("/capabilities", "GET", undefined, {}, null)).status).toBe(401);
     expect(error).toHaveBeenCalledWith("connect deferred write failed", expect.stringContaining("connect_audit"));
     error.mockRestore();
+  });
+});
+
+describe("Connect Server-Timing segments", () => {
+  async function timed(path: string, method = "GET", body?: unknown, headers: Record<string, string> = {}, execution = true) {
+    const timing = new ServerTiming();
+    const response = await topologyConnectMachineApi(new Request(`${origin}/api/v1${path}`, {
+      method, headers: { Authorization: `Bearer ${writer}`, "Content-Type": "application/json", ...headers },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    }), env, execution ? { waitUntil: () => undefined } : undefined, timing);
+    return { status: response.status, metrics: timing.header().split(", ").map((part) => part.split(";")[0]) };
+  }
+
+  it("times auth, the snapshot read, validation and the write of a mutation, with D1 SQL time", async () => {
+    expect(await timed("/topology", "PUT", graph, intent("timing-put-1", 0))).toEqual({ status: 200,
+      metrics: ["auth", "auth-sql", "read", "read-sql", "validate", "write", "write-sql", "total"] });
+    expect(await timed("/topology/validate", "POST", { operations: [{ op: "set_metadata", title: "Dry run" }] })).toEqual({ status: 200,
+      metrics: ["auth", "auth-sql", "read", "validate", "total"] });
+    expect(await timed("/topology")).toEqual({ status: 200, metrics: ["auth", "auth-sql", "read", "total"] });
+    // Without waitUntil the deferred audit and last-used writes are awaited before the response and timed.
+    expect(await timed("/topology/nodes/web", "GET", undefined, {}, false)).toEqual({ status: 200, metrics: ["auth", "auth-sql", "read", "audit", "total"] });
+    // A version conflict still reports the segments that ran.
+    expect(await timed("/topology/operations", "POST", { operations: [{ op: "set_metadata", title: "Late" }] }, intent("timing-ops-1", 0))).toEqual({ status: 412,
+      metrics: ["auth", "auth-sql", "read", "read-sql", "validate", "total"] });
   });
 });
