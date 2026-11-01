@@ -113,6 +113,55 @@ describe("Connect rate-limit charge placement", () => {
   });
 });
 
+describe("Connect deferred write ordering", () => {
+  // A deferred write issued mid-request commits on the D1 primary while the request's own reads
+  // run and hands them its commit tail (v0.5.7 read-net p95 135-152 ms). Deferred work must
+  // start only after every critical-path D1 call has completed.
+  async function trace(path: string, method = "GET", body?: unknown, headers: Record<string, string> = {}) {
+    const calls: string[] = [];
+    const real = database.db;
+    const targets = new WeakMap<object, D1PreparedStatement>();
+    const db = {
+      prepare(sql: string) {
+        const statement = real.prepare(sql);
+        const label = sql.trim().split(/\s+/).slice(0, 3).join(" ");
+        const proxy = new Proxy(statement, { get(target, key, receiver) {
+          const value = Reflect.get(target, key, receiver) as unknown;
+          if (key === "run" && typeof value === "function") return (...args: unknown[]) => { calls.push(`run ${label}`); return (value as (...a: unknown[]) => unknown).apply(target, args); };
+          if (key === "bind" && typeof value === "function") return (...args: unknown[]) => { (value as (...a: unknown[]) => unknown).apply(target, args); return receiver; };
+          return value;
+        } });
+        targets.set(proxy, statement);
+        return proxy;
+      },
+      async batch(statements: D1PreparedStatement[]) {
+        calls.push("batch:start");
+        try { return await real.batch(statements.map((statement) => targets.get(statement) ?? statement)); } finally { calls.push("batch:end"); }
+      },
+    } as unknown as D1Database;
+    const deferred: Promise<unknown>[] = [];
+    const response = await topologyConnectMachineApi(new Request(`${origin}/api/v1${path}`, {
+      method, headers: { Authorization: `Bearer ${writer}`, "Content-Type": "application/json", ...headers },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    }), { ...env, DB: db }, { waitUntil: (promise: Promise<unknown>) => { deferred.push(promise); } });
+    await Promise.all(deferred);
+    return { status: response.status, calls };
+  }
+
+  it("starts last-used, read charge and audit only after the snapshot read", async () => {
+    expect(await trace("/topology")).toEqual({ status: 200, calls: ["batch:start", "batch:end", "batch:start", "batch:end",
+      "run INSERT INTO connect_rate_limits", "run UPDATE connect_tokens SET", "run INSERT INTO connect_audit"] });
+  });
+
+  it("starts last-used only after a mutation's write batch", async () => {
+    const result = await trace("/topology", "PUT", graph, intent("order-put", 0));
+    expect(result.status).toBe(200);
+    expect(result.calls.at(-1)).toBe("run UPDATE connect_tokens SET");
+    expect(result.calls.filter((call) => call.startsWith("run"))).toHaveLength(1);
+    expect(result.calls.lastIndexOf("batch:end")).toBe(result.calls.length - 2);
+  });
+});
+
 describe("Connect Server-Timing segments", () => {
   async function timed(path: string, method = "GET", body?: unknown, headers: Record<string, string> = {}, execution = true) {
     const timing = new ServerTiming();
