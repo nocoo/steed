@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.5.6] - 2026-11-01
+
+### Fixed
+
+- Connect writes no longer fail with 412 for clients that request gzip.
+  Cloudflare compressed the response and weakened its ETag to
+  `W/"topology:N"`; Connect responses now send
+  `Cache-Control: no-store, no-transform`, and mutation `If-Match` also
+  accepts the weak form, which names the same revision (#116).
+
+### Changed
+
+- `scripts/prod-write-latency.ts` runs 100 writes by default (up to 200),
+  reports p90 and p99, and derives `auth-net`, `read-net` and `write-net`
+  (segment minus D1 SQL time) (#116).
+
+### Documentation
+
+- docs/21 records the v0.5.5 production write measurement and findings: the
+  D1 primary is in NRT next to the Worker, a mutation is already one D1 batch
+  including its audit row, and the write and auth tails come from D1 commit
+  latency outside SQL. It also records the owner decision allowing `test-`
+  data in production for latency tests (#116).
+
 ## [0.5.5] - 2026-11-01
 
 ### Added
