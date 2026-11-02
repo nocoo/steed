@@ -83,6 +83,16 @@ copies were searched; no files were changed by the searches.
 Treat permission to use a temporary copy as separate from permission to search
 it: use explicitly named files or search only the designated project roots.
 
+## 2026-11-02: Verify hooks in temporary push worktrees
+
+The Connect lazy-load commit was pushed from an owned temporary worktree without
+its pre-push hook running. The worktree inherited `core.hooksPath` but lacked
+Husky's ignored `.husky/_` shim; checking the configured path alone was not
+enough. The full HTTP E2E and security checks passed immediately afterwards,
+but that post-push run does not replace the missing automatic gate. Install
+Husky in each temporary push worktree and verify its executable pre-push shim
+before pushing; inspect the push output for the checks as well.
+
 ## 2026-10-31: Target Herdr panes explicitly
 
 While arranging the Phase 1 work panes, a resize using `--current` resolved to
