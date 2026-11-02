@@ -346,7 +346,8 @@ zoom for every visible text node at each level.
 Decision 4: at the overview level a large topology must read at a glance.
 
 - Every cross-layer edge belongs to the bundle of its unordered layer pair.
-  Same-layer edges are not bundled.
+  The v0.6.1 overview requirements below additionally aggregate same-layer
+  satellite edges and cross-frame edges.
 - Each bundle is routed once, section border to section border through the
   gutters (ports on the facing section sides), drawn with width
   `2 + 2·log2(count)` px (capped at 10) in the cross-layer colour, with a
@@ -526,6 +527,29 @@ owner on 2026-11-01 (PR #113); the body above reflects them.
 
 Development path: herdr on a Mac allocated by 机器管家 (decided; allocation
 pending).
+
+## v0.6.1 overview and zoom follow-up
+
+The requirements owner accepted v0.6.0 with known limitations and prioritized
+the following for v0.6.1:
+
+- Fit frame heights to their contents and pack frames compactly within each
+  row, without stretching shorter frames to a taller neighbour's height.
+- Route cross-frame edges through inter-frame channels rather than unrelated
+  frame interiors; aggregate them by frame pair at overview. Aggregate or
+  fade dense intra-frame edges at overview, including the Cloudflare frame.
+- Compare before and after overview screenshots from the rev578 snapshot in
+  local D1. Report frame blank-area ratio and the count of cross-frame edges
+  passing through unrelated frames, using the same measurements for both.
+- At standard zoom, verify that all 150 satellites in `topology-500` render
+  fully without freezing. The bundle activation and satellite-count rules
+  above remain required, as does layer focus.
+
+Planned atomic changes: compact frame packing; cross-frame routing;
+overview aggregation and semantic zoom; layer focus; browser acceptance and
+documentation; then the v0.6.1 version bump. Implement and integrate in that
+order where dependencies permit. The existing quality and geometry gates,
+local-only data rules and three-round review cap remain in force.
 
 ## Atomic commits
 
