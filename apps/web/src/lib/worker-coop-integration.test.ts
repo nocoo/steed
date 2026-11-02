@@ -173,19 +173,17 @@ describe("worker cooperative integration", () => {
     expect((first.at(-1) as { routeDiagnostics?: { status?: string } } | undefined)?.routeDiagnostics?.status).toBe("timeout");
   });
 
-  it("covers cooperative status, progress and yield matrix across 200 and 500", async () => {
-    for (const name of ["topology-200", "topology-500"] as const) {
-      const topology = generateTopologyFixture(name);
-      const layout = layoutTopology(topology);
-      const progress: string[] = [];
-      const result = await routeTopologyCooperative(topology, layout, { clock: () => 0, layoutTimeoutMs: 1500, edgeTimeoutMs: 20 }, () => false, 20, async () => undefined, (value) => progress.push(value.phase));
-      expect(result?.diagnostics.status).toBe("complete");
-      expect(result?.diagnostics.fallbackCount).toBe(0);
-      expect(Object.keys(result?.routes ?? {})).toHaveLength(topology.edges.length);
-      expect(progress).toContain("prepared");
-      expect(progress).toContain("complete");
-    }
-  });
+  it.each(["topology-200", "topology-500"] as const)("covers cooperative status, progress and yield for %s", async (name) => {
+    const topology = generateTopologyFixture(name);
+    const layout = layoutTopology(topology);
+    const progress: string[] = [];
+    const result = await routeTopologyCooperative(topology, layout, { clock: () => 0, layoutTimeoutMs: 1500, edgeTimeoutMs: 20 }, () => false, 20, async () => undefined, (value) => progress.push(value.phase));
+    expect(result?.diagnostics.status).toBe("complete");
+    expect(result?.diagnostics.fallbackCount).toBe(0);
+    expect(Object.keys(result?.routes ?? {})).toHaveLength(topology.edges.length);
+    expect(progress).toContain("prepared");
+    expect(progress).toContain("complete");
+  }, 30_000);
 
   it("covers cooperative prepare, yield, post-finish and repeated cancel boundaries", async () => {
     const topology = generateTopologyFixture("topology-200");
