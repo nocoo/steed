@@ -1,14 +1,21 @@
-import { memo, useCallback, useEffect, useMemo, useRef } from "react";
-import ReactFlow, { Background, ControlButton, Controls, Handle, MarkerType, Position, ReactFlowProvider, getNodesBounds, getViewportForBounds, useReactFlow, useStore, type Edge, type Node, type NodeMouseHandler, type NodeProps, type ReactFlowInstance, type Rect } from "reactflow";
+import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { ReactFlow, Background, ControlButton, Controls, Handle, MarkerType, Position, ReactFlowProvider, ViewportPortal, getNodesBounds, getViewportForBounds, useReactFlow, useStore, useUpdateNodeInternals, type Edge, type Node, type NodeMouseHandler, type NodeProps, type ReactFlowInstance, type Rect } from "@xyflow/react";
 import { Badge } from "@nocoo/basalt";
 import { Layers, Maximize, Network, Server, Shield } from "lucide-react";
 import type { Topology, TopologyEdge, TopologyNode, TopologyView } from "@steed/api/shared";
-import { layoutTopology } from "@/lib/topology-layout";
-import "reactflow/dist/style.css";
+import { TOPOLOGY_FRAME_VISUAL_DEPTH_LIMIT } from "@/lib/topology-layout";
+import { TopologyLayoutRuntime } from "@/lib/topology-layout-runtime";
+import { computeStraightTopologyLayout } from "@/lib/topology-layout-preview";
+import { createTopologyFallbackRectIndex } from "@/lib/topology-route-edge-safety";
+import { topologyRouteEdgeColor, topologyRouteHighlightedEndpoints, topologyRoutePointsValid, type TopologyRouteEdgeData } from "@/lib/topology-route-edge";
+import { topologyZoomTier } from "@/lib/topology-zoom";
+import { TopologyRouteEdge } from "./topology-route-edge";
+export { topologyZoomTier, TOPOLOGY_ZOOM_FAR, TOPOLOGY_ZOOM_NEAR } from "@/lib/topology-zoom";
+import "@xyflow/react/dist/style.css";
 
 export type TopologyCardKind = "host" | "satellite" | "sub-satellite";
 
-export interface TopologyCanvasNode {
+export interface TopologyCanvasNode extends Record<string, unknown> {
   label: string;
   kind: "lane" | "frame" | TopologyCardKind;
   node?: TopologyNode;
@@ -18,15 +25,29 @@ export interface TopologyCanvasNode {
   counts?: { hosts: number; nodes: number };
   boundaryKind?: string;
   depth?: number;
+  visualDepth?: number;
+  fragmentIndex?: number;
+  fragmentCount?: number;
+  tint?: string;
+  borderStyle?: "solid" | "dashed" | "dotted" | "double";
+  borderWidth?: number;
+  borderColor?: string;
   satelliteCount?: number;
   typeLabel?: string;
   badges?: { label: string; value: string }[];
   boundaryLabels?: string[];
+  boundaryId?: string;
+  highlighted?: boolean;
+  onFrameHover?: (boundaryId: string) => void;
+  onFrameClearHover?: () => void;
+  onFrameFocus?: (boundaryId: string) => void;
+  onFrameClearFocus?: () => void;
   lifecycle?: TopologyNode["lifecycle"];
   width?: number;
   height?: number;
   onSelect?: (id: string) => void;
   onFocusLayer?: (id: string) => void;
+  handlePorts?: TopologyHandlePort[];
 }
 
 /** A one-shot request to move the viewport, e.g. from search or a toolbar. */
@@ -36,14 +57,67 @@ export interface TopologyFocusRequest {
   seq: number;
 }
 
-export type TopologyZoomTier = "far" | "mid" | "near";
-export const TOPOLOGY_ZOOM_FAR = 0.4;
-export const TOPOLOGY_ZOOM_NEAR = 0.75;
+export interface TopologyMoveViewport {
+  x: number;
+  y: number;
+  zoom: number;
+}
 
-export function topologyZoomTier(zoom: number): TopologyZoomTier {
-  if (zoom < TOPOLOGY_ZOOM_FAR) return "far";
-  if (zoom < TOPOLOGY_ZOOM_NEAR) return "mid";
-  return "near";
+export interface TopologyTouchCentroid {
+  x: number;
+  y: number;
+  count: number;
+}
+
+export interface TopologyGestureMoveResult {
+  manualPan: boolean;
+  touchCentroid: TopologyTouchCentroid | null;
+}
+
+function topologyTouchCentroid(event: unknown): TopologyTouchCentroid | null {
+  if (!event || typeof event !== "object") return null;
+  const touchEvent = event as { touches?: ArrayLike<{ clientX: number; clientY: number }> };
+  const touches = touchEvent.touches;
+  if (!touches || touches.length === 0) return null;
+  let x = 0;
+  let y = 0;
+  for (let index = 0; index < touches.length; index++) {
+    const touch = touches[index];
+    if (!touch) continue;
+    x += touch.clientX;
+    y += touch.clientY;
+  }
+  return { x: x / touches.length, y: y / touches.length, count: touches.length };
+}
+
+export function topologyGestureMove(
+  event: unknown,
+  viewport: TopologyMoveViewport,
+  previousViewport: TopologyMoveViewport,
+  previousTouchCentroid: TopologyTouchCentroid | null,
+): TopologyGestureMoveResult {
+  const eventType = typeof event === "object" && event && "type" in event
+    ? String((event as { type?: unknown }).type ?? "")
+    : "";
+  if (["wheel", "dblclick", "click", "touchstart", "touchend", "touchcancel"].includes(eventType)) {
+    const touchCentroid = eventType === "touchstart" ? topologyTouchCentroid(event) : null;
+    return { manualPan: false, touchCentroid };
+  }
+  if (eventType === "touchmove") {
+    const touchCentroid = topologyTouchCentroid(event);
+    if (!touchCentroid) return { manualPan: false, touchCentroid: null };
+    if (touchCentroid.count === 1 && viewport.zoom === previousViewport.zoom) {
+      const viewportMoved = viewport.x !== previousViewport.x || viewport.y !== previousViewport.y;
+      return { manualPan: viewportMoved, touchCentroid };
+    }
+    if (!previousTouchCentroid || touchCentroid.count !== previousTouchCentroid.count) return { manualPan: false, touchCentroid };
+    const centroidMoved = Math.hypot(touchCentroid.x - previousTouchCentroid.x, touchCentroid.y - previousTouchCentroid.y) > 0.5;
+    return { manualPan: centroidMoved, touchCentroid };
+  }
+  if (!event) return { manualPan: false, touchCentroid: null };
+  if (viewport.zoom !== previousViewport.zoom) return { manualPan: false, touchCentroid: null };
+  const viewportMoved = viewport.x !== previousViewport.x || viewport.y !== previousViewport.y;
+  return { manualPan: viewportMoved, touchCentroid: null };
 }
 
 /** Translucent fill for a layer or boundary colour; named colours fall back to the theme. */
@@ -54,6 +128,40 @@ export function topologyTint(color: string | undefined, alpha: number): string {
 
 type Side = "top" | "right" | "bottom" | "left";
 
+interface TopologyHandlePort {
+  id: string;
+  type: "source" | "target";
+  side: Side;
+  x: number;
+  y: number;
+}
+
+function topologyHandleId(type: "source" | "target", edgeId: string, side: Side): string {
+  return `${type === "source" ? "s" : "t"}-${edgeId}-${side}`;
+}
+
+function topologyPosition(side: Side): Position {
+  return { top: Position.Top, right: Position.Right, bottom: Position.Bottom, left: Position.Left }[side];
+}
+
+export function topologyPort(rect: Rect, side: Side): { x: number; y: number } {
+  if (side === "left" || side === "right") return { x: rect.x + (side === "right" ? rect.width : 0), y: Math.round(rect.y + rect.height / 2) };
+  return { x: Math.round(rect.x + rect.width / 2), y: rect.y + (side === "bottom" ? rect.height : 0) };
+}
+
+export function topologyRouteOutsideEndpointViewport(points: readonly { x: number; y: number }[], source: Rect, target: Rect, viewport: Rect): boolean {
+  const left = Math.min(source.x, target.x);
+  const right = Math.max(source.x + source.width, target.x + target.width);
+  const top = Math.min(source.y, target.y);
+  const bottom = Math.max(source.y + source.height, target.y + target.height);
+  if (right > viewport.x && left < viewport.x + viewport.width && bottom > viewport.y && top < viewport.y + viewport.height) return false;
+  return points.some((point, index) => {
+    const previous = points[index - 1];
+    return previous !== undefined && Math.max(point.x, previous.x) + 32 > viewport.x && Math.min(point.x, previous.x) - 32 < viewport.x + viewport.width
+      && Math.max(point.y, previous.y) + 32 > viewport.y && Math.min(point.y, previous.y) - 32 < viewport.y + viewport.height;
+  });
+}
+
 /** Handle sides for an edge, chosen from the relative position of the two cards. */
 export function topologyEdgeSides(source: Rect, target: Rect): [Side, Side] {
   const dx = (target.x + target.width / 2) - (source.x + source.width / 2);
@@ -62,8 +170,21 @@ export function topologyEdgeSides(source: Rect, target: Rect): [Side, Side] {
   return dy >= 0 ? ["bottom", "top"] : ["top", "bottom"];
 }
 
-export interface TopologyCanvasEdge {
-  edge: TopologyEdge;
+export function topologyEdgeHandleSides(route: TopologyCanvasEdge["route"] | undefined, source: Rect, target: Rect): [Side, Side] {
+  const relative = topologyEdgeSides(source, target);
+  return [route?.sourceSide ?? relative[0], route?.targetSide ?? relative[1]];
+}
+
+export interface TopologyCanvasEdge extends TopologyRouteEdgeData {
+  route?: {
+    points: Array<{ x: number; y: number }>;
+    sourceSide?: "top" | "right" | "bottom" | "left";
+    targetSide?: "top" | "right" | "bottom" | "left";
+    status?: "routed" | "fallback";
+    renderMode?: "straight";
+    fallbackStyle?: "dashed" | "faded";
+    fallback?: "no_path" | "timeout";
+  };
 }
 
 export const TOPOLOGY_NODE_VISIBLE_BADGES = 4;
@@ -117,16 +238,23 @@ export function topologyNodeBoundaryLabels(topology: Topology, node: TopologyNod
 const SIDES: Array<[Side, Position]> = [["top", Position.Top], ["right", Position.Right], ["bottom", Position.Bottom], ["left", Position.Left]];
 const handleClass = "!h-1.5 !w-1.5 !min-h-0 !min-w-0 !border-0 !bg-basalt-primary/60";
 
-function CardHandles() {
-  return <>{SIDES.map(([side, position]) => (
-    <span key={side}>
-      <Handle type="target" position={position} id={`t-${side}`} isConnectable={false} className={handleClass} />
-      <Handle type="source" position={position} id={`s-${side}`} isConnectable={false} className={handleClass} />
-    </span>
-  ))}</>;
+function CardHandles({ ports, kind }: { ports: TopologyHandlePort[]; kind: TopologyCardKind }) {
+  return <>
+    {SIDES.map(([side, position]) => (
+      <span key={side}>
+        <Handle type="target" position={position} id={`t-${side}`} isConnectable={false} className={handleClass} />
+        <Handle type="source" position={position} id={`s-${side}`} isConnectable={false} className={handleClass} />
+      </span>
+    ))}
+    {ports.map((port) => <Handle key={port.id} type={port.type} position={topologyPosition(port.side)} id={port.id} isConnectable={false}
+      className={handleClass} style={{ left: port.x - (kind === "host" ? 4 : 2), top: port.y - 1, transform: "translate(-50%, -50%)" }} />)}
+  </>;
 }
 
-const NodeCard = memo(function NodeCard({ data, selected }: NodeProps<TopologyCanvasNode>) {
+const NodeCard = memo(function NodeCard({ id, data, selected }: NodeProps<Node<TopologyCanvasNode>>) {
+  const updateInternals = useUpdateNodeInternals();
+  const portsKey = JSON.stringify(data.handlePorts ?? []);
+  useEffect(() => { updateInternals(id); }, [id, portsKey, updateInternals]);
   const host = data.kind === "host";
   const visibleBadges = data.badges?.slice(0, host ? TOPOLOGY_NODE_VISIBLE_BADGES : TOPOLOGY_SATELLITE_VISIBLE_BADGES) ?? [];
   const visibleBoundaries = host ? data.boundaryLabels?.slice(0, TOPOLOGY_NODE_VISIBLE_BOUNDARY_CHIPS) ?? [] : [];
@@ -141,6 +269,7 @@ const NodeCard = memo(function NodeCard({ data, selected }: NodeProps<TopologyCa
       aria-label={data.node ? `Select ${data.label}` : data.kind}
       aria-pressed={data.node ? selected === true : undefined}
       data-testid={`topology-node-card-${data.node?.id ?? data.kind}`}
+      data-boundary-labels={completeBoundaryLabels || undefined}
       // Mouse focus would make the browser scroll React Flow's overflow-hidden
       // renderer to reveal the card, shifting the whole map off its viewport.
       onMouseDown={(event) => event.preventDefault()}
@@ -151,7 +280,7 @@ const NodeCard = memo(function NodeCard({ data, selected }: NodeProps<TopologyCa
         }
       }}
     >
-      <CardHandles />
+      <CardHandles ports={data.handlePorts ?? []} kind={host ? "host" : data.kind === "sub-satellite" ? "sub-satellite" : "satellite"} />
       {host && <div className="topology-card-far absolute inset-0 flex-col justify-center gap-1 bg-basalt-card px-4" aria-hidden="true">
         <div className="line-clamp-2 text-[26px] font-bold leading-tight" title={data.label}>{data.label}</div>
         {(data.satelliteCount ?? 0) > 0 && <div className="text-lg text-basalt-muted-foreground">+{data.satelliteCount} satellites</div>}
@@ -179,7 +308,7 @@ const NodeCard = memo(function NodeCard({ data, selected }: NodeProps<TopologyCa
   );
 });
 
-const SectionNode = memo(function SectionNode({ data }: NodeProps<TopologyCanvasNode>) {
+const SectionNode = memo(function SectionNode({ data }: NodeProps<Node<TopologyCanvasNode>>) {
   return (
     <div
       className="topology-section h-full w-full rounded-3xl border-2"
@@ -203,23 +332,72 @@ const SectionNode = memo(function SectionNode({ data }: NodeProps<TopologyCanvas
   );
 });
 
-const FrameNode = memo(function FrameNode({ data }: NodeProps<TopologyCanvasNode>) {
+const FrameNode = memo(function FrameNode({ data }: NodeProps<Node<TopologyCanvasNode>>) {
+  const borderStyle = data.borderStyle === "dotted" ? "dotted" : data.borderStyle === "dashed" ? "dashed" : data.borderStyle === "double" ? "double" : "solid";
+  const hover = () => data.boundaryId && data.onFrameHover?.(data.boundaryId);
+  const clear = () => data.onFrameClearHover?.();
+  const focus = () => data.boundaryId && data.onFrameFocus?.(data.boundaryId);
+  const blur = () => data.onFrameClearFocus?.();
   return (
     <div
-      className="topology-frame h-full w-full rounded-2xl border-2 border-dashed"
-      style={{ width: data.width, height: data.height, borderColor: topologyTint(data.color, 0.7), background: topologyTint(data.color, (data.depth ?? 0) > 0 ? 0.06 : 0.04) }}
+      className={`topology-frame h-full w-full rounded-2xl${data.highlighted ? " topology-frame-highlighted ring-2 ring-basalt-primary/60" : ""}`}
+      style={{ width: data.width, height: data.height, borderStyle, borderWidth: data.borderWidth ?? 2, borderColor: data.highlighted ? data.color ?? topologyTint(data.color, 1) : data.borderColor ?? topologyTint(data.color, 0.7), background: data.tint ?? topologyTint(data.color, (data.visualDepth ?? data.depth ?? 0) > 0 ? 0.06 : 0.04) }}
       data-testid={`topology-frame-${data.label}`}
+      data-highlighted={data.highlighted ? "true" : "false"}
     >
-      <div className="flex h-9 items-center gap-2 px-4 text-base font-semibold" style={{ color: data.color }}>
-        <Shield className="h-4 w-4" aria-hidden="true" />
+      <button
+        type="button"
+        className="nopan absolute inset-x-0 top-0 z-10 flex h-9 items-center gap-2 px-4 text-left text-base font-semibold"
+        style={{ color: data.color }}
+        data-testid={`topology-frame-header-${data.label}-${data.fragmentIndex}-${data.fragmentCount}`}
+        aria-label={`Highlight frame ${data.laneLabel}`}
+        onMouseEnter={hover}
+        onMouseLeave={clear}
+        onFocus={focus}
+        onBlur={blur}
+        onMouseDown={(event) => event.preventDefault()}
+      >
+        <Shield className="h-4 w-4 shrink-0" aria-hidden="true" />
         <span className="truncate">{data.laneLabel}</span>
-        <span className="text-xs font-normal uppercase tracking-wide text-basalt-muted-foreground">{data.boundaryKind}</span>
-      </div>
+        <span className="shrink-0 text-xs font-normal uppercase tracking-wide text-basalt-muted-foreground">{data.boundaryKind}</span>
+      </button>
     </div>
   );
 });
 
 const nodeTypes = { topologyNode: NodeCard, topologyLane: SectionNode, topologyFrame: FrameNode };
+const edgeTypes = { topologyRoute: TopologyRouteEdge };
+
+export function VisibleRouteDetours({ edges, positions, onHover, onSelect }: { edges: Edge<TopologyCanvasEdge>[]; positions: Record<string, Rect>; onHover?: (id: string) => void; onSelect?: (id: string) => void }) {
+  const [x, y, zoom] = useStore((state) => state.transform);
+  const width = useStore((state) => state.width);
+  const height = useStore((state) => state.height);
+  const markerPrefix = useId().replace(/[^a-zA-Z0-9_-]/g, "");
+  if (!width || !height || !zoom) return null;
+  const viewport = { x: -x / zoom, y: -y / zoom, width: width / zoom, height: height / zoom };
+  const detours = edges.flatMap((edge, index) => {
+    const source = positions[edge.source];
+    const target = positions[edge.target];
+    const points = edge.data?.route?.points;
+    if (!source || !target || !topologyRoutePointsValid(points) || !topologyRouteOutsideEndpointViewport(points, source, target, viewport)) return [];
+    return [{ edge, markerId: `${markerPrefix}-detour-${index}` }];
+  });
+  if (!detours.length) return null;
+  return <ViewportPortal>
+    <svg className="pointer-events-none" style={{ position: "absolute", overflow: "visible", zIndex: 1 }} aria-hidden="true" data-testid="topology-route-detours">
+      <defs>{detours.map(({ edge, markerId }) => {
+        const color = edge.style?.stroke ?? "var(--topology-edge-cross, #94a3b8)";
+        return <marker key={markerId} id={markerId} markerWidth="14" markerHeight="14" viewBox="-10 -10 20 20" refX="0" refY="0" markerUnits="strokeWidth" orient="auto-start-reverse">
+          <polyline points="-5,-4 0,0 -5,4 -5,-4" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" stroke={color} fill={color} />
+        </marker>;
+      })}</defs>
+      {detours.map(({ edge, markerId }) => <g key={edge.id} className={`react-flow__edge ${edge.className ?? ""}${edge.animated ? " animated" : ""}`} data-route-detour={edge.id}
+        style={{ pointerEvents: "visibleStroke" }} onMouseEnter={() => onHover?.(edge.id)} onMouseLeave={() => onHover?.("")} onClick={(event) => { event.stopPropagation(); onSelect?.(edge.id); }}>
+        <TopologyRouteEdge id={edge.id} data={edge.data} selected={edge.selected === true} style={edge.style} markerStart={edge.markerStart ? `url(#${markerId})` : undefined} markerEnd={edge.markerEnd ? `url(#${markerId})` : undefined} />
+      </g>)}
+    </svg>
+  </ViewportPortal>;
+}
 
 interface Props {
   topology: Topology;
@@ -229,27 +407,73 @@ interface Props {
   selectedNodeId: string;
   onSelect: (id: string) => void;
   focus?: TopologyFocusRequest;
-  onInit?: (instance: ReactFlowInstance<TopologyCanvasNode, TopologyCanvasEdge>) => void;
+  fitKey?: string;
+  onInit?: (instance: ReactFlowInstance<Node<TopologyCanvasNode>, Edge<TopologyCanvasEdge>>) => void;
 }
 
 const BOUNDARY_FALLBACK_COLOR = "#64748b";
 
-function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, onSelect, focus, onInit }: Props) {
+function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, onSelect, focus, fitKey = "", onInit }: Props) {
   const { setViewport, setCenter, getZoom } = useReactFlow();
-  const canvas = useStore((state) => ({ width: state.width, height: state.height }));
+  const canvasWidth = useStore((state) => state.width);
+  const canvasHeight = useStore((state) => state.height);
+  const canvas = { width: canvasWidth, height: canvasHeight };
   const canvasRef = useRef(canvas);
   canvasRef.current = canvas;
+  const manualPannedRef = useRef(false);
+  const viewportPositionRef = useRef<TopologyMoveViewport>({ x: 0, y: 0, zoom: getZoom() });
+  const touchCentroidRef = useRef<TopologyTouchCentroid | null>(null);
+  const [hoveredBoundaryId, setHoveredBoundaryId] = useState("");
+  const [focusedBoundaryId, setFocusedBoundaryId] = useState("");
+  const [hoveredEdgeId, setHoveredEdgeId] = useState("");
+  const [selectedEdgeId, setSelectedEdgeId] = useState("");
 
-  const layout = useMemo(() => layoutTopology(topology, view ? { view } : {}), [topology, view]);
-  const fitRect = useCallback((rect: Rect, padding: number) => {
+  const runtimeRef = useRef<TopologyLayoutRuntime | null>(null);
+  if (!runtimeRef.current) runtimeRef.current = new TopologyLayoutRuntime();
+  useEffect(() => {
+    const runtime = runtimeRef.current;
+    return () => runtime?.dispose();
+  }, []);
+  const [layout, setLayout] = useState(() => computeStraightTopologyLayout(topology, view ? { view } : {}));
+  useEffect(() => {
+    const runtime = runtimeRef.current;
+    if (!runtime) return;
+    const requestId = runtime.request({ topology, viewId: view?.id, pins: view?.pins, options: view ? { view } : {} }, setLayout);
+    return () => runtime.cancelRequest(requestId);
+  }, [topology, view]);
+  const fitRect = useCallback((rect: Rect, padding: number, respectManualPan = true) => {
     const { width, height } = canvasRef.current;
     if (width <= 0 || height <= 0) return;
-    setViewport(getViewportForBounds(rect, width, height, 0.05, 1, padding), { duration: 0 });
+    if (respectManualPan && manualPannedRef.current) return;
+    manualPannedRef.current = false;
+    const viewport = getViewportForBounds(rect, width, height, 0.05, 1, padding);
+    viewportPositionRef.current = viewport;
+    setViewport(viewport, { duration: 0 });
   }, [setViewport]);
+  const handleMove = useCallback((event: MouseEvent | TouchEvent | null, viewport: TopologyMoveViewport) => {
+    const result = topologyGestureMove(event, viewport, viewportPositionRef.current, touchCentroidRef.current);
+    touchCentroidRef.current = result.touchCentroid;
+    viewportPositionRef.current = viewport;
+    if (result.manualPan) manualPannedRef.current = true;
+  }, []);
+  const handleMoveStart = useCallback((event: MouseEvent | TouchEvent | null, viewport: TopologyMoveViewport) => {
+    touchCentroidRef.current = topologyTouchCentroid(event);
+    viewportPositionRef.current = viewport;
+  }, []);
+  const handleMoveEnd = useCallback(() => {
+    touchCentroidRef.current = null;
+  }, []);
   const focusLayer = useCallback((layerId: string) => {
     const lane = layout.lanes.find((candidate) => candidate.layerId === layerId);
-    if (lane) fitRect(lane, 0.04);
+    if (lane) fitRect(lane, 0.04, false);
   }, [layout, fitRect]);
+  const selectRef = useRef({ onSelect, selectedNodeId });
+  selectRef.current = { onSelect, selectedNodeId };
+  const selectNode = useCallback((id: string) => selectRef.current.onSelect(id), []);
+  const hoverFrame = useCallback((boundaryId: string) => setHoveredBoundaryId(boundaryId), []);
+  const clearFrameHover = useCallback(() => setHoveredBoundaryId(""), []);
+  const focusFrame = useCallback((boundaryId: string) => setFocusedBoundaryId(boundaryId), []);
+  const clearFrameFocus = useCallback(() => setFocusedBoundaryId(""), []);
 
   const projected = useMemo(() => {
     const visibleNodeIds = new Set(visibleNodes.map((node) => node.id));
@@ -262,7 +486,24 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
     for (const node of topology.nodes) if (node.parentId) satelliteCounts.set(node.parentId, (satelliteCounts.get(node.parentId) ?? 0) + 1);
     for (const block of layout.blocks) satelliteCounts.set(block.hostId, block.nodeIds.length - 1);
     const hostLayer = new Map<string, string>();
-    for (const lane of layout.lanes) for (const id of lane.nodeIds) hostLayer.set(id, lane.layerId);
+    const laneByNode = new Map<string, (typeof layout.lanes)[number]>();
+    for (const lane of layout.lanes) {
+      for (const id of lane.nodeIds) {
+        hostLayer.set(id, lane.layerId);
+        laneByNode.set(id, lane);
+      }
+    }
+
+    const fallbackIndex = createTopologyFallbackRectIndex(layout, laneByNode, 8);
+    const hiddenEdgeIds = new Set(layout.hiddenEdgeIds ?? layout.labels?.hiddenEdgeIds ?? []);
+    for (const edge of visibleEdges) {
+      if (hiddenEdgeIds.has(edge.id)) continue;
+      const workerLabel = layout.labels?.labels[edge.id];
+      if (workerLabel && !workerLabel.hidden && workerLabel.rect) {
+        fallbackIndex.addLabelRect(edge.id, workerLabel.rect);
+      }
+    }
+    const highlightedEndpoints = topologyRouteHighlightedEndpoints(visibleEdges, hoveredEdgeId, selectedEdgeId);
 
     const laneNodes: Node<TopologyCanvasNode>[] = layout.lanes
       .filter((lane) => lane.nodeIds.some((id) => visibleNodeIds.has(id)))
@@ -293,7 +534,7 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
         };
       });
     const frameNodes: Node<TopologyCanvasNode>[] = layout.frames
-      .filter((frame) => frame.nodeIds.some((id) => visibleNodeIds.has(id)))
+      .filter((frame) => frame.depth < TOPOLOGY_FRAME_VISUAL_DEPTH_LIMIT && frame.nodeIds.some((id) => visibleNodeIds.has(id)))
       .map((frame) => {
         const boundary = boundaryById.get(frame.boundaryId);
         return {
@@ -305,20 +546,52 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
           selectable: false,
           draggable: false,
           focusable: false,
-          zIndex: -2 + frame.depth * 0.1,
+          zIndex: -2 + frame.visualDepth * 0.1,
+          className: hoveredBoundaryId === frame.boundaryId || focusedBoundaryId === frame.boundaryId ? "topology-frame-highlighted" : undefined,
           data: {
             label: frame.boundaryId,
             kind: "frame",
-            laneLabel: boundary?.label ?? frame.boundaryId,
+            laneLabel: frame.title,
+            boundaryId: frame.boundaryId,
+            highlighted: hoveredBoundaryId === frame.boundaryId || focusedBoundaryId === frame.boundaryId,
+            onFrameHover: hoverFrame,
+            onFrameClearHover: clearFrameHover,
+            onFrameFocus: focusFrame,
+            onFrameClearFocus: clearFrameFocus,
             boundaryKind: boundary?.kind,
-            color: boundary?.style?.color ?? BOUNDARY_FALLBACK_COLOR,
+            color: frame.color || boundary?.style?.color || BOUNDARY_FALLBACK_COLOR,
             depth: frame.depth,
+            visualDepth: frame.visualDepth,
+            fragmentIndex: frame.fragmentIndex,
+            fragmentCount: frame.fragmentCount,
+            tint: frame.tint,
+            borderStyle: frame.border.style,
+            borderWidth: frame.border.width,
+            borderColor: frame.border.color,
             width: frame.width,
             height: frame.height,
           },
           style: { width: frame.width, height: frame.height },
         };
       });
+
+    const handlePorts = new Map<string, TopologyHandlePort[]>();
+    for (const edge of visibleEdges) {
+      const source = layout.positions[edge.source];
+      const target = layout.positions[edge.target];
+      if (!source || !target || !visibleNodeIds.has(edge.source) || !visibleNodeIds.has(edge.target)) continue;
+      const route = layout.routes?.[edge.id] as TopologyCanvasEdge["route"] | undefined;
+      const [sourceSide, targetSide] = topologyEdgeHandleSides(route, source, target);
+      const points = topologyRoutePointsValid(route?.points) ? route.points : undefined;
+      for (const [nodeId, rect, type, side, point] of [
+        [edge.source, source, "source", sourceSide, points?.[0] ?? topologyPort(source, sourceSide)],
+        [edge.target, target, "target", targetSide, points?.at(-1) ?? topologyPort(target, targetSide)],
+      ] as const) {
+        const ports = handlePorts.get(nodeId) ?? [];
+        ports.push({ id: topologyHandleId(type, edge.id, side), type, side, x: point.x - rect.x, y: point.y - rect.y });
+        handlePorts.set(nodeId, ports);
+      }
+    }
 
     const nodeLayer: Node<TopologyCanvasNode>[] = [];
     for (const node of visibleNodes) {
@@ -329,10 +602,11 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
       nodeLayer.push({
         id: node.id,
         type: "topologyNode",
-        className: kind === "host" ? "topology-rf-host" : "topology-rf-satellite",
+        className: `${kind === "host" ? "topology-rf-host" : "topology-rf-satellite"}${highlightedEndpoints.has(node.id) ? " topology-edge-highlighted" : ""}`,
         position: { x: position.x, y: position.y },
         width: position.width,
         height: position.height,
+        handles: (handlePorts.get(node.id) ?? []).map((port) => ({ id: port.id, type: port.type, position: topologyPosition(port.side), x: port.x - 3, y: port.y - 3, width: 6, height: 6 })),
         selectable: true,
         ariaLabel: `Select ${node.label}`,
         draggable: false,
@@ -349,7 +623,8 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
           lifecycle: node.lifecycle,
           width: position.width,
           height: position.height,
-          onSelect,
+          onSelect: selectNode,
+          handlePorts: handlePorts.get(node.id),
         },
       });
     }
@@ -359,20 +634,24 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
         const source = layout.positions[edge.source];
         const target = layout.positions[edge.target];
         if (!source || !target || !visibleNodeIds.has(edge.source) || !visibleNodeIds.has(edge.target)) return [];
-        const [sourceSide, targetSide] = topologyEdgeSides(source, target);
+        const computedRoute = layout.routes?.[edge.id] as TopologyCanvasEdge["route"] | undefined;
+        const [sourceSide, targetSide] = topologyEdgeHandleSides(computedRoute, source, target);
         const sourceLayer = hostLayer.get(edge.source);
         const crossLayer = sourceLayer !== hostLayer.get(edge.target);
         const satellite = byId.get(edge.source)?.parentId !== undefined || byId.get(edge.target)?.parentId !== undefined;
-        const color = crossLayer ? "var(--topology-edge-cross, #94a3b8)" : layerById.get(sourceLayer ?? "")?.color ?? "var(--topology-edge-cross, #94a3b8)";
+        const color = topologyRouteEdgeColor(edge, crossLayer);
+        const route = computedRoute;
+        const workerLabel = layout.labels?.labels[edge.id];
         return [{
           id: `topology-edge:${edge.id}`,
           source: edge.source,
           target: edge.target,
           label: edge.label || edge.kind,
-          type: crossLayer ? "default" : "smoothstep",
-          className: `${satellite ? "topology-edge-satellite" : "topology-edge-host"}${crossLayer ? " topology-edge-cross" : ""}`,
-          sourceHandle: `s-${sourceSide}`,
-          targetHandle: `t-${targetSide}`,
+          type: "topologyRoute",
+          selected: selectedEdgeId === `topology-edge:${edge.id}`,
+          className: `${satellite ? "topology-edge-satellite" : "topology-edge-host"}${crossLayer ? " topology-edge-cross" : ""}${selectedEdgeId === `topology-edge:${edge.id}` || hoveredEdgeId === `topology-edge:${edge.id}` ? " topology-edge-highlighted" : ""}`,
+          sourceHandle: topologyHandleId("source", edge.id, sourceSide),
+          targetHandle: topologyHandleId("target", edge.id, targetSide),
           animated: edge.style?.animated === true,
           markerStart: edge.direction === "bi" ? { type: MarkerType.ArrowClosed, width: 14, height: 14, color } : undefined,
           markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14, color },
@@ -387,11 +666,44 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
                 : edge.style?.dash === "dashed" ? "6 5"
                   : edge.evidence === "inferred" ? "6 5" : undefined,
           },
-          data: { edge },
+          data: {
+            edge,
+            route,
+            points: route?.points,
+            crossLayer,
+            showLabel: topologyRoutePointsValid(route?.points),
+            fallbackIndex,
+            workerLabel,
+            status: route?.status,
+            renderMode: route?.renderMode,
+            fallback: route?.fallback,
+            fallbackStyle: route?.fallbackStyle,
+            strokeMargin: (edge.style?.width ?? (crossLayer ? 1.5 : 2)) / 2 + 7,
+          },
         }];
       });
     return { nodes: [...laneNodes, ...frameNodes, ...nodeLayer], laneNodes, edges };
-  }, [topology, visibleNodes, visibleEdges, layout, onSelect, focusLayer]);
+  }, [topology, visibleNodes, visibleEdges, layout, selectNode, focusLayer, hoveredBoundaryId, focusedBoundaryId, hoveredEdgeId, selectedEdgeId, hoverFrame, clearFrameHover, focusFrame, clearFrameFocus]);
+
+  useEffect(() => {
+    if (!hoveredBoundaryId) return;
+    const visibleBoundary = layout.frames.some((frame) =>
+      frame.depth < TOPOLOGY_FRAME_VISUAL_DEPTH_LIMIT
+      && frame.boundaryId === hoveredBoundaryId
+      && frame.nodeIds.some((id) => visibleNodes.some((node) => node.id === id)),
+    );
+    if (!visibleBoundary) setHoveredBoundaryId("");
+  }, [hoveredBoundaryId, layout, visibleNodes]);
+
+  useEffect(() => {
+    if (!focusedBoundaryId) return;
+    const visibleBoundary = layout.frames.some((frame) =>
+      frame.depth < TOPOLOGY_FRAME_VISUAL_DEPTH_LIMIT
+      && frame.boundaryId === focusedBoundaryId
+      && frame.nodeIds.some((id) => visibleNodes.some((node) => node.id === id)),
+    );
+    if (!visibleBoundary) setFocusedBoundaryId("");
+  }, [focusedBoundaryId, layout, visibleNodes]);
 
   // Selection is fully controlled by `selectedNodeId`. Only the nodes whose
   // selected flag changes get new objects, and the edge array never depends on
@@ -400,13 +712,13 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
     const selected = node.id === selectedNodeId;
     return selected === (node.selected === true) ? node : { ...node, selected };
   }), [projected.nodes, selectedNodeId]);
-  const selectRef = useRef({ onSelect, selectedNodeId });
-  selectRef.current = { onSelect, selectedNodeId };
-  const handleNodeClick = useCallback<NodeMouseHandler>((_, node) => {
+  const handleNodeClick = useCallback<NodeMouseHandler<Node<TopologyCanvasNode>>>((_, node) => {
+    setSelectedEdgeId("");
     const id = (node.data as TopologyCanvasNode).node?.id;
     if (id && id !== selectRef.current.selectedNodeId) selectRef.current.onSelect(id);
   }, []);
   const handlePaneClick = useCallback(() => {
+    setSelectedEdgeId("");
     if (selectRef.current.selectedNodeId) selectRef.current.onSelect("");
   }, []);
 
@@ -415,15 +727,19 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
   fitNodesRef.current = projected.laneNodes;
   const fit = useCallback(() => {
     const nodes = fitNodesRef.current;
-    if (nodes.length) fitRect(getNodesBounds(nodes), 0.06);
+    if (nodes.length) fitRect(getNodesBounds(nodes), 0.06, false);
   }, [fitRect]);
   const geometryKey = JSON.stringify({
     revision: topology.revision,
     viewId: view?.id ?? "",
     pins: view?.pins ?? {},
+    fitKey,
     sections: projected.laneNodes.map((node) => [node.id, node.position.x, node.position.y, node.width, node.height]),
   });
-  useEffect(() => { fit(); }, [geometryKey, canvasSize, fit]);
+  useEffect(() => {
+    const nodes = fitNodesRef.current;
+    if (nodes.length) fitRect(getNodesBounds(nodes), 0.06, true);
+  }, [geometryKey, canvasSize, fitRect]);
 
   const focusSeq = focus?.seq;
   const focusRef = useRef(focus);
@@ -436,11 +752,26 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
       return;
     }
     const position = layout.positions[request.id];
-    if (position) void setCenter(position.x + position.width / 2, position.y + position.height / 2, { zoom: Math.max(getZoom(), 0.9), duration: 0 });
+    if (position) {
+      manualPannedRef.current = false;
+      const zoom = Math.max(getZoom(), 0.9);
+      viewportPositionRef.current = { x: position.x + position.width / 2, y: position.y + position.height / 2, zoom };
+      void setCenter(position.x + position.width / 2, position.y + position.height / 2, { zoom, duration: 0 });
+    }
     // Only a new request (seq) moves the viewport; layout changes alone do not.
   }, [focusSeq]);
 
   const tier = useStore((state) => topologyZoomTier(state.transform[2]));
+  const routeDiagnostics = layout.routeDiagnostics;
+  const previewPhase = layout.layoutPhase === "preview";
+  const routeFailureIds = previewPhase ? [] : routeDiagnostics?.routeFailures.map((failure) => failure.edgeId) ?? [];
+  const routeFallbackCount = previewPhase ? 0 : routeDiagnostics?.fallbackCount ?? 0;
+  const routeStatus = previewPhase ? "preview" : routeDiagnostics?.status ?? "complete";
+  const geometryEdgeCount = projected.edges.filter((edge) => topologyRoutePointsValid(edge.data?.points)).length;
+  const routeDegraded = !previewPhase && (routeStatus !== "complete" || routeFailureIds.length > 0 || routeFallbackCount > 0);
+  const routeWarning = routeDegraded
+    ? `Routing degraded (${routeStatus}): ${routeFailureIds.length} route failure${routeFailureIds.length === 1 ? "" : "s"}, ${routeFallbackCount} fallback${routeFallbackCount === 1 ? "" : "s"}.`
+    : "";
 
   return (
     <div
@@ -451,6 +782,12 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
       data-selected-node={selectedNodeId}
       data-visible-nodes={visibleNodes.length}
       data-visible-edges={visibleEdges.length}
+      data-route-geometry-edges={geometryEdgeCount}
+      data-route-status={routeStatus}
+      data-route-phase={layout.layoutPhase ?? "synchronous"}
+      data-route-failures={routeFailureIds.length}
+      data-route-failure-ids={routeFailureIds.join(",")}
+      data-route-fallback-count={routeFallbackCount}
       // Keyboard focus can still scroll React Flow's overflow-hidden panes; the
       // viewport transform is the only source of truth for where the map sits.
       onScrollCapture={(event) => {
@@ -463,8 +800,15 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
         nodes={canvasNodes}
         edges={projected.edges}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         onNodeClick={handleNodeClick}
         onPaneClick={handlePaneClick}
+        onMoveStart={handleMoveStart}
+        onMove={handleMove}
+        onMoveEnd={handleMoveEnd}
+        onEdgeMouseEnter={(_, edge) => setHoveredEdgeId(edge.id)}
+        onEdgeMouseLeave={() => setHoveredEdgeId("")}
+        onEdgeClick={(_, edge) => setSelectedEdgeId(edge.id)}
         nodesDraggable={false}
         nodesConnectable={false}
         nodesFocusable={false}
@@ -480,7 +824,11 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
         <Controls showInteractive={false} showFitView={false} position="bottom-left">
           <ControlButton onClick={fit} aria-label="Fit topology"><Maximize /></ControlButton>
         </Controls>
+        <VisibleRouteDetours edges={projected.edges} positions={layout.positions} onHover={setHoveredEdgeId} onSelect={setSelectedEdgeId} />
       </ReactFlow>
+      {routeWarning && <div role="status" aria-live="polite" data-route-warning={routeStatus} className="pointer-events-none absolute bottom-3 right-3 z-10 rounded-md border border-basalt-border bg-basalt-card px-3 py-2 text-xs text-basalt-card-foreground shadow-sm">
+        {routeWarning}
+      </div>}
       {!visibleNodes.length && <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 text-basalt-muted-foreground">
         <Network className="h-10 w-10 opacity-40" aria-hidden="true" />
         <p>No topology nodes match the current filters.</p>

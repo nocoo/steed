@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.6.0] - 2026-11-02
+
+### Added
+
+- Orthogonal topology routing, layout worker and cached cooperative fallback.
+- Routed edges with safe fallbacks, labels and endpoint interaction.
+- Collapsible navigation sidebar with keyboard and focus handling.
+
+### Changed
+
+- Load the Connect workspace separately to keep the topology bundle smaller.
+- Defer the Phase 3 semantic zoom and focus-mode upgrades to v0.6.1.
+
 ## [0.5.8] - 2026-11-01
 
 ### Fixed

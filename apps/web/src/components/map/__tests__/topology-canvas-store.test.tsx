@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { getNodesBounds, getViewportForBounds, type ReactFlowInstance } from "reactflow";
+import { getNodesBounds, getViewportForBounds, type Edge, type Node, type ReactFlowInstance } from "@xyflow/react";
 import type { Topology } from "@steed/api/shared";
 import { layoutTopology } from "@/lib/topology-layout";
 import { TopologyCanvas, type TopologyCanvasEdge, type TopologyCanvasNode } from "../topology-canvas";
@@ -65,8 +65,8 @@ beforeEach(() => {
 describe("topology canvas real React Flow store", () => {
   it("auto fits the sections of the visible nodes", async () => {
     const topology = sample();
-    let instance: ReactFlowInstance<TopologyCanvasNode, TopologyCanvasEdge> | null = null;
-    const onInit = (value: ReactFlowInstance<TopologyCanvasNode, TopologyCanvasEdge>) => { instance = value; };
+    let instance: ReactFlowInstance<Node<TopologyCanvasNode>, Edge<TopologyCanvasEdge>> | null = null;
+    const onInit = (value: ReactFlowInstance<Node<TopologyCanvasNode>, Edge<TopologyCanvasEdge>>) => { instance = value; };
     const { rerender } = render(<div style={{ width: 1000, height: 700 }}><TopologyCanvas topology={topology} visibleNodes={[topology.nodes[1]!]} visibleEdges={[]} view={topology.views[0]} selectedNodeId="" onSelect={vi.fn()} onInit={onInit} /></div>);
 
     await waitFor(() => expect(instance?.getViewport()).toEqual(projectedViewport(topology, "store", "edge")));
@@ -80,29 +80,29 @@ describe("topology canvas real React Flow store", () => {
 
   it("refits on a new revision and preserves a manual viewport through keyboard selection", async () => {
     const topology = sample();
-    let instance: ReactFlowInstance<TopologyCanvasNode, TopologyCanvasEdge> | null = null;
-    const onInit = (value: ReactFlowInstance<TopologyCanvasNode, TopologyCanvasEdge>) => { instance = value; };
-    const { rerender } = render(<div style={{ width: 1000, height: 700 }}><TopologyCanvas topology={topology} visibleNodes={[topology.nodes[0]!]} visibleEdges={[]} view={undefined} selectedNodeId="" onSelect={vi.fn()} onInit={onInit} /></div>);
+    let instance: ReactFlowInstance<Node<TopologyCanvasNode>, Edge<TopologyCanvasEdge>> | null = null;
+    const onInit = (value: ReactFlowInstance<Node<TopologyCanvasNode>, Edge<TopologyCanvasEdge>>) => { instance = value; };
+    const onSelect = vi.fn();
+    const { rerender } = render(<div style={{ width: 1000, height: 700 }}><TopologyCanvas topology={topology} visibleNodes={[topology.nodes[0]!]} visibleEdges={[]} view={undefined} selectedNodeId="" onSelect={onSelect} onInit={onInit} /></div>);
     await waitFor(() => expect(instance?.getViewport()).toEqual(projectedViewport(topology, "none", "cloud")));
 
     const manualViewport = { x: 10, y: 10, zoom: 0.65 };
-    act(() => instance?.setViewport(manualViewport, { duration: 0 }));
+    await act(async () => { instance?.setViewport(manualViewport, { duration: 0 }); });
     await waitFor(() => expect(instance?.getViewport()).toEqual(manualViewport));
 
-    const onSelect = vi.fn();
-    rerender(<div style={{ width: 1000, height: 700 }}><TopologyCanvas topology={topology} visibleNodes={[topology.nodes[0]!]} visibleEdges={[]} view={undefined} selectedNodeId="" onSelect={onSelect} onInit={onInit} /></div>);
+    await act(async () => { rerender(<div style={{ width: 1000, height: 700 }}><TopologyCanvas topology={topology} visibleNodes={[topology.nodes[0]!]} visibleEdges={[]} view={undefined} selectedNodeId="" onSelect={onSelect} onInit={onInit} /></div>); });
     const positionBefore = instance?.getNodes().find((node) => node.id === "a")?.position;
     await screen.findByRole("button", { name: "Select A" });
     fireEvent.keyDown(screen.getByRole("button", { name: "Select A" }), { key: "Enter" });
     expect(onSelect).toHaveBeenCalledWith("a");
-    rerender(<div style={{ width: 1000, height: 700 }}><TopologyCanvas topology={topology} visibleNodes={[topology.nodes[0]!]} visibleEdges={[]} view={undefined} selectedNodeId="a" onSelect={onSelect} onInit={onInit} /></div>);
+    await act(async () => { rerender(<div style={{ width: 1000, height: 700 }}><TopologyCanvas topology={topology} visibleNodes={[topology.nodes[0]!]} visibleEdges={[]} view={undefined} selectedNodeId="a" onSelect={onSelect} onInit={onInit} /></div>); });
     await waitFor(() => expect(instance?.getViewport()).toEqual(manualViewport));
     fireEvent.keyDown(screen.getByRole("button", { name: "Select A" }), { key: " " });
     await waitFor(() => expect(instance?.getViewport()).toEqual(manualViewport));
     expect(instance?.getNodes().find((node) => node.id === "a")?.position).toEqual(positionBefore);
 
     const next = { ...topology, revision: topology.revision + 1 };
-    rerender(<div style={{ width: 1000, height: 700 }}><TopologyCanvas topology={next} visibleNodes={[next.nodes[0]!]} visibleEdges={[]} view={undefined} selectedNodeId="a" onSelect={onSelect} onInit={onInit} /></div>);
+    await act(async () => { rerender(<div style={{ width: 1000, height: 700 }}><TopologyCanvas topology={next} visibleNodes={[next.nodes[0]!]} visibleEdges={[]} view={undefined} selectedNodeId="a" onSelect={onSelect} onInit={onInit} /></div>); });
     await waitFor(() => expect(instance?.getViewport()).toEqual(projectedViewport(next, "none", "cloud")));
   });
 });
