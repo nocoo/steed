@@ -322,6 +322,18 @@ Levels are chosen from the on-screen width of a medium host card
 | Standard | 0.35–0.8 | host cards with icon, label, type; satellites as compact cards; frame labels; every edge routed individually (bundles expanded) | badges beyond 2, edge labels that do not fit, tags |
 | Detail | ≥ 0.8 (≥ 192 px) | everything: badges (up to 6), boundary and tag chips, edge label capsules with protocol/port, lifecycle text | — |
 
+For the v0.6.0 500-node cold-start gate, overview intentionally hides the
+fixture's 150 satellite cards. They are excluded from first-paint timing;
+first-screen visible nodes and all edges remain in scope. This does not
+claim that hidden cards were painted.
+
+The v0.6.1 zoom gate must verify that all 150 satellites render fully at
+standard zoom without freezing. It must also represent same-layer satellite
+edges as counted bundles at overview rather than silently hide them. Bundle
+activation temporarily renders standard at the zoom needed to fit both end
+sections in full; the first manual zoom restores normal hysteresis. Cards
+may simplify to icon and name when small, but must not be clipped.
+
 Legibility rule (fixes limitation 3): **no visible text renders below 11 px
 on screen**. Section titles, frame labels and overview host labels are
 counter-scaled (`font-size = target / zoom`, clamped to the element box);
@@ -423,7 +435,7 @@ Every acceptance criterion maps to automated tests:
 | Fragment titles (decision 2) | all fragments of a boundary share colour, border style and title; suffixes `(1/n)`…`(n/n)` in stable order; single frames unsuffixed | L1 |
 | 200-node overview: no overlaps, no cross-layer misplacement | Playwright on `topology-200`: read rendered bboxes of cards, frames, sections at overview fit; same assertions as L1 on screen geometry | L3 |
 | 200-node: no edge passes through a node (bbox) | Playwright samples each rendered edge path (`getPointAtLength` every 4 px, mapped by `getScreenCTM`) and checks no sample lies inside a non-endpoint card bbox shrunk by 2 px | L3 |
-| 500-node first paint < 2 s (decision 3) | Playwright on `topology-500`: cold context; `performance.mark("steed:topology-painted")` only after nodes **and every edge** (routed, bundled or fallback) are drawn; measured from navigation start; 3 runs, each < 2000 ms; results printed | L3 |
+| 500-node first paint < 2 s (decision 3) | Playwright on `topology-500`: cold context; measure from navigation start until first-screen visible nodes and every edge (routed, bundled or safe fallback) are drawn; exclude the 150 deliberately hidden overview satellite cards; 3 runs, each < 2000 ms; results printed | L3 |
 | Light and dark screenshots (decision 8) | archived, never diffed: `--screens <dir>` writes overview, standard, detail, each layer focused and sidebar hidden in light and dark, uploaded as CI artifacts; the six release files are `{light,dark}-overview.png`, `{light,dark}-layer-focus.png`, `{light,dark}-detail.png` | L3 |
 | Text ≥ 11 px on screen | sample visible text nodes at each zoom level | L3 |
 | Layer focus shows no neighbour fragments | focus each layer: no card/frame of another layer intersects the viewport; navigator reaches off-screen layers | L3 |
@@ -446,7 +458,7 @@ throttling) and recorded in the PR:
 
 | Metric | Budget |
 |---|---|
-| 500-node first paint (navigation → nodes and all edges drawn) | < 2000 ms, each of 3 cold runs |
+| 500-node first paint (navigation → first-screen visible nodes and all edges drawn; overview's 150 hidden satellite cards excluded) | < 2000 ms, each of 3 cold runs |
 | Routing hard limit (then straight fallback) | 1500 ms per pass, 20 ms per edge |
 | Placement, 500 nodes | < 50 ms |
 | Routing, 500 nodes / 1000 edges (worker) | < 600 ms |
@@ -586,6 +598,13 @@ change; 8–13 wire them in; 14 proves the acceptance criteria end to end.
   separates some shared channels but cannot guarantee 6 px separation for
   all fanout arms or after candidate capacity is exhausted. The narrow
   unresolved-channel diagnostic is not an exhaustive overlap inventory.
+- **Accepted commit 8 frame-title limitation:** straight preview route data
+  can cross frame-title bands, so title safety depends on renderer clipping,
+  not the raw preview geometry. Worker R2 observed title-band paint in its
+  standalone candidate; the integrated renderer's bounded checks found no
+  sampled title crossings, but do not prove pixel-perfect clearance for all
+  inputs. Small title-icon image differences in the clipping control had a
+  compositing confound and were not established as edge paint.
 
 ## Version and development path
 
