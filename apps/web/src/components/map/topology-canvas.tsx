@@ -65,6 +65,69 @@ export function topologyZoomTier(zoom: number): TopologyZoomTier {
   return "near";
 }
 
+export interface TopologyMoveViewport {
+  x: number;
+  y: number;
+  zoom: number;
+}
+
+export interface TopologyTouchCentroid {
+  x: number;
+  y: number;
+  count: number;
+}
+
+export interface TopologyGestureMoveResult {
+  manualPan: boolean;
+  touchCentroid: TopologyTouchCentroid | null;
+}
+
+function topologyTouchCentroid(event: unknown): TopologyTouchCentroid | null {
+  if (!event || typeof event !== "object") return null;
+  const touchEvent = event as { touches?: ArrayLike<{ clientX: number; clientY: number }> };
+  const touches = touchEvent.touches;
+  if (!touches || touches.length === 0) return null;
+  let x = 0;
+  let y = 0;
+  for (let index = 0; index < touches.length; index++) {
+    const touch = touches[index];
+    if (!touch) continue;
+    x += touch.clientX;
+    y += touch.clientY;
+  }
+  return { x: x / touches.length, y: y / touches.length, count: touches.length };
+}
+
+export function topologyGestureMove(
+  event: unknown,
+  viewport: TopologyMoveViewport,
+  previousViewport: TopologyMoveViewport,
+  previousTouchCentroid: TopologyTouchCentroid | null,
+): TopologyGestureMoveResult {
+  const eventType = typeof event === "object" && event && "type" in event
+    ? String((event as { type?: unknown }).type ?? "")
+    : "";
+  if (["wheel", "dblclick", "click", "touchstart", "touchend", "touchcancel"].includes(eventType)) {
+    const touchCentroid = eventType === "touchstart" ? topologyTouchCentroid(event) : null;
+    return { manualPan: false, touchCentroid };
+  }
+  if (eventType === "touchmove") {
+    const touchCentroid = topologyTouchCentroid(event);
+    if (!touchCentroid) return { manualPan: false, touchCentroid: null };
+    if (touchCentroid.count === 1 && viewport.zoom === previousViewport.zoom) {
+      const viewportMoved = viewport.x !== previousViewport.x || viewport.y !== previousViewport.y;
+      return { manualPan: viewportMoved, touchCentroid };
+    }
+    if (!previousTouchCentroid || touchCentroid.count !== previousTouchCentroid.count) return { manualPan: false, touchCentroid };
+    const centroidMoved = Math.hypot(touchCentroid.x - previousTouchCentroid.x, touchCentroid.y - previousTouchCentroid.y) > 0.5;
+    return { manualPan: centroidMoved, touchCentroid };
+  }
+  if (!event) return { manualPan: false, touchCentroid: null };
+  if (viewport.zoom !== previousViewport.zoom) return { manualPan: false, touchCentroid: null };
+  const viewportMoved = viewport.x !== previousViewport.x || viewport.y !== previousViewport.y;
+  return { manualPan: viewportMoved, touchCentroid: null };
+}
+
 /** Translucent fill for a layer or boundary colour; named colours fall back to the theme. */
 export function topologyTint(color: string | undefined, alpha: number): string {
   if (color && /^#[0-9a-f]{6}$/i.test(color)) return `${color}${Math.round(alpha * 255).toString(16).padStart(2, "0")}`;
@@ -352,18 +415,22 @@ interface Props {
   selectedNodeId: string;
   onSelect: (id: string) => void;
   focus?: TopologyFocusRequest;
+  fitKey?: string;
   onInit?: (instance: ReactFlowInstance<Node<TopologyCanvasNode>, Edge<TopologyCanvasEdge>>) => void;
 }
 
 const BOUNDARY_FALLBACK_COLOR = "#64748b";
 
-function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, onSelect, focus, onInit }: Props) {
+function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, onSelect, focus, fitKey = "", onInit }: Props) {
   const { setViewport, setCenter, getZoom } = useReactFlow();
   const canvasWidth = useStore((state) => state.width);
   const canvasHeight = useStore((state) => state.height);
   const canvas = { width: canvasWidth, height: canvasHeight };
   const canvasRef = useRef(canvas);
   canvasRef.current = canvas;
+  const manualPannedRef = useRef(false);
+  const viewportPositionRef = useRef<TopologyMoveViewport>({ x: 0, y: 0, zoom: getZoom() });
+  const touchCentroidRef = useRef<TopologyTouchCentroid | null>(null);
   const [hoveredBoundaryId, setHoveredBoundaryId] = useState("");
   const [focusedBoundaryId, setFocusedBoundaryId] = useState("");
   const [hoveredEdgeId, setHoveredEdgeId] = useState("");
@@ -382,14 +449,31 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
     const requestId = runtime.request({ topology, viewId: view?.id, pins: view?.pins, options: view ? { view } : {} }, setLayout);
     return () => runtime.cancelRequest(requestId);
   }, [topology, view]);
-  const fitRect = useCallback((rect: Rect, padding: number) => {
+  const fitRect = useCallback((rect: Rect, padding: number, respectManualPan = true) => {
     const { width, height } = canvasRef.current;
     if (width <= 0 || height <= 0) return;
-    setViewport(getViewportForBounds(rect, width, height, 0.05, 1, padding), { duration: 0 });
+    if (respectManualPan && manualPannedRef.current) return;
+    manualPannedRef.current = false;
+    const viewport = getViewportForBounds(rect, width, height, 0.05, 1, padding);
+    viewportPositionRef.current = viewport;
+    setViewport(viewport, { duration: 0 });
   }, [setViewport]);
+  const handleMove = useCallback((event: MouseEvent | TouchEvent | null, viewport: TopologyMoveViewport) => {
+    const result = topologyGestureMove(event, viewport, viewportPositionRef.current, touchCentroidRef.current);
+    touchCentroidRef.current = result.touchCentroid;
+    viewportPositionRef.current = viewport;
+    if (result.manualPan) manualPannedRef.current = true;
+  }, []);
+  const handleMoveStart = useCallback((event: MouseEvent | TouchEvent | null, viewport: TopologyMoveViewport) => {
+    touchCentroidRef.current = topologyTouchCentroid(event);
+    viewportPositionRef.current = viewport;
+  }, []);
+  const handleMoveEnd = useCallback(() => {
+    touchCentroidRef.current = null;
+  }, []);
   const focusLayer = useCallback((layerId: string) => {
     const lane = layout.lanes.find((candidate) => candidate.layerId === layerId);
-    if (lane) fitRect(lane, 0.04);
+    if (lane) fitRect(lane, 0.04, false);
   }, [layout, fitRect]);
   const selectRef = useRef({ onSelect, selectedNodeId });
   selectRef.current = { onSelect, selectedNodeId };
@@ -641,15 +725,19 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
   fitNodesRef.current = projected.laneNodes;
   const fit = useCallback(() => {
     const nodes = fitNodesRef.current;
-    if (nodes.length) fitRect(getNodesBounds(nodes), 0.06);
+    if (nodes.length) fitRect(getNodesBounds(nodes), 0.06, false);
   }, [fitRect]);
   const geometryKey = JSON.stringify({
     revision: topology.revision,
     viewId: view?.id ?? "",
     pins: view?.pins ?? {},
+    fitKey,
     sections: projected.laneNodes.map((node) => [node.id, node.position.x, node.position.y, node.width, node.height]),
   });
-  useEffect(() => { fit(); }, [geometryKey, canvasSize, fit]);
+  useEffect(() => {
+    const nodes = fitNodesRef.current;
+    if (nodes.length) fitRect(getNodesBounds(nodes), 0.06, true);
+  }, [geometryKey, canvasSize, fitRect]);
 
   const focusSeq = focus?.seq;
   const focusRef = useRef(focus);
@@ -662,7 +750,12 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
       return;
     }
     const position = layout.positions[request.id];
-    if (position) void setCenter(position.x + position.width / 2, position.y + position.height / 2, { zoom: Math.max(getZoom(), 0.9), duration: 0 });
+    if (position) {
+      manualPannedRef.current = false;
+      const zoom = Math.max(getZoom(), 0.9);
+      viewportPositionRef.current = { x: position.x + position.width / 2, y: position.y + position.height / 2, zoom };
+      void setCenter(position.x + position.width / 2, position.y + position.height / 2, { zoom, duration: 0 });
+    }
     // Only a new request (seq) moves the viewport; layout changes alone do not.
   }, [focusSeq]);
 
@@ -692,6 +785,9 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
         edgeTypes={edgeTypes}
         onNodeClick={handleNodeClick}
         onPaneClick={handlePaneClick}
+        onMoveStart={handleMoveStart}
+        onMove={handleMove}
+        onMoveEnd={handleMoveEnd}
         onEdgeMouseEnter={(_, edge) => setHoveredEdgeId(edge.id)}
         onEdgeMouseLeave={() => setHoveredEdgeId("")}
         onEdgeClick={(_, edge) => setSelectedEdgeId(edge.id)}

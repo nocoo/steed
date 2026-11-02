@@ -2,12 +2,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { Badge, Button, Input, Label, LayerCard } from "@nocoo/basalt";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@nocoo/basalt/components/select";
-import { ArrowDownLeft, ArrowUpRight, Download, Maximize2, Minimize2, Network, PanelRightClose, PanelRightOpen, RefreshCw, Search, X } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Download, Maximize2, Minimize2, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, RefreshCw, Search, X } from "lucide-react";
 import type { Topology, TopologyNode } from "@steed/api/shared";
 import { useTopologyViewModel, type TopologyReach } from "@/viewmodels/use-topology-viewmodel";
 import { downloadTopology } from "@/lib/topology-client";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { topologyNodeBadgeValues, topologyNodeBoundaryLabels, TopologyCanvas, type TopologyFocusRequest } from "@/components/map/topology-canvas";
+import { useMobile } from "@/hooks/use-mobile";
+import { useTopologyNavigation } from "@/components/layout/topology-navigation-context";
 
 const sentinel = "\u0000";
 
@@ -30,14 +32,22 @@ function satelliteNodes(topology: Topology, node: TopologyNode): TopologyNode[] 
   return topology.nodes.filter((candidate) => descendants.has(candidate.id));
 }
 
-function useFullscreen() {
+function useFullscreen(onActiveChange: (active: boolean) => void) {
   const ref = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(false);
   useEffect(() => {
-    const sync = () => setActive(document.fullscreenElement !== null && document.fullscreenElement === ref.current);
+    const sync = () => {
+      const next = document.fullscreenElement !== null && document.fullscreenElement === ref.current;
+      setActive(next);
+      onActiveChange(next);
+    };
+    sync();
     document.addEventListener("fullscreenchange", sync);
-    return () => document.removeEventListener("fullscreenchange", sync);
-  }, []);
+    return () => {
+      document.removeEventListener("fullscreenchange", sync);
+      onActiveChange(false);
+    };
+  }, [onActiveChange]);
   const toggle = useCallback(() => {
     if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
     else void ref.current?.requestFullscreen?.().catch(() => undefined);
@@ -51,7 +61,9 @@ export function TopologyPage() {
   const vm = useTopologyViewModel();
   const [inspectorOpen, setInspectorOpen] = useState(true);
   const [focus, setFocus] = useState<TopologyFocusRequest | undefined>();
-  const fullscreen = useFullscreen();
+  const navigation = useTopologyNavigation();
+  const isMobile = useMobile();
+  const fullscreen = useFullscreen(navigation.setFullscreenActive);
   const topology = vm.topology;
   const selected = vm.selectedNode;
 
@@ -115,6 +127,20 @@ export function TopologyPage() {
           <span className="font-mono text-xs text-basalt-muted-foreground" aria-live="polite">{vm.visibleNodes.length} nodes · {vm.visibleEdges.length} edges</span>
         </>}
         <div className="ml-auto flex items-center gap-1">
+          {!isMobile && <Button
+            variant="ghost"
+            size="icon"
+            className={iconButton}
+            onClick={() => navigation.toggleHidden(false)}
+            disabled={navigation.fullscreenActive}
+            aria-label={navigation.fullscreenActive ? "Hide navigation" : navigation.state === "hidden" ? "Show navigation" : "Hide navigation"}
+            aria-pressed={navigation.state === "hidden"}
+            title={navigation.fullscreenActive ? "Navigation hidden in fullscreen" : navigation.state === "hidden" ? "Show navigation" : "Hide navigation"}
+          >
+            {navigation.fullscreenActive || navigation.state !== "hidden"
+              ? <PanelLeftClose className="h-4 w-4" />
+              : <PanelLeftOpen className="h-4 w-4" />}
+          </Button>}
           <Button variant="ghost" size="icon" className={iconButton} onClick={() => vm.reload()} disabled={vm.busy || vm.loading} aria-label="Refresh topology" title="Refresh">
             <RefreshCw className={`h-4 w-4${vm.busy ? " animate-spin" : ""}`} />
           </Button>
@@ -158,6 +184,7 @@ export function TopologyPage() {
                   selectedNodeId={vm.selectedNodeId}
                   onSelect={vm.setSelectedNodeId}
                   focus={focus}
+                  fitKey={`${navigation.fullscreenActive ? "fullscreen" : "page"}:${navigation.state}`}
                 />
               </ErrorBoundary>
 

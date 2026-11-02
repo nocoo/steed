@@ -1,3 +1,4 @@
+import type { Ref } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { PanelLeft } from "lucide-react";
 import {
@@ -37,12 +38,16 @@ interface AppSidebarProps {
   collapsed: boolean;
   onToggle: () => void;
   hideCollapse?: boolean;
+  expandButtonRef?: Ref<HTMLButtonElement>;
+  collapseButtonRef?: Ref<HTMLButtonElement>;
 }
 
 export function AppSidebar({
   collapsed,
   onToggle,
   hideCollapse = false,
+  expandButtonRef,
+  collapseButtonRef,
 }: AppSidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -86,6 +91,7 @@ export function AppSidebar({
             </div>
             {hideCollapse ? null : (
               <Button
+                ref={collapseButtonRef}
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7 shrink-0"
@@ -102,6 +108,7 @@ export function AppSidebar({
       {collapsed ? (
         <>
           <Button
+            ref={expandButtonRef}
             variant="ghost"
             size="icon"
             className="mb-basalt-space-sm self-center"

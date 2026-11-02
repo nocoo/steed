@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Topology } from "@steed/api/shared";
 import type { ComponentProps } from "react";
 import type { TopologyCanvas } from "@/components/map/topology-canvas";
+import { TopologyNavigationProvider } from "@/components/layout/topology-navigation-context";
 import { TopologyPage } from "../topology";
 
 const client = vi.hoisted(() => ({ get: vi.fn(), clearCache: vi.fn() }));
@@ -14,7 +15,7 @@ vi.mock("@/components/map/topology-canvas", async (original) => {
   return {
     ...actual,
     TopologyCanvas: (props: ComponentProps<typeof TopologyCanvas>) => (
-      <div data-testid="canvas" data-visible-nodes={props.visibleNodes.length} data-visible-edges={props.visibleEdges.length} data-selected={props.selectedNodeId} data-focus={props.focus ? `${props.focus.kind}:${props.focus.id}:${props.focus.seq}` : ""}>
+      <div data-testid="canvas" data-visible-nodes={props.visibleNodes.length} data-visible-edges={props.visibleEdges.length} data-selected={props.selectedNodeId} data-focus={props.focus ? `${props.focus.kind}:${props.focus.id}:${props.focus.seq}` : ""} data-fit-key={props.fitKey ?? ""}>
         {props.visibleNodes.map((node) => <button key={node.id} type="button" onClick={() => props.onSelect(node.id)}>Canvas {node.id}</button>)}
       </div>
     ),
@@ -243,6 +244,57 @@ describe("read-only topology page", () => {
     expect(screen.getByTestId("canvas")).toHaveAttribute("data-selected", "root");
     fireEvent.keyDown(screen.getByRole("button", { name: "Canvas root" }), { key: "Escape" });
     expect(screen.getByTestId("canvas")).toHaveAttribute("data-selected", "");
+  });
+
+  it("clears shared fullscreen state when the topology page unmounts", async () => {
+    let current: Element | null = null;
+    const setFullscreenActive = vi.fn();
+    Object.defineProperty(document, "fullscreenEnabled", { configurable: true, value: true });
+    Object.defineProperty(document, "fullscreenElement", { configurable: true, get: () => current });
+    const request = vi.fn(function (this: Element) { current = this; return Promise.resolve(); });
+    Object.defineProperty(HTMLElement.prototype, "requestFullscreen", { configurable: true, value: request });
+    try {
+      const router = createMemoryRouter([
+        { path: "/topology", element: <TopologyPage /> },
+        { path: "/connect", element: <h1>Connect</h1> },
+      ], { initialEntries: ["/topology"] });
+      render(
+        <TopologyNavigationProvider value={{
+          state: "expanded",
+          fullscreenActive: false,
+          toggleHidden: vi.fn(),
+          toggleExpanded: vi.fn(),
+          revealRail: vi.fn(),
+          setFullscreenActive,
+        }}>
+          <RouterProvider router={router} />
+        </TopologyNavigationProvider>
+      );
+      await screen.findByRole("heading", { name: "Fixture topology" });
+      fireEvent.click(screen.getByRole("button", { name: "Enter fullscreen" }));
+      act(() => { document.dispatchEvent(new Event("fullscreenchange")); });
+      expect(setFullscreenActive).toHaveBeenCalledWith(true);
+
+      await act(async () => { await router.navigate("/connect"); });
+      current = null;
+      act(() => { document.dispatchEvent(new Event("fullscreenchange")); });
+
+      await waitFor(() => {
+        expect(screen.getByRole("heading", { name: "Connect" })).toBeInTheDocument();
+        expect(setFullscreenActive).toHaveBeenCalledWith(false);
+      });
+    } finally {
+      delete (document as { fullscreenEnabled?: boolean }).fullscreenEnabled;
+      delete (document as { fullscreenElement?: Element | null }).fullscreenElement;
+      delete (HTMLElement.prototype as { requestFullscreen?: unknown }).requestFullscreen;
+    }
+  });
+
+  it("offers the desktop sidebar toggle and passes the navigation fit key to the canvas", async () => {
+    setup();
+    await screen.findByRole("heading", { name: "Fixture topology" });
+    expect(screen.getByRole("button", { name: "Hide navigation" })).toBeInTheDocument();
+    expect(screen.getByTestId("canvas")).toHaveAttribute("data-fit-key", "page:rail");
   });
 
   it("toggles fullscreen on the workspace when the browser supports it", async () => {
