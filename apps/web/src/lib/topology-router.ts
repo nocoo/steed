@@ -44,6 +44,8 @@ export interface TopologyRouteResult {
 }
 export interface RouterOptions {
   clock?: () => number;
+  cooperativeChunkClock?: () => number;
+  cooperativeChunkWallMs?: number;
   layoutTimeoutMs?: number;
   edgeTimeoutMs?: number;
   maxBytes?: number;
@@ -308,68 +310,109 @@ function nudgeRoute(points: RoutingPoint[], edge: TopologyEdge, context: Validat
   return { points: result, unresolved };
 }
 
-export function routeTopology(topology: Topology, layout: TopologyLayoutResult, options: RouterOptions = {}): TopologyRouteResult {
-  const clock = options.clock ?? (() => performance.now());
-  const layoutStart = clock();
-  const layoutDeadline = layoutStart + (options.layoutTimeoutMs ?? ROUTE_LAYOUT_TIMEOUT_MS);
-  const edgeTimeout = options.edgeTimeoutMs ?? ROUTE_EDGE_TIMEOUT_MS;
-  const totalGridLimit = normalizeGridLimit(options.maxBytes);
-  const normalizedBundleLimit = normalizeGridLimit(options.bundleMaxBytes);
-  let gridBytes = 0;
-  const laneByNode = new Map<string, TopologyLayoutLane>();
-  for (const lane of layout.lanes) for (const id of lane.nodeIds) laneByNode.set(id, lane);
-  const edges = [...topology.edges].sort((a, b) => {
-    const aSame = laneByNode.get(a.source)?.id === laneByNode.get(a.target)?.id;
-    const bSame = laneByNode.get(b.source)?.id === laneByNode.get(b.target)?.id;
-    return Number(bSame) - Number(aSame) || compareId(a.source, b.source) || compareId(a.target, b.target) || compareId(a.id, b.id);
-  });
-  const bundleCapacity = (remainingBundleBytes?: number) => {
+export interface TopologyRouterSessionProgress {
+  phase: "prepared" | "edges" | "extras" | "complete";
+  routedEdges: number;
+  totalEdges: number;
+  elapsedMs: number;
+}
+
+export interface TopologyRouterSessionNext {
+  done: boolean;
+  result?: TopologyRouteResult;
+  progress: TopologyRouterSessionProgress;
+}
+
+export class TopologyRouterSession {
+  readonly clock: () => number;
+  readonly layoutStart: number;
+  readonly layoutDeadline: number;
+  readonly edgeTimeout: number;
+  readonly totalGridLimit: number;
+  readonly normalizedBundleLimit: number;
+  gridBytes = 0;
+  readonly laneByNode = new Map<string, TopologyLayoutLane>();
+  readonly edges: TopologyEdge[];
+  readonly routes: Record<string, TopologyRoute> = Object.create(null);
+  readonly failures: RouteFailure[] = [];
+  readonly channels = new Map<string, ChannelSegment[]>();
+  readonly twoPointSlotCounts = new Map<string, number>();
+  readonly unresolvedTwoPointSharedChannels = new Map<string, { edgeIds: Set<string>; length: number }>();
+  readonly outsideMasks = { forbidden: new Uint32Array(), required: new Uint32Array() };
+  timedOut = false;
+  edgeIndex = 0;
+  private prepared = false;
+  private cancelled = false;
+  private finished = false;
+  private styles: Record<string, { shape: string }> | undefined;
+  private sections = new Map<string, Section>();
+  private descriptors = new Map<string, { lane: TopologyLayoutLane; frames: TopologyLayoutFrame[]; cards: Array<{ id: string; rect: RoutingRect }>; gateways: Record<"left" | "right" | "bottom", RoutingPoint> }>();
+  endpoints: EdgeEndpoints[] = [];
+  private outside: RoutingGrid | undefined;
+  private resourceLimit = false;
+
+  constructor(
+    readonly topology: Topology,
+    readonly layout: TopologyLayoutResult,
+    readonly options: RouterOptions = {},
+  ) {
+    this.clock = options.clock ?? (() => performance.now());
+    this.layoutStart = this.clock();
+    this.layoutDeadline = this.layoutStart + (options.layoutTimeoutMs ?? ROUTE_LAYOUT_TIMEOUT_MS);
+    this.edgeTimeout = options.edgeTimeoutMs ?? ROUTE_EDGE_TIMEOUT_MS;
+    this.totalGridLimit = normalizeGridLimit(options.maxBytes);
+    this.normalizedBundleLimit = normalizeGridLimit(options.bundleMaxBytes);
+    for (const lane of layout.lanes) for (const id of lane.nodeIds) this.laneByNode.set(id, lane);
+    this.edges = [...topology.edges].sort((a, b) => {
+      const aSame = this.laneByNode.get(a.source)?.id === this.laneByNode.get(a.target)?.id;
+      const bSame = this.laneByNode.get(b.source)?.id === this.laneByNode.get(b.target)?.id;
+      return Number(bSame) - Number(aSame) || compareId(a.source, b.source) || compareId(a.target, b.target) || compareId(a.id, b.id);
+    });
+  }
+
+  cancel(): void {
+    this.cancelled = true;
+  }
+
+  private bundleCapacity(remainingBundleBytes?: number): number {
     const remaining = normalizeGridLimit(remainingBundleBytes);
-    return options.bundleMaxBytes === undefined
-      ? remaining
-      : Math.min(remaining, normalizedBundleLimit);
-  };
-  const extras = (routes: Record<string, TopologyRoute>, remainingBundleBytes?: number) => ({
-    labels: placeTopologyRouteLabels(topology.edges, routes, layout, {
-      clock,
-      deadline: layoutDeadline,
-    }),
-    bundles: buildTopologyLayerPairBundles(topology, layout, topology.edges, {
-      clock,
-      deadline: layoutDeadline,
-      layoutTimeoutMs: options.layoutTimeoutMs,
-      bundleTimeoutMs: options.edgeTimeoutMs,
-      maxBytes: bundleCapacity(remainingBundleBytes ?? totalGridLimit - gridBytes),
-    }),
-  });
-  const timeoutResult = (resourceLimit = false): TopologyRouteResult => {
+    return this.options.bundleMaxBytes === undefined ? remaining : Math.min(remaining, this.normalizedBundleLimit);
+  }
+
+  private extras(routes: Record<string, TopologyRoute>, remainingBundleBytes?: number) {
+    return {
+      labels: placeTopologyRouteLabels(this.topology.edges, routes, this.layout, {
+        clock: this.clock,
+        deadline: this.layoutDeadline,
+      }),
+      bundles: buildTopologyLayerPairBundles(this.topology, this.layout, this.topology.edges, {
+        clock: this.clock,
+        deadline: this.layoutDeadline,
+        layoutTimeoutMs: this.options.layoutTimeoutMs,
+        bundleTimeoutMs: this.options.edgeTimeoutMs,
+        maxBytes: this.bundleCapacity(remainingBundleBytes ?? this.totalGridLimit - this.gridBytes),
+      }),
+    };
+  }
+
+  timeoutResult(resourceLimit = false): TopologyRouteResult {
     const routes: Record<string, TopologyRoute> = Object.create(null);
     const routeFailures: RouteFailure[] = [];
-    for (const edge of edges) {
-      const source = layout.positions[edge.source]; const target = layout.positions[edge.target];
+    for (const edge of this.edges) {
+      const source = this.layout.positions[edge.source];
+      const target = this.layout.positions[edge.target];
       if (!source || !target) {
         routes[edge.id] = { edgeId: edge.id, source: edge.source, target: edge.target, sourceSide: "top", targetSide: "top", points: [], status: "fallback", renderMode: "straight", fallbackStyle: "dashed", fallback: "no_path" };
         routeFailures.push({ edgeId: edge.id, reason: "no_path" });
         continue;
       }
-      const sourceSide = (directions(source, target)[0] as RouteSide); const targetSide = (directions(target, source)[0] as RouteSide);
-      const fallbackPoints = [port(source, sourceSide), port(target, targetSide)];
-      routes[edge.id] = {
-        edgeId: edge.id,
-        source: edge.source,
-        target: edge.target,
-        sourceSide,
-        targetSide,
-        points: fallbackPoints,
-        status: "fallback",
-        renderMode: "straight",
-        fallbackStyle: "dashed",
-        fallback: "timeout",
-      };
+      const sourceSide = directions(source, target)[0] as RouteSide;
+      const targetSide = directions(target, source)[0] as RouteSide;
+      routes[edge.id] = { edgeId: edge.id, source: edge.source, target: edge.target, sourceSide, targetSide, points: [port(source, sourceSide), port(target, targetSide)], status: "fallback", renderMode: "straight", fallbackStyle: "dashed", fallback: "timeout" };
       routeFailures.push({ edgeId: edge.id, reason: "timeout" });
     }
-    const remainingBundleBytes = Math.max(0, totalGridLimit - gridBytes);
-    const additional = extras(routes, remainingBundleBytes);
+    const additional = this.extras(routes, Math.max(0, this.totalGridLimit - this.gridBytes));
+    this.resourceLimit = resourceLimit;
     return {
       routes,
       ...additional,
@@ -379,105 +422,154 @@ export function routeTopology(topology: Topology, layout: TopologyLayoutResult, 
         routeFailures,
         fallbackCount: routeFailures.length,
         unroutedEdgeIds: routeFailures.filter((failure) => failure.reason === "timeout").map((failure) => failure.edgeId),
-        elapsedMs: clock() - layoutStart,
+        elapsedMs: this.clock() - this.layoutStart,
         bundleFailures: additional.bundles.diagnostics.routeFailures,
         ...(resourceLimit || additional.bundles.diagnostics.resourceLimit ? { resourceLimit: true as const } : {}),
       },
     };
-  };
-  if (clock() >= layoutDeadline) return timeoutResult();
-  const styles = resolveStyles(topology);
-  const sections = new Map<string, Section>();
-  const descriptors = new Map(layout.lanes.map((lane) => [lane.id, {
-    lane, frames: layout.frames.filter((frame) => frame.layerId === lane.id),
-    cards: lane.nodeIds.flatMap((id) => layout.positions[id] ? [{ id, rect: (layout.positions[id] as RoutingRect) }] : []),
-    gateways: gateways(lane),
-  }]));
-  const endpoints: EdgeEndpoints[] = [];
-  for (const edge of edges) {
-    if (clock() >= layoutDeadline) return timeoutResult();
-    const sourceRect = layout.positions[edge.source]; const targetRect = layout.positions[edge.target];
-    const sourceLane = laneByNode.get(edge.source); const targetLane = laneByNode.get(edge.target);
-    if (!sourceRect || !targetRect || !sourceLane || !targetLane) continue;
-    const a = (descriptors.get(sourceLane.id) as NonNullable<ReturnType<typeof descriptors.get>>); const b = (descriptors.get(targetLane.id) as NonNullable<ReturnType<typeof descriptors.get>>);
-    const headersA = [header(a.lane, TOPOLOGY_SECTION_HEADER), ...a.frames.map((frame) => header(frame, TOPOLOGY_FRAME_HEADER))];
-    const headersB = [header(b.lane, TOPOLOGY_SECTION_HEADER), ...b.frames.map((frame) => header(frame, TOPOLOGY_FRAME_HEADER))];
-    endpoints.push({ edge, source: endpoint(edge.id, edge.source, sourceRect, targetRect, a.cards, headersA), target: endpoint(edge.id, edge.target, targetRect, sourceRect, b.cards, headersB) });
   }
-  const portGroups = new Map<string, Endpoint[]>();
-  for (const pair of endpoints) for (const item of [pair.source, pair.target]) {
-    const key = `${item.nodeId}:${item.side}`;
-    const group = portGroups.get(key) ?? [];
-    group.push(item); portGroups.set(key, group);
+
+  prepare(): TopologyRouteResult | undefined {
+    if (this.prepared) return undefined;
+    this.prepared = true;
+    if (this.clock() >= this.layoutDeadline) return this.timeoutResult();
+    this.styles = resolveStyles(this.topology);
+    this.descriptors = new Map(this.layout.lanes.map((lane) => [lane.id, {
+      lane,
+      frames: this.layout.frames.filter((frame) => frame.layerId === lane.id),
+      cards: lane.nodeIds.flatMap((id) => this.layout.positions[id] ? [{ id, rect: this.layout.positions[id] as RoutingRect }] : []),
+      gateways: gateways(lane),
+    }]));
+    this.endpoints = [];
+    for (const edge of this.edges) {
+      if (this.clock() >= this.layoutDeadline) return this.timeoutResult();
+      const sourceRect = this.layout.positions[edge.source];
+      const targetRect = this.layout.positions[edge.target];
+      const sourceLane = this.laneByNode.get(edge.source);
+      const targetLane = this.laneByNode.get(edge.target);
+      if (!sourceRect || !targetRect || !sourceLane || !targetLane) continue;
+      const sourceDescriptor = this.descriptors.get(sourceLane.id);
+      const targetDescriptor = this.descriptors.get(targetLane.id);
+      if (!sourceDescriptor || !targetDescriptor) continue;
+      const sourceHeaders = [header(sourceDescriptor.lane, TOPOLOGY_SECTION_HEADER), ...sourceDescriptor.frames.map((frame) => header(frame, TOPOLOGY_FRAME_HEADER))];
+      const targetHeaders = [header(targetDescriptor.lane, TOPOLOGY_SECTION_HEADER), ...targetDescriptor.frames.map((frame) => header(frame, TOPOLOGY_FRAME_HEADER))];
+      this.endpoints.push({ edge, source: endpoint(edge.id, edge.source, sourceRect, targetRect, sourceDescriptor.cards, sourceHeaders), target: endpoint(edge.id, edge.target, targetRect, sourceRect, targetDescriptor.cards, targetHeaders) });
+    }
+    const portGroups = new Map<string, Endpoint[]>();
+    for (const pair of this.endpoints) for (const item of [pair.source, pair.target]) {
+      const key = `${item.nodeId}:${item.side}`;
+      const group = portGroups.get(key) ?? [];
+      group.push(item);
+      portGroups.set(key, group);
+    }
+    for (const group of portGroups.values()) {
+      if (this.clock() >= this.layoutDeadline) return this.timeoutResult();
+      const first = group[0];
+      if (!first) continue;
+      const rect = this.layout.positions[first.nodeId] as RoutingRect;
+      if (group.length < 2 || this.styles?.[first.nodeId]?.shape !== "rect") continue;
+      const horizontalSide = first.side === "top" || first.side === "bottom";
+      group.sort((a, b) => (horizontalSide ? a.other.x - b.other.x || a.other.y - b.other.y : a.other.y - b.other.y || a.other.x - b.other.x) || compareId(a.edgeId, b.edgeId));
+      const lane = this.laneByNode.get(first.nodeId);
+      const section = lane ? this.descriptors.get(lane.id) : undefined;
+      if (!lane || !section) continue;
+      group.forEach((item, index) => {
+        const point = port(rect, item.side, (index + 1) / (group.length + 1));
+        const outside = stub(point, item.side);
+        if (section.cards.some((card) => card.id !== item.nodeId && intersects(point, outside, inflate(card.rect)))) return;
+        if ([header(lane, TOPOLOGY_SECTION_HEADER), ...section.frames.map((frame) => header(frame, TOPOLOGY_FRAME_HEADER))].some((rect) => intersects(point, outside, rect))) return;
+        item.port = point;
+        item.stub = outside;
+      });
+    }
+    try {
+      for (const descriptor of this.descriptors.values()) {
+        if (this.clock() >= this.layoutDeadline) return this.timeoutResult();
+        const points = [
+          ...Object.values(descriptor.gateways),
+          ...this.endpoints.flatMap((pair) => [pair.source, pair.target].filter((item) => this.laneByNode.get(item.nodeId)?.id === descriptor.lane.id).flatMap((item) => [item.stub, ...item.alternatives.map((alternative) => alternative.stub)])),
+          { x: descriptor.lane.x, y: descriptor.lane.y },
+          { x: descriptor.lane.x + descriptor.lane.width, y: descriptor.lane.y + descriptor.lane.height },
+        ];
+        const obstacles = [
+          ...descriptor.cards.map((card) => inflate(card.rect)),
+          header(descriptor.lane, TOPOLOGY_SECTION_HEADER),
+          ...descriptor.frames.map((frame) => header(frame, TOPOLOGY_FRAME_HEADER)),
+        ];
+        const grid = new RoutingGrid(obstacles, descriptor.frames.map((frame) => ({ ...topologyRouteObstacle(frame, TOPOLOGY_ROUTE_STROKE_MARGIN), id: frame.id })), points, { clock: this.clock, deadline: this.layoutDeadline, maxBytes: this.totalGridLimit - this.gridBytes });
+        this.gridBytes += grid.estimatedBytes;
+        this.sections.set(descriptor.lane.id, { ...descriptor, grid });
+      }
+      const outsidePoints = [
+        ...[...this.sections.values()].flatMap((section) => (Object.keys(section.gateways) as Array<"left" | "right" | "bottom">).map((side) => outsideGateway(section.lane, side))),
+        { x: -160, y: -160 },
+        { x: this.layout.width + 160, y: this.layout.height + 160 },
+      ];
+      if (this.clock() >= this.layoutDeadline) return this.timeoutResult();
+      this.outside = new RoutingGrid(this.layout.lanes.map((lane) => topologyRouteObstacle(lane, TOPOLOGY_ROUTE_STROKE_MARGIN)), [], outsidePoints, { clock: this.clock, deadline: this.layoutDeadline, maxBytes: this.totalGridLimit - this.gridBytes });
+      this.gridBytes += this.outside.estimatedBytes;
+    } catch (error) {
+      if (error instanceof RoutingGridTimeout) return this.timeoutResult();
+      if (error instanceof RoutingGridLimit) return this.timeoutResult(true);
+      throw error;
+    }
+    return undefined;
   }
-  for (const group of portGroups.values()) {
-    if (clock() >= layoutDeadline) return timeoutResult();
-    const first = (group[0] as Endpoint); const rect = (layout.positions[first.nodeId] as RoutingRect);
-    if (group.length < 2 || styles[first.nodeId]?.shape !== "rect") continue;
-    const horizontalSide = first.side === "top" || first.side === "bottom";
-    group.sort((a, b) => (horizontalSide ? a.other.x - b.other.x || a.other.y - b.other.y : a.other.y - b.other.y || a.other.x - b.other.x) || compareId(a.edgeId, b.edgeId));
-    const lane = (laneByNode.get(first.nodeId) as TopologyLayoutLane); const section = (descriptors.get(lane.id) as NonNullable<ReturnType<typeof descriptors.get>>);
-    group.forEach((item, index) => {
-      const point = port(rect, item.side, (index + 1) / (group.length + 1));
-      const outside = stub(point, item.side);
-      if (section.cards.some((card) => card.id !== item.nodeId && intersects(point, outside, inflate(card.rect)))) return;
-      if ([header(lane, TOPOLOGY_SECTION_HEADER), ...section.frames.map((frame) => header(frame, TOPOLOGY_FRAME_HEADER))].some((rect) => intersects(point, outside, rect))) return;
-      item.port = point; item.stub = outside;
-    });
+
+  next(chunkSize = 20, chunkWallDeadlineMs = Number.POSITIVE_INFINITY, chunkWallClock: () => number = () => performance.now()): TopologyRouterSessionNext {
+    if (this.cancelled) return { done: true, progress: { phase: "complete", routedEdges: this.edgeIndex, totalEdges: this.endpoints.length, elapsedMs: this.clock() - this.layoutStart } };
+    if (this.finished) return { done: true, progress: { phase: "complete", routedEdges: this.edgeIndex, totalEdges: this.endpoints.length, elapsedMs: this.clock() - this.layoutStart } };
+    if (!this.prepared) {
+      const timeout = this.prepare();
+      if (timeout) {
+        this.finished = true;
+        return { done: true, result: timeout, progress: { phase: "complete", routedEdges: this.edgeIndex, totalEdges: this.endpoints.length, elapsedMs: this.clock() - this.layoutStart } };
+      }
+    }
+    if (!this.outside) {
+      const timeout = this.timeoutResult();
+      this.finished = true;
+      return { done: true, result: timeout, progress: { phase: "complete", routedEdges: this.edgeIndex, totalEdges: this.endpoints.length, elapsedMs: this.clock() - this.layoutStart } };
+    }
+
+    const chunkWallStart = chunkWallClock();
+    const chunkEnd = Math.min(this.endpoints.length, this.edgeIndex + Math.max(1, chunkSize));
+    let routedInChunk = 0;
+    while (this.edgeIndex < chunkEnd) {
+      if (this.cancelled) return { done: true, progress: { phase: "complete", routedEdges: this.edgeIndex, totalEdges: this.endpoints.length, elapsedMs: this.clock() - this.layoutStart } };
+      const pair = this.endpoints[this.edgeIndex];
+      if (!pair) break;
+      this.edgeIndex++;
+      this.routeOnePair(pair);
+      routedInChunk++;
+      if (this.clock() >= this.layoutDeadline) this.timedOut = true;
+      if (routedInChunk >= 1 && Number.isFinite(chunkWallDeadlineMs) && chunkWallClock() - chunkWallStart >= chunkWallDeadlineMs) break;
+    }
+    return {
+      done: this.edgeIndex >= this.endpoints.length,
+      progress: { phase: this.edgeIndex >= this.endpoints.length ? "extras" : "edges", routedEdges: this.edgeIndex, totalEdges: this.endpoints.length, elapsedMs: this.clock() - this.layoutStart },
+    };
   }
-  let outside: RoutingGrid;
-  try {
-  for (const descriptor of descriptors.values()) {
-    if (clock() >= layoutDeadline) return timeoutResult();
-    const points = [
-      ...Object.values(descriptor.gateways),
-      ...endpoints.flatMap((pair) => [pair.source, pair.target].filter((item) => laneByNode.get(item.nodeId)?.id === descriptor.lane.id).flatMap((item) => [item.stub, ...item.alternatives.map((alternative) => alternative.stub)])),
-      { x: descriptor.lane.x, y: descriptor.lane.y },
-      { x: descriptor.lane.x + descriptor.lane.width, y: descriptor.lane.y + descriptor.lane.height },
-    ];
-    const obstacles = [
-      ...descriptor.cards.map((card) => inflate(card.rect)),
-      header(descriptor.lane, TOPOLOGY_SECTION_HEADER),
-      ...descriptor.frames.map((frame) => header(frame, TOPOLOGY_FRAME_HEADER)),
-    ];
-    const grid = new RoutingGrid(obstacles, descriptor.frames.map((frame) => ({ ...topologyRouteObstacle(frame, TOPOLOGY_ROUTE_STROKE_MARGIN), id: frame.id })), points, { clock, deadline: layoutDeadline, maxBytes: totalGridLimit - gridBytes });
-    gridBytes += grid.estimatedBytes;
-    sections.set(descriptor.lane.id, { ...descriptor, grid });
-  }
-  const outsidePoints = [
-    ...[...sections.values()].flatMap((section) => (Object.keys(section.gateways) as Array<"left" | "right" | "bottom">).map((side) => outsideGateway(section.lane, side))),
-    { x: -160, y: -160 }, { x: layout.width + 160, y: layout.height + 160 },
-  ];
-  if (clock() >= layoutDeadline) return timeoutResult();
-  outside = new RoutingGrid(layout.lanes.map((lane) => topologyRouteObstacle(lane, TOPOLOGY_ROUTE_STROKE_MARGIN)), [], outsidePoints, { clock, deadline: layoutDeadline, maxBytes: totalGridLimit - gridBytes });
-  gridBytes += outside.estimatedBytes;
-  } catch (error) {
-    if (error instanceof RoutingGridTimeout) return timeoutResult();
-    if (error instanceof RoutingGridLimit) return timeoutResult(true);
-    throw error;
-  }
-  const routes: Record<string, TopologyRoute> = Object.create(null);
-  const failures: RouteFailure[] = [];
-  const channels = new Map<string, ChannelSegment[]>();
-  const twoPointSlotCounts = new Map<string, number>();
-  const unresolvedTwoPointSharedChannels = new Map<string, { edgeIds: Set<string>; length: number }>();
-  const outsideMasks = { forbidden: new Uint32Array(), required: new Uint32Array() };
-  let timedOut = false;
-  for (const pair of endpoints) {
+
+  private routeOnePair(pair: EdgeEndpoints): void {
     const { edge, source, target } = pair;
-    const sourceLane = (laneByNode.get(edge.source) as TopologyLayoutLane); const targetLane = (laneByNode.get(edge.target) as TopologyLayoutLane);
-    const sourceSection = (sections.get(sourceLane.id) as Section); const targetSection = (sections.get(targetLane.id) as Section);
-    const edgeDeadline = Math.min(layoutDeadline, clock() + edgeTimeout);
+    const sourceLane = this.laneByNode.get(edge.source);
+    const targetLane = this.laneByNode.get(edge.target);
+    const sourceSection = sourceLane ? this.sections.get(sourceLane.id) : undefined;
+    const targetSection = targetLane ? this.sections.get(targetLane.id) : undefined;
+    if (!sourceLane || !targetLane || !sourceSection || !targetSection) return;
+    const edgeDeadline = Math.min(this.layoutDeadline, this.clock() + this.edgeTimeout);
     let reason: RouteFailureReason | undefined;
     let points: RoutingPoint[] | null = null;
     let nudgeUnresolved: Array<{ channel: string; length: number }> = [];
-    if (timedOut || clock() >= layoutDeadline || clock() >= edgeDeadline) reason = "timeout";
+
+    if (this.timedOut || this.clock() >= this.layoutDeadline || this.clock() >= edgeDeadline) reason = "timeout";
     else if (!source.valid || !target.valid) reason = "no_path";
     else if (sourceLane.id === targetLane.id) {
       const regionMasks = masks(sourceSection, edge.source, edge.target);
       for (const sourcePort of [source, ...source.alternatives]) {
         for (const targetPort of [target, ...target.alternatives]) {
-          const result = sourceSection.grid.search(sourcePort.stub, targetPort.stub, { ...regionMasks, clock, deadline: edgeDeadline });
+          const result = sourceSection.grid.search(sourcePort.stub, targetPort.stub, { ...regionMasks, clock: this.clock, deadline: edgeDeadline });
           if (result.timeout) { reason = "timeout"; break; }
           if (result.points) {
             points = [sourcePort.port, ...result.points, targetPort.port];
@@ -490,24 +582,27 @@ export function routeTopology(topology: Topology, layout: TopologyLayoutResult, 
       }
       if (!points && !reason) reason = "no_path";
     } else {
-      const sourceMasks = masks(sourceSection, edge.source); const targetMasks = masks(targetSection, edge.target);
+      const sourceMasks = masks(sourceSection, edge.source);
+      const targetMasks = masks(targetSection, edge.target);
       const sides = ["left", "right", "bottom"] as const;
-      const sourceGateway = gateway(sourceLane, targetLane); const targetGateway = gateway(targetLane, sourceLane);
+      const sourceGateway = gateway(sourceLane, targetLane);
+      const targetGateway = gateway(targetLane, sourceLane);
       search: for (const sourcePort of [source, ...source.alternatives]) {
         for (const fromSide of [sourceGateway, ...sides.filter((side) => side !== sourceGateway)]) {
           const from = sourceSection.gateways[fromSide];
           const outsideFrom = outsideGateway(sourceLane, fromSide);
-          const a = sourceSection.grid.search(sourcePort.stub, from, { ...sourceMasks, clock, deadline: edgeDeadline });
+          const a = sourceSection.grid.search(sourcePort.stub, from, { ...sourceMasks, clock: this.clock, deadline: edgeDeadline });
           if (a.timeout) { reason = "timeout"; break search; }
           if (!a.points) continue;
           for (const targetPort of [target, ...target.alternatives]) {
             for (const toSide of [targetGateway, ...sides.filter((side) => side !== targetGateway)]) {
               const to = targetSection.gateways[toSide];
               const outsideTo = outsideGateway(targetLane, toSide);
-              const b = targetSection.grid.search(targetPort.stub, to, { ...targetMasks, clock, deadline: edgeDeadline });
+              const b = targetSection.grid.search(targetPort.stub, to, { ...targetMasks, clock: this.clock, deadline: edgeDeadline });
               if (b.timeout) { reason = "timeout"; break search; }
               if (!b.points) continue;
-              const c = outside.search(outsideFrom, outsideTo, { ...outsideMasks, clock, deadline: edgeDeadline });
+              if (!this.outside) { reason = "no_path"; break search; }
+              const c = this.outside.search(outsideFrom, outsideTo, { ...this.outsideMasks, clock: this.clock, deadline: edgeDeadline });
               if (c.timeout) { reason = "timeout"; break search; }
               if (!c.points) continue;
               points = [sourcePort.port, ...a.points, outsideFrom, ...c.points, to, ...b.points.reverse(), targetPort.port];
@@ -520,39 +615,40 @@ export function routeTopology(topology: Topology, layout: TopologyLayoutResult, 
       }
       if (!points && !reason) reason = "no_path";
     }
+
     if (points) {
       points = simplify(points);
       const relevant = sourceSection === targetSection ? [sourceSection] : [sourceSection, targetSection];
       const context: ValidationContext = {
         cards: relevant.flatMap((section) => section.cards),
         headers: relevant.map((section) => header(section.lane, TOPOLOGY_SECTION_HEADER)),
-        otherLanes: layout.lanes.filter((lane) => lane.id !== sourceLane.id && lane.id !== targetLane.id).map((lane) => topologyRouteObstacle(lane, TOPOLOGY_ROUTE_STROKE_MARGIN)),
+        otherLanes: this.layout.lanes.filter((lane) => lane.id !== sourceLane.id && lane.id !== targetLane.id).map((lane) => topologyRouteObstacle(lane, TOPOLOGY_ROUTE_STROKE_MARGIN)),
         endpointLanes: relevant.map((section) => section.lane),
         frames: relevant.flatMap((section) => section.frames.map((frame) => ({ frame, sourceInside: frame.nodeIds.includes(edge.source), targetInside: frame.nodeIds.includes(edge.target) }))),
       };
       if (!safeRoute(points, edge, context)) { points = null; reason = "no_path"; }
       else {
         const slotKey = `${edge.source}:${edge.target}`;
-        const slotIndex = twoPointSlotCounts.get(slotKey) ?? 0;
-        if (points.length === 2) twoPointSlotCounts.set(slotKey, slotIndex + 1);
-        const nudged = nudgeRoute(points, edge, context, channels, clock, edgeDeadline, slotIndex);
+        const slotIndex = this.twoPointSlotCounts.get(slotKey) ?? 0;
+        if (points.length === 2) this.twoPointSlotCounts.set(slotKey, slotIndex + 1);
+        const nudged = nudgeRoute(points, edge, context, this.channels, this.clock, edgeDeadline, slotIndex);
         points = nudged.points;
         nudgeUnresolved = nudged.unresolved;
       }
     }
-    if (clock() >= edgeDeadline) { points = null; reason = "timeout"; }
-    if (reason === "timeout") timedOut = true;
+    if (this.clock() >= edgeDeadline) { points = null; reason = "timeout"; }
+    if (reason === "timeout") this.timedOut = true;
     if (points) {
       sourceSection.grid.record(points);
-      if (targetSection !== sourceSection) { targetSection.grid.record(points); outside.record(points); }
+      if (targetSection !== sourceSection) { targetSection.grid.record(points); this.outside?.record(points); }
     }
-    if (clock() >= edgeDeadline) { points = null; reason = "timeout"; timedOut = true; }
+    if (this.clock() >= edgeDeadline) { points = null; reason = "timeout"; this.timedOut = true; }
     if (points && !reason) {
       for (const unresolved of nudgeUnresolved) {
-        const entry = unresolvedTwoPointSharedChannels.get(unresolved.channel) ?? { edgeIds: new Set<string>(), length: unresolved.length };
+        const entry = this.unresolvedTwoPointSharedChannels.get(unresolved.channel) ?? { edgeIds: new Set<string>(), length: unresolved.length };
         entry.edgeIds.add(edge.id);
         entry.length = Math.max(entry.length, unresolved.length);
-        unresolvedTwoPointSharedChannels.set(unresolved.channel, entry);
+        this.unresolvedTwoPointSharedChannels.set(unresolved.channel, entry);
       }
     }
     const fallbackPoints = points ?? [source.port, target.port];
@@ -566,33 +662,95 @@ export function routeTopology(topology: Topology, layout: TopologyLayoutResult, 
       status: reason ? "fallback" : "routed",
       ...(reason ? { renderMode: "straight" as const, fallbackStyle: "dashed" as const } : {}),
     };
-    if (reason) { route.fallback = reason; failures.push({ edgeId: edge.id, reason }); }
-    routes[edge.id] = route;
+    if (reason) { route.fallback = reason; this.failures.push({ edgeId: edge.id, reason }); }
+    this.routes[edge.id] = route;
   }
-  const additional = extras(routes, Math.max(0, totalGridLimit - gridBytes));
-  const resourceLimit = additional.bundles.diagnostics.resourceLimit === true;
-  const hasTimeout = failures.some((failure) => failure.reason === "timeout")
-    || additional.bundles.diagnostics.routeFailures.some((failure) => failure.reason === "timeout")
-    || resourceLimit;
-  const status: TopologyRoutingStatus = resourceLimit
-    ? "resource-limit"
-    : hasTimeout
-      ? "timeout"
-      : failures.length
-        ? "fallback"
-        : "complete";
-  return {
-    routes,
-    ...additional,
-    diagnostics: {
-      unresolvedTwoPointSharedChannels: [...unresolvedTwoPointSharedChannels.entries()].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([channel, entry]) => ({ channel, length: entry.length, edgeIds: [...entry.edgeIds].sort(compareId) })),
-      status,
-      routeFailures: failures,
-      fallbackCount: failures.length,
-      unroutedEdgeIds: failures.filter((failure) => failure.reason === "timeout").map((failure) => failure.edgeId),
-      elapsedMs: clock() - layoutStart,
-      bundleFailures: additional.bundles.diagnostics.routeFailures,
-      ...(resourceLimit ? { resourceLimit: true as const } : {}),
-    },
-  };
+
+  finish(): TopologyRouteResult {
+    if (this.finished) {
+      throw new Error("TopologyRouterSession already finished");
+    }
+    this.finished = true;
+    const additional = this.extras(this.routes, Math.max(0, this.totalGridLimit - this.gridBytes));
+    this.resourceLimit = additional.bundles.diagnostics.resourceLimit === true;
+    const hasTimeout = this.failures.some((failure) => failure.reason === "timeout")
+      || additional.bundles.diagnostics.routeFailures.some((failure) => failure.reason === "timeout")
+      || this.resourceLimit;
+    const status: TopologyRoutingStatus = this.resourceLimit
+      ? "resource-limit"
+      : hasTimeout
+        ? "timeout"
+        : this.failures.length
+          ? "fallback"
+          : "complete";
+    return {
+      routes: this.routes,
+      ...additional,
+      diagnostics: {
+        unresolvedTwoPointSharedChannels: [...this.unresolvedTwoPointSharedChannels.entries()].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([channel, entry]) => ({ channel, length: entry.length, edgeIds: [...entry.edgeIds].sort(compareId) })),
+        status,
+        routeFailures: this.failures,
+        fallbackCount: this.failures.length,
+        unroutedEdgeIds: this.failures.filter((failure) => failure.reason === "timeout").map((failure) => failure.edgeId),
+        elapsedMs: this.clock() - this.layoutStart,
+        bundleFailures: additional.bundles.diagnostics.routeFailures,
+        ...(this.resourceLimit ? { resourceLimit: true as const } : {}),
+      },
+    };
+  }
+}
+
+export function routeTopology(topology: Topology, layout: TopologyLayoutResult, options: RouterOptions = {}): TopologyRouteResult {
+  const session = new TopologyRouterSession(topology, layout, options);
+  const preparedTimeout = session.prepare();
+  if (preparedTimeout) return preparedTimeout;
+  while (true) {
+    const next = session.next(Number.POSITIVE_INFINITY);
+    if (next.done) {
+      if (next.result) return next.result;
+      return session.finish();
+    }
+  }
+}
+
+export async function routeTopologyCooperative(
+  topology: Topology,
+  layout: TopologyLayoutResult,
+  options: RouterOptions = {},
+  isCancelled: () => boolean = () => false,
+  chunkSize = 20,
+  yieldControl: () => Promise<void> = () => new Promise<void>((resolve) => setTimeout(resolve, 0)),
+  onProgress?: (progress: TopologyRouterSessionProgress) => void,
+): Promise<TopologyRouteResult | undefined> {
+  if (isCancelled()) return undefined;
+  await yieldControl();
+  if (isCancelled()) return undefined;
+  const session = new TopologyRouterSession(topology, layout, options);
+  const preparedTimeout = session.prepare();
+  if (preparedTimeout) {
+    await yieldControl();
+    if (isCancelled()) return undefined;
+    return preparedTimeout;
+  }
+  onProgress?.({ phase: "prepared", routedEdges: 0, totalEdges: session.endpoints.length, elapsedMs: session.clock() - session.layoutStart });
+  await yieldControl();
+  while (!isCancelled()) {
+    const next = session.next(chunkSize, options.cooperativeChunkWallMs ?? 16, options.cooperativeChunkClock ?? (() => performance.now()));
+    if (!next.done) onProgress?.(next.progress);
+    if (next.done) {
+      if (isCancelled()) return undefined;
+      if (next.result) return next.result;
+      break;
+    }
+    await yieldControl();
+  }
+  if (isCancelled()) return undefined;
+  await yieldControl();
+  if (isCancelled()) return undefined;
+  onProgress?.({ phase: "extras", routedEdges: session.edgeIndex, totalEdges: session.endpoints.length, elapsedMs: session.clock() - session.layoutStart });
+  const result = session.finish();
+  await yieldControl();
+  if (isCancelled()) return undefined;
+  onProgress?.({ phase: "complete", routedEdges: session.edgeIndex, totalEdges: session.endpoints.length, elapsedMs: session.clock() - session.layoutStart });
+  return result;
 }

@@ -1,4 +1,6 @@
 import type { Topology, TopologyBoundary, TopologyNode, TopologyPoint, TopologyView } from "@steed/api/shared";
+import type { TopologyRouteResult } from "./topology-router";
+import type { TopologyLayerPairBundleResult, TopologyRouteLabelResult } from "./topology-route-extras";
 import { resolveStyles, resolveTopologyBoundaryStyles, TOPOLOGY_HOST_SIZE_TABLE, TOPOLOGY_SATELLITE_HEIGHT, TOPOLOGY_SATELLITE_INDENT, TOPOLOGY_SUB_SATELLITE_INDENT, type TopologyResolvedBorder, type TopologyResolvedBoundaryStyle } from "./topology-style";
 
 // Card sizes. Satellites and sub-satellites stack under their host in one column.
@@ -100,6 +102,12 @@ export interface TopologyLayoutResult {
   blocks: TopologyLayoutBlock[];
   lanes: TopologyLayoutLane[];
   frames: TopologyLayoutFrame[];
+  routes?: TopologyRouteResult["routes"];
+  routeDiagnostics?: TopologyRouteResult["diagnostics"];
+  labels?: TopologyRouteLabelResult;
+  hiddenEdgeIds?: string[];
+  bundles?: TopologyLayerPairBundleResult["bundles"];
+  bundleDiagnostics?: TopologyLayerPairBundleResult["diagnostics"];
   width: number;
   height: number;
 }

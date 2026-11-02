@@ -1,9 +1,9 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ComponentType, ReactNode } from "react";
+import type { ComponentType, CSSProperties, ReactNode } from "react";
 import { getNodesBounds, getViewportForBounds, type Edge, type Node, type ReactFlowProps } from "@xyflow/react";
 import { topologySchema, type Topology } from "@steed/api/shared";
-import { inheritedBoundaryIds, TopologyCanvas, topologyEdgeSides, topologyNodeBadgeValues, topologyNodeBoundaryLabels, topologyTint, topologyZoomTier } from "../topology-canvas";
+import { inheritedBoundaryIds, TopologyCanvas, TopologyRouteEdge, VisibleRouteDetours, topologyEdgeHandleSides, topologyEdgeSides, topologyNodeBadgeValues, topologyNodeBoundaryLabels, topologyPreviewMarkerVisible, topologyPreviewVisibleSegments, topologyRouteOutsideEndpointViewport, topologyTint, topologyZoomTier } from "../topology-canvas";
 import type { TopologyCanvasEdge, TopologyCanvasNode } from "../topology-canvas";
 import { layoutTopology } from "@/lib/topology-layout";
 
@@ -12,8 +12,11 @@ vi.mock("@xyflow/react", async (original) => {
   const actual = await original<typeof import("@xyflow/react")>();
   return {
     ...actual,
+    BaseEdge: ({ path, style, markerStart, markerEnd }: { path: string; style?: CSSProperties; markerStart?: string; markerEnd?: string }) => <svg data-testid="mock-base-edge" data-path={path} data-marker-start={markerStart} data-marker-end={markerEnd} style={style} />,
     useStore: (selector: (value: { transform: number[]; width: number; height: number }) => unknown) => selector({ transform: [0, 0, state.zoom], width: state.width, height: state.height }),
     useReactFlow: () => ({ setViewport: state.setViewport, setCenter: state.setCenter, getZoom: () => state.zoom }),
+    useUpdateNodeInternals: () => vi.fn(),
+    ViewportPortal: ({ children }: { children: ReactNode }) => <>{children}</>,
     ReactFlowProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
     Background: () => <div>Grid</div>,
     Controls: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -33,7 +36,7 @@ vi.mock("@xyflow/react", async (original) => {
         {props.children}
         <button type="button" onClick={(event) => props.onPaneClick?.(event)}>pane</button>
         {props.nodes?.map((node: Node<TopologyCanvasNode>) => {
-          const View = props.nodeTypes?.[node.type ?? ""] as ComponentType<{ data: TopologyCanvasNode; selected: boolean }> | undefined;
+          const View = props.nodeTypes?.[node.type ?? ""] as ComponentType<{ id: string; data: TopologyCanvasNode; selected: boolean }> | undefined;
           return <div key={node.id}>
             <button
               data-testid={`rf__node-${node.id}`}
@@ -48,7 +51,7 @@ vi.mock("@xyflow/react", async (original) => {
                 }
               }}
             >{node.id}</button>
-            {View && <View data={node.data} selected={node.selected === true} />}
+            {View && <View id={node.id} data={node.data} selected={node.selected === true} />}
           </div>;
         })}
         {props.edges?.map((edge: Edge<TopologyCanvasEdge>) => (
@@ -101,6 +104,186 @@ function sample(): Topology {
 
 beforeEach(() => { state.zoom = 1; state.width = 1000; state.height = 700; state.nodeChanges = []; state.renders = []; vi.clearAllMocks(); });
 
+it("keeps viewport detours outside endpoint bounds without duplicating ordinary edges", () => {
+  const source = { x: 72, y: 4048, width: 240, height: 112 };
+  const target = { x: 2264, y: 4332, width: 240, height: 112 };
+  const route = [{ x: 1802, y: 3878 }, { x: 1908, y: 3878 }];
+  expect(topologyRouteOutsideEndpointViewport(route, source, target, { x: 1655, y: 3728, width: 400, height: 300 })).toBe(true);
+  expect(topologyRouteOutsideEndpointViewport(route, source, target, { x: 200, y: 4020, width: 400, height: 300 })).toBe(false);
+  expect(topologyRouteOutsideEndpointViewport(route, source, target, { x: 5000, y: 0, width: 400, height: 300 })).toBe(false);
+  expect(topologyRouteOutsideEndpointViewport([], source, target, { x: 1655, y: 3728, width: 400, height: 300 })).toBe(false);
+});
+
+it("paints only route detours outside endpoint bounds and clips unsafe fallback segments", () => {
+  const positions = { source: { x: 100, y: 1200, width: 100, height: 100 }, target: { x: 500, y: 1200, width: 100, height: 100 } };
+  const points = [{ x: 150, y: 1200 }, { x: 150, y: 300 }, { x: 550, y: 300 }, { x: 550, y: 1200 }];
+  const edge = { id: "detour", source: "source", target: "target", className: "topology-edge-satellite", animated: true, markerStart: { type: "arrowclosed" }, markerEnd: { type: "arrowclosed" }, style: { stroke: "red", strokeWidth: 3 }, data: { route: { status: "fallback", points }, protectedRects: [{ x: 300, y: 280, width: 100, height: 40 }] } } as Edge<TopologyCanvasEdge>;
+  const { rerender } = render(<VisibleRouteDetours edges={[edge]} positions={positions} />);
+  expect(screen.getByTestId("topology-route-detours")).toBeInTheDocument();
+  expect(document.querySelector('[data-route-detour="detour"]')).toHaveClass("react-flow__edge", "topology-edge-satellite", "animated");
+  expect(screen.getAllByTestId("mock-base-edge").length).toBeGreaterThan(1);
+  expect(screen.getAllByTestId("mock-base-edge").every((path) => path.style.strokeDasharray === "6 5")).toBe(true);
+  expect(document.querySelectorAll("marker")).toHaveLength(1);
+  rerender(<VisibleRouteDetours edges={[{ ...edge, className: undefined, animated: false, markerStart: undefined, markerEnd: undefined, style: undefined, data: { route: { status: "routed", points } } } as Edge<TopologyCanvasEdge>]} positions={positions} />);
+  expect(screen.getByTestId("mock-base-edge")).toHaveAttribute("data-path", "M 150 1200 L 150 300 L 550 300 L 550 1200");
+  expect(screen.getByTestId("mock-base-edge")).not.toHaveAttribute("data-marker-start");
+  expect(document.querySelector('[data-route-detour="detour"]')).not.toHaveClass("animated");
+  rerender(<VisibleRouteDetours edges={[{ ...edge, data: undefined }]} positions={positions} />);
+  expect(screen.queryByTestId("topology-route-detours")).not.toBeInTheDocument();
+  rerender(<VisibleRouteDetours edges={[edge]} positions={{ ...positions, target: { ...positions.target, y: 500 } }} />);
+  expect(screen.queryByTestId("topology-route-detours")).not.toBeInTheDocument();
+  rerender(<VisibleRouteDetours edges={[edge]} positions={{ source: positions.source }} />);
+  expect(screen.queryByTestId("topology-route-detours")).not.toBeInTheDocument();
+  state.width = 0;
+  rerender(<VisibleRouteDetours edges={[edge]} positions={positions} />);
+  expect(screen.queryByTestId("topology-route-detours")).not.toBeInTheDocument();
+  state.width = 1000;
+  state.height = 0;
+  rerender(<VisibleRouteDetours edges={[edge]} positions={positions} />);
+  expect(screen.queryByTestId("topology-route-detours")).not.toBeInTheDocument();
+  state.height = 700;
+  state.zoom = 0;
+  rerender(<VisibleRouteDetours edges={[edge]} positions={positions} />);
+  expect(screen.queryByTestId("topology-route-detours")).not.toBeInTheDocument();
+});
+
+it("clips reversed and diagonal preview segments and keeps marker endpoints only for terminal visible segments", () => {
+  const reversed = topologyPreviewVisibleSegments(
+    [{ x: 100, y: 50 }, { x: 0, y: 50 }],
+    [{ x: 40, y: 40, width: 20, height: 20 }],
+  );
+  expect(reversed).toEqual([
+    { a: { x: 100, y: 50 }, b: { x: 60, y: 50 } },
+    { a: { x: 40, y: 50 }, b: { x: 0, y: 50 } },
+  ]);
+
+  const diagonal = topologyPreviewVisibleSegments(
+    [{ x: 100, y: 100 }, { x: 0, y: 0 }],
+    [{ x: 40, y: 40, width: 20, height: 20 }],
+  );
+  expect(diagonal).toEqual([
+    { a: { x: 100, y: 100 }, b: { x: 60, y: 60 } },
+    { a: { x: 40, y: 40 }, b: { x: 0, y: 0 } },
+  ]);
+
+  const disjoint = topologyPreviewVisibleSegments([{ x: 0, y: 50 }, { x: 100, y: 50 }], [{ x: 200, y: 40, width: 20, height: 20 }]);
+  expect(disjoint).toEqual([{ a: { x: 0, y: 50 }, b: { x: 100, y: 50 } }]);
+
+  expect(topologyPreviewMarkerVisible([{ x: 0, y: 0 }, { x: 100, y: 100 }], [{ a: { x: 0, y: 0 }, b: { x: 40, y: 40 } }])).toEqual({ markerStart: true, markerEnd: false });
+  expect(topologyPreviewMarkerVisible([{ x: 0, y: 0 }, { x: 100, y: 100 }], [{ a: { x: 60, y: 60 }, b: { x: 100, y: 100 } }])).toEqual({ markerStart: false, markerEnd: true });
+});
+
+it("clips multiple overlapping preview obstacles without losing clear intervals", () => {
+  const points = [{ x: 0, y: 0 }, { x: 100, y: 0 }];
+  const rects = [
+    { x: -10, y: -2, width: 30, height: 4 },
+    { x: 80, y: -2, width: 30, height: 4 },
+    { x: 30, y: -2, width: 10, height: 4 },
+    { x: 60, y: -2, width: 10, height: 4 },
+  ];
+  const expected = [[20, 30], [40, 60], [70, 80]].map(([start, end]) => ({ a: { x: start, y: 0 }, b: { x: end, y: 0 } }));
+  expect(topologyPreviewVisibleSegments(points, rects)).toEqual(expected);
+  expect(topologyPreviewVisibleSegments(points, [...rects].reverse())).toEqual(expected);
+  const full = [{ a: { x: 0, y: 0 }, b: { x: 200, y: 0 } }];
+  const long = [full[0]!.a, full[0]!.b];
+  expect(topologyPreviewMarkerVisible(long, full, [{ x: -5, y: 5, width: 10, height: 10 }])).toEqual({ markerStart: false, markerEnd: true });
+  expect(topologyPreviewMarkerVisible(long, full, [{ x: 195, y: -15, width: 10, height: 10 }])).toEqual({ markerStart: true, markerEnd: false });
+  expect(topologyPreviewMarkerVisible(long, full, [{ x: 95, y: 100, width: 10, height: 10 }])).toEqual({ markerStart: true, markerEnd: true });
+});
+
+it("covers zoom tint badge boundary and edge-side matrices", () => {
+  expect([0.39, 0.4, 0.74, 0.75, 1].map(topologyZoomTier)).toEqual(["far", "mid", "mid", "near", "near"]);
+  expect(topologyTint(undefined, 0.07)).toContain("transparent");
+  expect(topologyTint("#2563eb", 0.07)).toMatch(/^#2563eb/);
+
+  const topology = sample();
+  expect(inheritedBoundaryIds(topology, topology.nodes[0]!)).toEqual(["home"]);
+  expect(inheritedBoundaryIds(topology, topology.nodes[1]!)).toEqual(["home"]);
+  expect(inheritedBoundaryIds(topology, topology.nodes[2]!)).toEqual([]);
+  expect(topologyNodeBoundaryLabels(topology, topology.nodes[0]!)).toEqual(["Home"]);
+  expect(topologyNodeBoundaryLabels(topology, topology.nodes[1]!)).toEqual(["Home"]);
+
+  expect(topologyEdgeSides({ x: 0, y: 0, width: 10, height: 10 }, { x: 20, y: 0, width: 10, height: 10 })).toEqual(["right", "left"]);
+  expect(topologyEdgeSides({ x: 20, y: 0, width: 10, height: 10 }, { x: 0, y: 0, width: 10, height: 10 })).toEqual(["left", "right"]);
+  expect(topologyEdgeSides({ x: 0, y: 0, width: 10, height: 10 }, { x: 0, y: 20, width: 10, height: 10 })).toEqual(["bottom", "top"]);
+  expect(topologyEdgeSides({ x: 0, y: 20, width: 10, height: 10 }, { x: 0, y: 0, width: 10, height: 10 })).toEqual(["top", "bottom"]);
+
+  expect(topologyNodeBadgeValues(topology, topology.nodes[0]!)).toEqual([]);
+  expect(topologyNodeBadgeValues(topology, topology.nodes[1]!)).toHaveLength(6);
+});
+
+it("clips reversed, diagonal and disjoint preview segments and endpoint markers", () => {
+  const reversed = topologyPreviewVisibleSegments([{ x: 100, y: 50 }, { x: 0, y: 50 }], [{ x: 40, y: 40, width: 20, height: 20 }]);
+  expect(reversed).toEqual([{ a: { x: 100, y: 50 }, b: { x: 60, y: 50 } }, { a: { x: 40, y: 50 }, b: { x: 0, y: 50 } }]);
+
+  const diagonal = topologyPreviewVisibleSegments([{ x: 100, y: 100 }, { x: 0, y: 0 }], [{ x: 40, y: 40, width: 20, height: 20 }]);
+  expect(diagonal).toEqual([{ a: { x: 100, y: 100 }, b: { x: 60, y: 60 } }, { a: { x: 40, y: 40 }, b: { x: 0, y: 0 } }]);
+
+  expect(topologyPreviewVisibleSegments([{ x: 0, y: 50 }, { x: 100, y: 50 }], [{ x: 200, y: 40, width: 20, height: 20 }])).toEqual([{ a: { x: 0, y: 50 }, b: { x: 100, y: 50 } }]);
+  expect(topologyPreviewVisibleSegments([{ x: 50, y: 50 }, { x: 50, y: 50 }], [{ x: 40, y: 40, width: 20, height: 20 }])).toEqual([]);
+
+  expect(topologyPreviewMarkerVisible([{ x: 0, y: 0 }, { x: 100, y: 100 }], [{ a: { x: 0, y: 0 }, b: { x: 40, y: 40 } }])).toEqual({ markerStart: true, markerEnd: false });
+  expect(topologyPreviewMarkerVisible([{ x: 0, y: 0 }, { x: 100, y: 100 }], [{ a: { x: 60, y: 60 }, b: { x: 100, y: 100 } }])).toEqual({ markerStart: false, markerEnd: true });
+  expect(topologyPreviewMarkerVisible([], [])).toEqual({ markerStart: false, markerEnd: false });
+
+  const points = [{ x: 10, y: 20 }, { x: 100, y: 20 }, { x: 100, y: 80 }];
+  const terminalVisible = [{ a: { x: 10, y: 20 }, b: { x: 100, y: 20 } }, { a: { x: 100, y: 20 }, b: { x: 100, y: 80 } }];
+  expect(topologyPreviewMarkerVisible(points, terminalVisible)).toEqual({ markerStart: true, markerEnd: true });
+
+  const clippedMiddle = [{ a: { x: 20, y: 20 }, b: { x: 80, y: 20 } }];
+  expect(topologyPreviewMarkerVisible(points, clippedMiddle)).toEqual({ markerStart: false, markerEnd: false });
+
+  const straight = [{ x: 0, y: 50 }, { x: 100, y: 50 }];
+  const protectedRects = [{ x: 45, y: 40, width: 10, height: 20 }, { x: 87, y: 51, width: 26, height: 26 }];
+  expect(topologyPreviewMarkerVisible(straight, topologyPreviewVisibleSegments(straight, protectedRects), protectedRects)).toEqual({ markerStart: true, markerEnd: false });
+
+  const nonEndpointProtectedRects = [
+    { x: 40, y: 40, width: 20, height: 20 },
+  ];
+  expect(topologyPreviewVisibleSegments(points, nonEndpointProtectedRects)).toEqual([{ a: { x: 10, y: 20 }, b: { x: 100, y: 20 } }, { a: { x: 100, y: 20 }, b: { x: 100, y: 80 } }]);
+});
+
+it("renders only visible fallback segments and explicit geometry diagnostics", () => {
+  const edge = {
+    id: "e",
+    source: "a",
+    target: "b",
+    sourceX: 0,
+    sourceY: 50,
+    targetX: 100,
+    targetY: 50,
+    sourcePosition: 0,
+    targetPosition: 0,
+    markerEnd: undefined,
+    markerStart: undefined,
+    selected: false,
+  };
+
+  const { rerender } = render(<TopologyRouteEdge {...edge as never} data={{ route: { points: [{ x: 0, y: 50 }, { x: 100, y: 50 }], status: "fallback", renderMode: "straight", fallback: "timeout" }, protectedRects: [{ x: 40, y: 40, width: 20, height: 20 }] } as never} />);
+  expect(screen.getAllByTestId("mock-base-edge").length).toBeGreaterThan(0);
+
+  rerender(<TopologyRouteEdge {...edge as never} markerStart="url(#start)" markerEnd="url(#end)" data={{ route: { points: [{ x: 0, y: 50 }, { x: 100, y: 50 }], status: "fallback" }, protectedRects: [{ x: 45, y: 40, width: 10, height: 20 }, { x: 87, y: 51, width: 26, height: 26 }] } as never} />);
+  const fragments = screen.getAllByTestId("mock-base-edge");
+  expect(fragments[0]?.getAttribute("data-marker-start")).toBe("url(#start)");
+  expect(fragments.at(-1)?.getAttribute("data-marker-end")).toBeNull();
+
+  rerender(<TopologyRouteEdge {...edge as never} style={{ stroke: "red", strokeWidth: 3 }} data={{ route: { points: [{ x: 0, y: 50 }, { x: 100, y: 50 }], status: "fallback" }, protectedRects: [] } as never} />);
+  expect(screen.getByTestId("mock-base-edge").style.stroke).toBe("red");
+  expect(screen.getByTestId("mock-base-edge").style.strokeDasharray).toBe("6 5");
+  expect(screen.getByTestId("mock-base-edge").style.opacity).toBe("0.65");
+
+  rerender(<TopologyRouteEdge {...edge as never} data={{ route: { points: [{ x: 0, y: 50 }, { x: 100, y: 50 }], status: "fallback", renderMode: "straight", fallback: "timeout" }, protectedRects: [{ x: 0, y: 0, width: 100, height: 100 }] } as never} />);
+  expect(screen.queryByTestId("mock-base-edge") ?? null).toBeNull();
+
+  rerender(<TopologyRouteEdge {...edge as never} style={{ stroke: "red", strokeWidth: 3, strokeDasharray: "2 5" }} data={{ route: { points: [{ x: 0, y: 50 }, { x: 100, y: 50 }], status: "routed", renderMode: undefined }, protectedRects: [] } as never} />);
+  expect(screen.getByTestId("mock-base-edge").style.stroke).toBe("red");
+  expect(screen.getByTestId("mock-base-edge").style.strokeWidth).toBe("3");
+  expect(screen.getByTestId("mock-base-edge").style.strokeDasharray).toBe("2 5");
+
+  rerender(<TopologyRouteEdge {...edge as never} data={{ route: { points: [], status: "routed" }, protectedRects: [] } as never} />);
+  expect(document.querySelector('[data-diagnostic="routed-geometry-unavailable"]')).not.toBeNull();
+});
+
 describe("topology canvas", () => {
   it("layouts the full topology and then projects only visible nodes and edges read-only", () => {
     const topology = sample();
@@ -119,7 +302,24 @@ describe("topology canvas", () => {
     expect(screen.getByRole("button", { name: "lane:cloud" })).toBeInTheDocument();
   });
 
-  it("keeps selection controlled so clicks cannot loop through React Flow", () => {
+  it("wires preview route data and fallback status into the canvas edge without smuggling a renderer", () => {
+  const topology = sample();
+  render(<TopologyCanvas topology={topology} visibleNodes={topology.nodes} visibleEdges={topology.edges} view={topology.views[0]} selectedNodeId="" onSelect={vi.fn()} />);
+  const routed = state.renders.at(-1)?.edges[0] as Edge<TopologyCanvasEdge> | undefined;
+  expect(routed?.data).toMatchObject({ status: "fallback", fallback: "timeout" });
+  expect((routed?.data?.route as { points?: unknown[] } | undefined)?.points?.length).toBeGreaterThanOrEqual(2);
+  expect(routed?.source).toBe("root");
+  expect(routed?.target).toBe("service");
+  const nodes = state.renders.at(-1)?.nodes as Node<TopologyCanvasNode>[];
+  const source = nodes.find((node) => node.id === routed?.source);
+  const target = nodes.find((node) => node.id === routed?.target);
+  const sourceHandle = source?.handles?.find((handle) => handle.id === routed?.sourceHandle);
+  const targetHandle = target?.handles?.find((handle) => handle.id === routed?.targetHandle);
+  expect(sourceHandle && { x: source!.position.x + sourceHandle.x + 3, y: source!.position.y + sourceHandle.y + 3 }).toEqual(routed?.data?.route?.points[0]);
+  expect(targetHandle && { x: target!.position.x + targetHandle.x + 3, y: target!.position.y + targetHandle.y + 3 }).toEqual(routed?.data?.route?.points.at(-1));
+});
+
+it("keeps selection controlled so clicks cannot loop through React Flow", () => {
     const topology = sample();
     const onSelect = vi.fn();
     const visible = [topology.nodes[0]!, topology.nodes[1]!];
@@ -165,6 +365,19 @@ describe("topology canvas", () => {
     expect(screen.getByText("planned")).toBeInTheDocument();
     expect(screen.getByText("Server · 1 satellites")).toBeInTheDocument();
     expect(screen.getByText("+1 satellites")).toBeInTheDocument();
+  });
+
+  it("renders and selects a nested satellite without treating it as a host", () => {
+    const topology = sample();
+    topology.nodes.push({ ...topology.nodes[1]!, id: "nested", label: "Nested", parentId: "service" });
+    const onSelect = vi.fn();
+    render(<TopologyCanvas topology={topology} visibleNodes={topology.nodes} visibleEdges={[]} selectedNodeId="" onSelect={onSelect} />);
+
+    const nested = (state.renders.at(-1)?.nodes as Node<TopologyCanvasNode>[]).find((node) => node.id === "nested");
+    expect(nested?.data.kind).toBe("sub-satellite");
+    expect(screen.getByTestId("topology-node-card-nested")).toHaveClass("topology-card-sub-satellite");
+    fireEvent.keyDown(screen.getByTestId("topology-node-card-nested"), { key: "Enter" });
+    expect(onSelect).toHaveBeenCalledWith("nested");
   });
 
   it("updates selection from card Enter and Space paths without position writes", () => {
@@ -371,7 +584,37 @@ describe("topology canvas", () => {
     expect(screen.queryByTestId("topology-frame-home")).not.toBeInTheDocument();
   });
 
-  it("maps zoom levels, colours and edge sides", () => {
+  it("uses routed source/target sides instead of relative card sides", () => {
+  const source = { x: 0, y: 0, width: 100, height: 100 };
+  const target = { x: 300, y: 300, width: 100, height: 100 };
+  expect(topologyEdgeHandleSides(undefined, source, target)).toEqual(["right", "left"]);
+  expect(topologyEdgeHandleSides({ points: [], sourceSide: "top", targetSide: "bottom" }, source, target)).toEqual(["top", "bottom"]);
+  expect(topologyEdgeHandleSides({ points: [], sourceSide: "left", targetSide: "right" }, source, target)).toEqual(["left", "right"]);
+});
+
+it("covers zoom, tint, badge, inheritance and edge-side branch matrix", () => {
+  expect([0.39, 0.4, 0.74, 0.75, 1].map(topologyZoomTier)).toEqual(["far", "mid", "mid", "near", "near"]);
+  expect(topologyTint(undefined, 0.07)).toContain("transparent");
+  expect(topologyTint("#2563eb", 0.07)).toMatch(/^#2563eb/);
+
+  const topology = sample();
+  const host = topology.nodes[0]!;
+  const satellite = topology.nodes[1]!;
+  const peer = topology.nodes[2]!;
+  expect(inheritedBoundaryIds(topology, host)).toEqual(["home"]);
+  expect(inheritedBoundaryIds(topology, satellite)).toEqual(["home"]);
+  expect(inheritedBoundaryIds(topology, peer)).toEqual([]);
+  expect(topologyNodeBoundaryLabels(topology, host)).toEqual(["Home"]);
+  expect(topologyNodeBoundaryLabels(topology, satellite)).toEqual(["Home"]);
+  expect(topologyNodeBadgeValues(topology, host)).toEqual([]);
+
+  expect(topologyEdgeSides({ x: 0, y: 0, width: 10, height: 10 }, { x: 20, y: 0, width: 10, height: 10 })).toEqual(["right", "left"]);
+  expect(topologyEdgeSides({ x: 20, y: 0, width: 10, height: 10 }, { x: 0, y: 0, width: 10, height: 10 })).toEqual(["left", "right"]);
+  expect(topologyEdgeSides({ x: 0, y: 0, width: 10, height: 10 }, { x: 0, y: 20, width: 10, height: 10 })).toEqual(["bottom", "top"]);
+  expect(topologyEdgeSides({ x: 0, y: 20, width: 10, height: 10 }, { x: 0, y: 0, width: 10, height: 10 })).toEqual(["top", "bottom"]);
+});
+
+it("maps zoom levels, colours and edge sides", () => {
     expect([0.1, 0.39, 0.4, 0.74, 0.75, 2].map(topologyZoomTier)).toEqual(["far", "far", "mid", "mid", "near", "near"]);
     expect(topologyTint("#AABBCC", 0.5)).toBe("#AABBCC80");
     expect(topologyTint("teal", 0.25)).toBe("color-mix(in oklab, teal 25%, transparent)");
@@ -395,16 +638,16 @@ describe("topology canvas", () => {
     topology.edges.push({ id: "ghost", source: "root", target: "missing", kind: "links", label: "Ghost", direction: "uni", evidence: "documented", description: "", tags: [] });
     render(<TopologyCanvas topology={topology} visibleNodes={topology.nodes} visibleEdges={topology.edges} view={undefined} selectedNodeId="" onSelect={vi.fn()} />);
     const edge = screen.getByRole("button", { name: "Runs" });
-    expect(edge).toHaveAttribute("data-source-handle", "s-bottom");
-    expect(edge).toHaveAttribute("data-target-handle", "t-top");
+    expect(edge).toHaveAttribute("data-source-handle", "s-root-service-bottom");
+    expect(edge).toHaveAttribute("data-target-handle", "t-root-service-top");
     expect(edge).toHaveAttribute("data-marker-start", "yes");
     expect(edge).toHaveAttribute("data-marker-end", "yes");
     expect(screen.getByRole("button", { name: "uses" })).toHaveAttribute("data-marker-start", "no");
     expect(screen.queryByRole("button", { name: "Ghost" })).not.toBeInTheDocument();
     const rendered = state.renders.at(-1)!.edges as Edge[];
     const byId = new Map(rendered.map((item) => [item.id, item]));
-    expect(byId.get("topology-edge:root-far")).toMatchObject({ type: "default", className: "topology-edge-host topology-edge-cross", style: { strokeDasharray: "6 5", strokeWidth: 1.5 } });
-    expect(byId.get("topology-edge:root-service")).toMatchObject({ type: "smoothstep", className: "topology-edge-satellite" });
+    expect(byId.get("topology-edge:root-far")).toMatchObject({ type: "topologyRoute", className: "topology-edge-host topology-edge-cross", style: { strokeDasharray: "6 5", strokeWidth: 1.5 } });
+    expect(byId.get("topology-edge:root-service")).toMatchObject({ type: "topologyRoute", className: "topology-edge-satellite" });
     expect(byId.get("topology-edge:root-peer")).toMatchObject({ animated: true, style: { strokeDasharray: "2 5", strokeWidth: 3 } });
     expect(byId.get("topology-edge:peer-service")?.style?.strokeDasharray).toBe("6 5");
     expect(byId.get("topology-edge:peer-root")?.style?.strokeDasharray).toBeUndefined();

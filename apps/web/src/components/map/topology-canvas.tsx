@@ -1,9 +1,11 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ReactFlow, Background, ControlButton, Controls, Handle, MarkerType, Position, ReactFlowProvider, getNodesBounds, getViewportForBounds, useReactFlow, useStore, type Edge, type Node, type NodeMouseHandler, type NodeProps, type ReactFlowInstance, type Rect } from "@xyflow/react";
+import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { ReactFlow, Background, BaseEdge, ControlButton, Controls, Handle, MarkerType, Position, ReactFlowProvider, ViewportPortal, getNodesBounds, getViewportForBounds, useReactFlow, useStore, useUpdateNodeInternals, type Edge, type EdgeProps, type Node, type NodeMouseHandler, type NodeProps, type ReactFlowInstance, type Rect } from "@xyflow/react";
 import { Badge } from "@nocoo/basalt";
 import { Layers, Maximize, Network, Server, Shield } from "lucide-react";
 import type { Topology, TopologyEdge, TopologyNode, TopologyView } from "@steed/api/shared";
-import { layoutTopology, TOPOLOGY_FRAME_VISUAL_DEPTH_LIMIT } from "@/lib/topology-layout";
+import { TOPOLOGY_FRAME_VISUAL_DEPTH_LIMIT } from "@/lib/topology-layout";
+import { TopologyLayoutRuntime } from "@/lib/topology-layout-runtime";
+import { computeStraightTopologyLayout } from "@/lib/topology-layout-preview";
 import "@xyflow/react/dist/style.css";
 
 export type TopologyCardKind = "host" | "satellite" | "sub-satellite";
@@ -40,6 +42,7 @@ export interface TopologyCanvasNode extends Record<string, unknown> {
   height?: number;
   onSelect?: (id: string) => void;
   onFocusLayer?: (id: string) => void;
+  handlePorts?: TopologyHandlePort[];
 }
 
 /** A one-shot request to move the viewport, e.g. from search or a toolbar. */
@@ -67,6 +70,40 @@ export function topologyTint(color: string | undefined, alpha: number): string {
 
 type Side = "top" | "right" | "bottom" | "left";
 
+interface TopologyHandlePort {
+  id: string;
+  type: "source" | "target";
+  side: Side;
+  x: number;
+  y: number;
+}
+
+function topologyHandleId(type: "source" | "target", edgeId: string, side: Side): string {
+  return `${type === "source" ? "s" : "t"}-${edgeId}-${side}`;
+}
+
+function topologyPosition(side: Side): Position {
+  return { top: Position.Top, right: Position.Right, bottom: Position.Bottom, left: Position.Left }[side];
+}
+
+function topologyPort(rect: Rect, side: Side): { x: number; y: number } {
+  if (side === "left" || side === "right") return { x: rect.x + (side === "right" ? rect.width : 0), y: Math.round(rect.y + rect.height / 2) };
+  return { x: Math.round(rect.x + rect.width / 2), y: rect.y + (side === "bottom" ? rect.height : 0) };
+}
+
+export function topologyRouteOutsideEndpointViewport(points: readonly { x: number; y: number }[], source: Rect, target: Rect, viewport: Rect): boolean {
+  const left = Math.min(source.x, target.x);
+  const right = Math.max(source.x + source.width, target.x + target.width);
+  const top = Math.min(source.y, target.y);
+  const bottom = Math.max(source.y + source.height, target.y + target.height);
+  if (right > viewport.x && left < viewport.x + viewport.width && bottom > viewport.y && top < viewport.y + viewport.height) return false;
+  return points.some((point, index) => {
+    const previous = points[index - 1];
+    return previous !== undefined && Math.max(point.x, previous.x) + 32 > viewport.x && Math.min(point.x, previous.x) - 32 < viewport.x + viewport.width
+      && Math.max(point.y, previous.y) + 32 > viewport.y && Math.min(point.y, previous.y) - 32 < viewport.y + viewport.height;
+  });
+}
+
 /** Handle sides for an edge, chosen from the relative position of the two cards. */
 export function topologyEdgeSides(source: Rect, target: Rect): [Side, Side] {
   const dx = (target.x + target.width / 2) - (source.x + source.width / 2);
@@ -75,8 +112,161 @@ export function topologyEdgeSides(source: Rect, target: Rect): [Side, Side] {
   return dy >= 0 ? ["bottom", "top"] : ["top", "bottom"];
 }
 
+function orthogonalRectIntersection(start: { x: number; y: number }, end: { x: number; y: number }, rect: { x: number; y: number; width: number; height: number }): [number, number] | null {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  let lo = 0;
+  let hi = 1;
+  const bounds: Array<[number, number]> = [
+    [-dx, start.x - rect.x],
+    [dx, rect.x + rect.width - start.x],
+    [-dy, start.y - rect.y],
+    [dy, rect.y + rect.height - start.y],
+  ];
+  for (const [p, q] of bounds) {
+    if (Math.abs(p) < 1e-9) {
+      if (q < 0) return null;
+      continue;
+    }
+    const ratio = q / p;
+    if (p < 0) lo = Math.max(lo, ratio); else hi = Math.min(hi, ratio);
+  }
+  if (lo > hi) return null;
+  lo = Math.max(0, Math.min(1, lo));
+  hi = Math.max(0, Math.min(1, hi));
+  return lo <= hi ? [lo, hi] : null;
+}
+
+export function topologyPreviewVisibleSegments(points: readonly { x: number; y: number }[], protectedRects: readonly { x: number; y: number; width: number; height: number }[]) {
+  const visible: Array<{ a: { x: number; y: number }; b: { x: number; y: number } }> = [];
+  for (let index = 1; index < points.length; index++) {
+    const start = points[index - 1];
+    const end = points[index];
+    if (!start || !end) continue;
+    let intervals: Array<[number, number]> = [[0, 1]];
+    for (const rect of protectedRects) {
+      const inside = orthogonalRectIntersection(start, end, rect);
+      if (!inside) continue;
+      let [rect0, rect1] = inside;
+      if (rect1 < rect0) [rect0, rect1] = [rect1, rect0];
+      rect0 = Math.max(0, Math.min(1, rect0));
+      rect1 = Math.max(0, Math.min(1, rect1));
+      const next: Array<[number, number]> = [];
+      for (const [i0, i1] of intervals) {
+        if (rect1 <= i0 || rect0 >= i1) {
+          next.push([i0, i1]);
+          continue;
+        }
+        if (rect0 <= i0 && rect1 >= i1) continue;
+        if (rect0 <= i0) {
+          next.push([rect1, i1]);
+          continue;
+        }
+        if (rect1 >= i1) {
+          next.push([i0, rect0]);
+          continue;
+        }
+        next.push([i0, rect0]);
+        next.push([rect1, i1]);
+      }
+      intervals = next;
+    }
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    for (const [i0, i1] of intervals) {
+      if (i1 - i0 <= 1e-9) continue;
+      visible.push({
+        a: { x: start.x + dx * i0, y: start.y + dy * i0 },
+        b: { x: start.x + dx * i1, y: start.y + dy * i1 },
+      });
+    }
+  }
+  return visible;
+}
+
+export function TopologyRouteEdge(props: Pick<EdgeProps<Edge<TopologyCanvasEdge>>, "id" | "data" | "style" | "markerStart" | "markerEnd">) {
+  const route = props.data?.route;
+  const protectedRects = props.data?.protectedRects ?? [];
+  const points = route?.points ?? [];
+  const fallback = route?.status === "fallback";
+  if (fallback) {
+    const segments = topologyPreviewVisibleSegments(points, protectedRects);
+    if (!segments.length) {
+      return <div data-diagnostic="fallback-no-visible-segment" />;
+    }
+    const markerVisibility = topologyPreviewMarkerVisible(points, segments, protectedRects);
+    return <>{segments.map((segment, index) => (
+      <BaseEdge
+        key={`${props.id}-${index}`}
+        id={`${props.id}-${index}`}
+        path={`M ${segment.a.x} ${segment.a.y} L ${segment.b.x} ${segment.b.y}`}
+        markerStart={index === 0 && markerVisibility.markerStart ? props.markerStart : undefined}
+        markerEnd={index === segments.length - 1 && markerVisibility.markerEnd ? props.markerEnd : undefined}
+        style={{ stroke: props.style?.stroke ?? "var(--topology-edge-cross, #94a3b8)", strokeWidth: 2, strokeDasharray: "6 5", strokeLinecap: "round", opacity: 0.65 }}
+      />
+    ))}</>;
+  }
+  if (points.length >= 2) {
+    const first = points[0];
+    if (!first) return <div data-diagnostic="routed-geometry-unavailable" />;
+    const path = `M ${first.x} ${first.y}` + points.slice(1).map((point) => ` L ${point.x} ${point.y}`).join("");
+    return <BaseEdge id={props.id} path={path} markerStart={props.markerStart} markerEnd={props.markerEnd} style={{ stroke: "var(--topology-edge-cross, #94a3b8)", strokeWidth: 2, ...props.style }} />;
+  }
+  return <div data-diagnostic="routed-geometry-unavailable" />;
+}
+
+export function topologyPreviewMarkerVisible(points: readonly { x: number; y: number }[], segments: readonly { a: { x: number; y: number }; b: { x: number; y: number } }[], protectedRects: readonly Rect[] = []) {
+  if (!points.length || !segments.length) return { markerStart: false, markerEnd: false };
+  const first = segments[0]?.a;
+  const last = segments.at(-1)?.b;
+  if (!first || !last) return { markerStart: false, markerEnd: false };
+  const start = points[0];
+  const end = points.at(-1);
+  if (!start || !end) return { markerStart: false, markerEnd: false };
+  // Enclose the rotated 14x14 marker viewport at fallback stroke width 2.
+  const radius = 14 * 2 * Math.SQRT2 + 2;
+  const clear = (point: { x: number; y: number }) => protectedRects.every((rect) =>
+    point.x + radius < rect.x || point.x - radius > rect.x + rect.width
+    || point.y + radius < rect.y || point.y - radius > rect.y + rect.height,
+  );
+  return {
+    markerStart: Math.abs(first.x - start.x) <= 1e-6 && Math.abs(first.y - start.y) <= 1e-6 && clear(start),
+    markerEnd: Math.abs(last.x - end.x) <= 1e-6 && Math.abs(last.y - end.y) <= 1e-6 && clear(end),
+  };
+}
+
+export function topologyEdgeHandleSides(route: TopologyCanvasEdge["route"] | undefined, source: Rect, target: Rect): [Side, Side] {
+  const relative = topologyEdgeSides(source, target);
+  return [route?.sourceSide ?? relative[0], route?.targetSide ?? relative[1]];
+}
+
 export interface TopologyCanvasEdge extends Record<string, unknown> {
   edge: TopologyEdge;
+  route?: {
+    points: Array<{ x: number; y: number }>;
+    sourceSide?: "top" | "right" | "bottom" | "left";
+    targetSide?: "top" | "right" | "bottom" | "left";
+    status?: "routed" | "fallback";
+    renderMode?: "straight";
+    fallbackStyle?: "dashed" | "faded";
+    fallback?: "no_path" | "timeout";
+  };
+  crossLayer?: boolean;
+  showLabel?: boolean;
+  labelRect?: unknown;
+  labelHidden?: boolean;
+  labelText?: string;
+  status?: "routed" | "fallback";
+  renderMode?: "straight";
+  fallbackStyle?: "dashed" | "faded";
+  fallback?: "no_path" | "timeout";
+  protectedRects?: Array<{ x: number; y: number; width: number; height: number; kind?: "card" | "lane-title" | "lane-body" | "frame-title"; laneId?: string; frameId?: string }>;
+sourceRect?: { x: number; y: number; width: number; height: number };
+targetRect?: { x: number; y: number; width: number; height: number };
+sourceLaneRect?: { x: number; y: number; width: number; height: number };
+targetLaneRect?: { x: number; y: number; width: number; height: number };
+endpointFrameIds?: string[];
+  strokeMargin?: number;
 }
 
 export const TOPOLOGY_NODE_VISIBLE_BADGES = 4;
@@ -130,16 +320,23 @@ export function topologyNodeBoundaryLabels(topology: Topology, node: TopologyNod
 const SIDES: Array<[Side, Position]> = [["top", Position.Top], ["right", Position.Right], ["bottom", Position.Bottom], ["left", Position.Left]];
 const handleClass = "!h-1.5 !w-1.5 !min-h-0 !min-w-0 !border-0 !bg-basalt-primary/60";
 
-function CardHandles() {
-  return <>{SIDES.map(([side, position]) => (
-    <span key={side}>
-      <Handle type="target" position={position} id={`t-${side}`} isConnectable={false} className={handleClass} />
-      <Handle type="source" position={position} id={`s-${side}`} isConnectable={false} className={handleClass} />
-    </span>
-  ))}</>;
+function CardHandles({ ports, kind }: { ports: TopologyHandlePort[]; kind: TopologyCardKind }) {
+  return <>
+    {SIDES.map(([side, position]) => (
+      <span key={side}>
+        <Handle type="target" position={position} id={`t-${side}`} isConnectable={false} className={handleClass} />
+        <Handle type="source" position={position} id={`s-${side}`} isConnectable={false} className={handleClass} />
+      </span>
+    ))}
+    {ports.map((port) => <Handle key={port.id} type={port.type} position={topologyPosition(port.side)} id={port.id} isConnectable={false}
+      className={handleClass} style={{ left: port.x - (kind === "host" ? 4 : 2), top: port.y - 1, transform: "translate(-50%, -50%)" }} />)}
+  </>;
 }
 
-const NodeCard = memo(function NodeCard({ data, selected }: NodeProps<Node<TopologyCanvasNode>>) {
+const NodeCard = memo(function NodeCard({ id, data, selected }: NodeProps<Node<TopologyCanvasNode>>) {
+  const updateInternals = useUpdateNodeInternals();
+  const portsKey = JSON.stringify(data.handlePorts ?? []);
+  useEffect(() => { updateInternals(id); }, [id, portsKey, updateInternals]);
   const host = data.kind === "host";
   const visibleBadges = data.badges?.slice(0, host ? TOPOLOGY_NODE_VISIBLE_BADGES : TOPOLOGY_SATELLITE_VISIBLE_BADGES) ?? [];
   const visibleBoundaries = host ? data.boundaryLabels?.slice(0, TOPOLOGY_NODE_VISIBLE_BOUNDARY_CHIPS) ?? [] : [];
@@ -165,7 +362,7 @@ const NodeCard = memo(function NodeCard({ data, selected }: NodeProps<Node<Topol
         }
       }}
     >
-      <CardHandles />
+      <CardHandles ports={data.handlePorts ?? []} kind={host ? "host" : data.kind === "sub-satellite" ? "sub-satellite" : "satellite"} />
       {host && <div className="topology-card-far absolute inset-0 flex-col justify-center gap-1 bg-basalt-card px-4" aria-hidden="true">
         <div className="line-clamp-2 text-[26px] font-bold leading-tight" title={data.label}>{data.label}</div>
         {(data.satelliteCount ?? 0) > 0 && <div className="text-lg text-basalt-muted-foreground">+{data.satelliteCount} satellites</div>}
@@ -251,6 +448,37 @@ const FrameNode = memo(function FrameNode({ data }: NodeProps<Node<TopologyCanva
 });
 
 const nodeTypes = { topologyNode: NodeCard, topologyLane: SectionNode, topologyFrame: FrameNode };
+const edgeTypes = { topologyRoute: TopologyRouteEdge };
+
+export function VisibleRouteDetours({ edges, positions }: { edges: Edge<TopologyCanvasEdge>[]; positions: Record<string, Rect> }) {
+  const [x, y, zoom] = useStore((state) => state.transform);
+  const width = useStore((state) => state.width);
+  const height = useStore((state) => state.height);
+  const markerPrefix = useId().replace(/[^a-zA-Z0-9_-]/g, "");
+  if (!width || !height || !zoom) return null;
+  const viewport = { x: -x / zoom, y: -y / zoom, width: width / zoom, height: height / zoom };
+  const detours = edges.flatMap((edge, index) => {
+    const source = positions[edge.source];
+    const target = positions[edge.target];
+    const points = edge.data?.route?.points;
+    if (!source || !target || !points || !topologyRouteOutsideEndpointViewport(points, source, target, viewport)) return [];
+    return [{ edge, markerId: `${markerPrefix}-detour-${index}` }];
+  });
+  if (!detours.length) return null;
+  return <ViewportPortal>
+    <svg className="pointer-events-none" style={{ position: "absolute", overflow: "visible", zIndex: 1 }} aria-hidden="true" data-testid="topology-route-detours">
+      <defs>{detours.map(({ edge, markerId }) => {
+        const color = edge.style?.stroke ?? "var(--topology-edge-cross, #94a3b8)";
+        return <marker key={markerId} id={markerId} markerWidth="14" markerHeight="14" viewBox="-10 -10 20 20" refX="0" refY="0" markerUnits="strokeWidth" orient="auto-start-reverse">
+          <polyline points="-5,-4 0,0 -5,4 -5,-4" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" stroke={color} fill={color} />
+        </marker>;
+      })}</defs>
+      {detours.map(({ edge, markerId }) => <g key={edge.id} className={`react-flow__edge ${edge.className ?? ""}${edge.animated ? " animated" : ""}`} data-route-detour={edge.id}>
+        <TopologyRouteEdge id={edge.id} data={edge.data} style={edge.style} markerStart={edge.markerStart ? `url(#${markerId})` : undefined} markerEnd={edge.markerEnd ? `url(#${markerId})` : undefined} />
+      </g>)}
+    </svg>
+  </ViewportPortal>;
+}
 
 interface Props {
   topology: Topology;
@@ -267,13 +495,27 @@ const BOUNDARY_FALLBACK_COLOR = "#64748b";
 
 function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, onSelect, focus, onInit }: Props) {
   const { setViewport, setCenter, getZoom } = useReactFlow();
-  const canvas = useStore((state) => ({ width: state.width, height: state.height }));
+  const canvasWidth = useStore((state) => state.width);
+  const canvasHeight = useStore((state) => state.height);
+  const canvas = { width: canvasWidth, height: canvasHeight };
   const canvasRef = useRef(canvas);
   canvasRef.current = canvas;
   const [hoveredBoundaryId, setHoveredBoundaryId] = useState("");
   const [focusedBoundaryId, setFocusedBoundaryId] = useState("");
 
-  const layout = useMemo(() => layoutTopology(topology, view ? { view } : {}), [topology, view]);
+  const runtimeRef = useRef<TopologyLayoutRuntime | null>(null);
+  if (!runtimeRef.current) runtimeRef.current = new TopologyLayoutRuntime();
+  useEffect(() => {
+    const runtime = runtimeRef.current;
+    return () => runtime?.dispose();
+  }, []);
+  const [layout, setLayout] = useState(() => computeStraightTopologyLayout(topology, view ? { view } : {}));
+  useEffect(() => {
+    const runtime = runtimeRef.current;
+    if (!runtime) return;
+    const requestId = runtime.request({ topology, viewId: view?.id, pins: view?.pins, options: view ? { view } : {} }, setLayout);
+    return () => runtime.cancelRequest(requestId);
+  }, [topology, view]);
   const fitRect = useCallback((rect: Rect, padding: number) => {
     const { width, height } = canvasRef.current;
     if (width <= 0 || height <= 0) return;
@@ -302,7 +544,13 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
     for (const node of topology.nodes) if (node.parentId) satelliteCounts.set(node.parentId, (satelliteCounts.get(node.parentId) ?? 0) + 1);
     for (const block of layout.blocks) satelliteCounts.set(block.hostId, block.nodeIds.length - 1);
     const hostLayer = new Map<string, string>();
-    for (const lane of layout.lanes) for (const id of lane.nodeIds) hostLayer.set(id, lane.layerId);
+    const laneByNode = new Map<string, (typeof layout.lanes)[number]>();
+    for (const lane of layout.lanes) {
+      for (const id of lane.nodeIds) {
+        hostLayer.set(id, lane.layerId);
+        laneByNode.set(id, lane);
+      }
+    }
 
     const laneNodes: Node<TopologyCanvasNode>[] = layout.lanes
       .filter((lane) => lane.nodeIds.some((id) => visibleNodeIds.has(id)))
@@ -374,6 +622,23 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
         };
       });
 
+    const handlePorts = new Map<string, TopologyHandlePort[]>();
+    for (const edge of visibleEdges) {
+      const source = layout.positions[edge.source];
+      const target = layout.positions[edge.target];
+      if (!source || !target || !visibleNodeIds.has(edge.source) || !visibleNodeIds.has(edge.target)) continue;
+      const route = layout.routes?.[edge.id] as TopologyCanvasEdge["route"] | undefined;
+      const [sourceSide, targetSide] = topologyEdgeHandleSides(route, source, target);
+      for (const [nodeId, rect, type, side, point] of [
+        [edge.source, source, "source", sourceSide, route?.points[0] ?? topologyPort(source, sourceSide)],
+        [edge.target, target, "target", targetSide, route?.points.at(-1) ?? topologyPort(target, targetSide)],
+      ] as const) {
+        const ports = handlePorts.get(nodeId) ?? [];
+        ports.push({ id: topologyHandleId(type, edge.id, side), type, side, x: point.x - rect.x, y: point.y - rect.y });
+        handlePorts.set(nodeId, ports);
+      }
+    }
+
     const nodeLayer: Node<TopologyCanvasNode>[] = [];
     for (const node of visibleNodes) {
       const position = layout.positions[node.id];
@@ -387,6 +652,7 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
         position: { x: position.x, y: position.y },
         width: position.width,
         height: position.height,
+        handles: (handlePorts.get(node.id) ?? []).map((port) => ({ id: port.id, type: port.type, position: topologyPosition(port.side), x: port.x - 3, y: port.y - 3, width: 6, height: 6 })),
         selectable: true,
         ariaLabel: `Select ${node.label}`,
         draggable: false,
@@ -404,6 +670,7 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
           width: position.width,
           height: position.height,
           onSelect: selectNode,
+          handlePorts: handlePorts.get(node.id),
         },
       });
     }
@@ -413,20 +680,30 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
         const source = layout.positions[edge.source];
         const target = layout.positions[edge.target];
         if (!source || !target || !visibleNodeIds.has(edge.source) || !visibleNodeIds.has(edge.target)) return [];
-        const [sourceSide, targetSide] = topologyEdgeSides(source, target);
+        const computedRoute = layout.routes?.[edge.id] as TopologyCanvasEdge["route"] | undefined;
+        const [sourceSide, targetSide] = topologyEdgeHandleSides(computedRoute, source, target);
         const sourceLayer = hostLayer.get(edge.source);
         const crossLayer = sourceLayer !== hostLayer.get(edge.target);
         const satellite = byId.get(edge.source)?.parentId !== undefined || byId.get(edge.target)?.parentId !== undefined;
         const color = crossLayer ? "var(--topology-edge-cross, #94a3b8)" : layerById.get(sourceLayer ?? "")?.color ?? "var(--topology-edge-cross, #94a3b8)";
+        const route = computedRoute;
+        const sourceLaneId = sourceLayer;
+        const targetLaneId = hostLayer.get(edge.target);
+        const protectedRects = [
+          ...Object.entries(layout.positions).filter(([id]) => id !== edge.source && id !== edge.target).map(([, rect]) => ({ x: rect.x - 3, y: rect.y - 3, width: rect.width + 6, height: rect.height + 6 })),
+          ...layout.lanes.map((lane) => ({ x: lane.x - 3, y: lane.y + 2 - 3, width: lane.width + 6, height: 96 + 6 })),
+          ...layout.lanes.filter((lane) => lane.layerId !== sourceLaneId && lane.layerId !== targetLaneId).map((lane) => ({ x: lane.x - 3, y: lane.y - 3, width: lane.width + 6, height: lane.height + 6 })),
+          ...layout.frames.map((frame) => ({ x: frame.x - 3, y: frame.y - 3, width: frame.width + 6, height: 36 + 6 })),
+        ];
         return [{
           id: `topology-edge:${edge.id}`,
           source: edge.source,
           target: edge.target,
           label: edge.label || edge.kind,
-          type: crossLayer ? "default" : "smoothstep",
+          type: "topologyRoute",
           className: `${satellite ? "topology-edge-satellite" : "topology-edge-host"}${crossLayer ? " topology-edge-cross" : ""}`,
-          sourceHandle: `s-${sourceSide}`,
-          targetHandle: `t-${targetSide}`,
+          sourceHandle: topologyHandleId("source", edge.id, sourceSide),
+          targetHandle: topologyHandleId("target", edge.id, targetSide),
           animated: edge.style?.animated === true,
           markerStart: edge.direction === "bi" ? { type: MarkerType.ArrowClosed, width: 14, height: 14, color } : undefined,
           markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14, color },
@@ -441,7 +718,17 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
                 : edge.style?.dash === "dashed" ? "6 5"
                   : edge.evidence === "inferred" ? "6 5" : undefined,
           },
-          data: { edge },
+          data: {
+            edge,
+            route,
+            crossLayer,
+            status: route?.status,
+            renderMode: route?.renderMode,
+            fallback: route?.fallback,
+            fallbackStyle: route?.fallbackStyle,
+            protectedRects,
+            strokeMargin: (edge.style?.width ?? (crossLayer ? 1.5 : 2)) / 2 + 7,
+          },
         }];
       });
     return { nodes: [...laneNodes, ...frameNodes, ...nodeLayer], laneNodes, edges };
@@ -535,6 +822,7 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
         nodes={canvasNodes}
         edges={projected.edges}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         onNodeClick={handleNodeClick}
         onPaneClick={handlePaneClick}
         nodesDraggable={false}
@@ -552,6 +840,7 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
         <Controls showInteractive={false} showFitView={false} position="bottom-left">
           <ControlButton onClick={fit} aria-label="Fit topology"><Maximize /></ControlButton>
         </Controls>
+        <VisibleRouteDetours edges={projected.edges} positions={layout.positions} />
       </ReactFlow>
       {!visibleNodes.length && <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 text-basalt-muted-foreground">
         <Network className="h-10 w-10 opacity-40" aria-hidden="true" />
