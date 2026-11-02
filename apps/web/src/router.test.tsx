@@ -38,6 +38,13 @@ describe("router", () => {
     await waitFor(() => expect(router.state.location.pathname).toBe("/topology"));
   });
 
+  it("loads the Connect route lazily and preserves the workspace page", async () => {
+    renderRoute("/connect");
+    await waitFor(() => {
+      expect(screen.getAllByRole("heading", { name: "Connect" }).length).toBeGreaterThan(0);
+    });
+  });
+
   it("only routes the workspace pages", () => {
     const children = routes[0]!.children!.map((route) => route.path ?? "index");
     expect(children).toEqual(["index", "topology", "topology/:id", "diagrams", "diagrams/:id", "connect"]);
