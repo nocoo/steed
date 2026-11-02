@@ -6,6 +6,7 @@ import {
   splitTopologyFallbackPolylinePreview,
   topologyFallbackMarkerVisibility,
 } from "@/lib/topology-route-edge-safety";
+import { TOPOLOGY_ZOOM_NEAR } from "@/lib/topology-zoom";
 import {
   topologyRouteDash,
   topologyRouteEdgeColor,
@@ -21,7 +22,9 @@ import {
 
 export type TopologyRouteEdgeType = Edge<TopologyRouteEdgeData, "topologyRoute">;
 
-function TopologyRouteMeasuredLabel(props: {
+export const TOPOLOGY_NEAR_LABEL_ZOOM = TOPOLOGY_ZOOM_NEAR;
+
+interface TopologyRouteMeasuredLabelProps {
   segments: Array<{ a: { x: number; y: number }; b: { x: number; y: number } }>;
   fallbackIndex: TopologyFallbackRectIndex;
   sourceId: string;
@@ -33,7 +36,9 @@ function TopologyRouteMeasuredLabel(props: {
   pointerEvents?: "auto" | "none";
   edgeId: string;
   workerLabel?: { rect: { x: number; y: number; width: number; height: number } | null; hidden: boolean; text: string; segmentIndex: number | null };
-}) {
+}
+
+function TopologyRouteMeasuredLabelContent(props: TopologyRouteMeasuredLabelProps) {
   const labelRef = useRef<HTMLButtonElement>(null);
   const zoom = useStore((state) => state.transform[2] || 1);
   const segmentKey = JSON.stringify(props.segments);
@@ -100,7 +105,7 @@ function TopologyRouteMeasuredLabel(props: {
       props.edgeId,
     );
     if (exactPosition) {
-      props.fallbackIndex.reserveLabelRect(props.edgeId, {
+      props.fallbackIndex.addLabelRect(props.edgeId, {
         x: exactPosition.x - measuredWidth / 2,
         y: exactPosition.y - measuredHeight / 2,
         width: measuredWidth,
@@ -155,6 +160,12 @@ function TopologyRouteMeasuredLabel(props: {
       </button>
     </EdgeLabelRenderer>
   );
+}
+
+export function TopologyRouteMeasuredLabel(props: TopologyRouteMeasuredLabelProps) {
+  const isNear = useStore((state) => (state.transform[2] || 1) >= TOPOLOGY_ZOOM_NEAR);
+  if (!isNear) return null;
+  return <TopologyRouteMeasuredLabelContent {...props} />;
 }
 
 export function TopologyRouteEdge(props: Pick<EdgeProps<TopologyRouteEdgeType>, "id" | "data" | "selected" | "style" | "markerStart" | "markerEnd">) {

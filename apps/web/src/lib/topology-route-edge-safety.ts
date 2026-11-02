@@ -252,10 +252,6 @@ export class TopologyFallbackRectIndex {
     }
   }
 
-  reserveLabelRect(edgeId: string, rect: RoutingRect, margin = 2): void {
-    this.addLabelRect(edgeId, rect, margin);
-  }
-
   releaseLabelRect(edgeId: string): void {
     const rect = this.labelRects.get(edgeId);
     if (!rect) return;

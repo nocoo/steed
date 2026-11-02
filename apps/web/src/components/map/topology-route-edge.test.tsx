@@ -3,11 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 import type { EdgeProps } from "@xyflow/react";
 import type { TopologyEdge } from "@steed/api/shared";
-import { TopologyRouteEdge, type TopologyRouteEdgeType } from "./topology-route-edge";
+import { TOPOLOGY_NEAR_LABEL_ZOOM, TopologyRouteEdge, TopologyRouteMeasuredLabel, type TopologyRouteEdgeType } from "./topology-route-edge";
 import { createTopologyFallbackRectIndex, TopologyFallbackRectIndex } from "@/lib/topology-route-edge-safety";
 
+const labelZoom = vi.hoisted(() => ({ value: 1 }));
+
 vi.mock("@xyflow/react", () => ({
-  useStore: (selector: (value: { transform: number[] }) => unknown) => selector({ transform: [0, 0, 1] }),
+  useStore: (selector: (value: { transform: number[] }) => unknown) => selector({ transform: [0, 0, labelZoom.value] }),
   BaseEdge: (props: { id: string; path: string; markerStart?: string; markerEnd?: string; style?: Record<string, unknown>; className?: string; "data-fallback"?: string; "data-diagnostic"?: string; "data-visible-segments"?: number; "data-fallback-style"?: string; "data-route"?: string }) => (
     <svg><path data-testid="route-edge-path" data-id={props.id} d={props.path} markerStart={props.markerStart ?? undefined} markerEnd={props.markerEnd ?? undefined} className={props.className} data-fallback={props["data-fallback"]} data-diagnostic={props["data-diagnostic"]} data-visible-segments={props["data-visible-segments"]} data-fallback-style={props["data-fallback-style"]} data-route={props["data-route"]} style={props.style} /></svg>
   ),
@@ -68,6 +70,101 @@ describe("TopologyRouteEdge", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    labelZoom.value = 1;
+  });
+
+  it("mounts and measures edge labels only at near zoom and remeasures zoom/text updates", () => {
+    let measurementCount = 0;
+    vi.mocked(HTMLElement.prototype.getBoundingClientRect).mockImplementation(function getBoundingClientRect(): DOMRect {
+      measurementCount++;
+      return { x: 0, y: 0, left: 0, top: 0, right: 100, bottom: 22, width: 100, height: 22, toJSON: () => ({}) } as DOMRect;
+    });
+    const index = createTopologyFallbackRectIndex({ lanes: [], frames: [], positions: {} }, new Map(), 8);
+    const labelProps = {
+      edgeId: "edge-a-b",
+      segments: [{ a: { x: 0, y: 0 }, b: { x: 100, y: 0 } }],
+      fallbackIndex: index,
+      sourceId: "a",
+      targetId: "b",
+      text: "HTTPS",
+      detail: "443",
+      pointerEvents: "auto" as const,
+    };
+
+    labelZoom.value = 0.39;
+    const { rerender } = render(<TopologyRouteMeasuredLabel {...labelProps} />);
+    expect(document.querySelector('[aria-label="HTTPS"]')).toBeNull();
+    expect(measurementCount).toBe(0);
+
+    labelZoom.value = 0.74;
+    rerender(<TopologyRouteMeasuredLabel {...labelProps} />);
+    expect(document.querySelector('[aria-label="HTTPS"]')).toBeNull();
+    expect(measurementCount).toBe(0);
+
+    labelZoom.value = TOPOLOGY_NEAR_LABEL_ZOOM;
+    rerender(<TopologyRouteMeasuredLabel {...labelProps} />);
+    expect(document.querySelector('[aria-label="HTTPS"]')).not.toBeNull();
+    expect(measurementCount).toBe(1);
+
+    rerender(<TopologyRouteMeasuredLabel {...labelProps} text="TCP" detail="8080" />);
+    expect(document.querySelector('[aria-label="TCP"]')).not.toBeNull();
+    expect(measurementCount).toBe(2);
+
+    labelZoom.value = 0.74;
+    rerender(<TopologyRouteMeasuredLabel {...labelProps} text="TCP" detail="8080" />);
+    expect(document.querySelector('[aria-label="TCP"]')).toBeNull();
+    expect(measurementCount).toBe(2);
+
+    labelZoom.value = 1;
+    rerender(<TopologyRouteMeasuredLabel {...labelProps} text="TCP" detail="8080" fallback />);
+    expect(document.querySelector('[aria-label="TCP fallback"]')).not.toBeNull();
+    expect(measurementCount).toBe(3);
+  });
+
+  it("quantifies 1000 synthetic edge-label mounts and measurements across zoom tiers", () => {
+    let measurementCount = 0;
+    vi.mocked(HTMLElement.prototype.getBoundingClientRect).mockImplementation(function getBoundingClientRect(): DOMRect {
+      measurementCount++;
+      return { x: 0, y: 0, left: 0, top: 0, right: 100, bottom: 22, width: 100, height: 22, toJSON: () => ({}) } as DOMRect;
+    });
+    const index = createTopologyFallbackRectIndex({ lanes: [], frames: [], positions: {} }, new Map(), 8);
+    const ManyLabels = () => <>{Array.from({ length: 1000 }, (_, labelIndex) => (
+      <TopologyRouteMeasuredLabel
+        key={labelIndex}
+        edgeId={`edge-${labelIndex}`}
+        segments={[{ a: { x: 0, y: 0 }, b: { x: 100, y: 0 } }]}
+        fallbackIndex={index}
+        sourceId="a"
+        targetId="b"
+        text={`EDGE-${labelIndex}`}
+        detail=""
+      />
+    ))}</>;
+
+    labelZoom.value = 0.39;
+    const { rerender } = render(<ManyLabels />);
+    expect(document.querySelectorAll(".topology-route-edge-label")).toHaveLength(0);
+    expect(measurementCount).toBe(0);
+
+    labelZoom.value = 0.74;
+    rerender(<ManyLabels />);
+    expect(document.querySelectorAll(".topology-route-edge-label")).toHaveLength(0);
+    expect(measurementCount).toBe(0);
+
+    labelZoom.value = 0.75;
+    rerender(<ManyLabels />);
+    expect(document.querySelectorAll(".topology-route-edge-label")).toHaveLength(1000);
+    expect(measurementCount).toBe(1000);
+
+    labelZoom.value = 0.74;
+    rerender(<ManyLabels />);
+    expect(document.querySelectorAll(".topology-route-edge-label")).toHaveLength(0);
+    expect(measurementCount).toBe(1000);
+
+    labelZoom.value = 1;
+    rerender(<ManyLabels />);
+    expect(document.querySelectorAll(".topology-route-edge-label")).toHaveLength(1000);
+    expect(measurementCount).toBe(2000);
   });
 
   it("renders a rounded route, arrows, style and protocol/port label", () => {

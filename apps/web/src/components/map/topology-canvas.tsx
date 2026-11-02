@@ -8,7 +8,9 @@ import { TopologyLayoutRuntime } from "@/lib/topology-layout-runtime";
 import { computeStraightTopologyLayout } from "@/lib/topology-layout-preview";
 import { createTopologyFallbackRectIndex } from "@/lib/topology-route-edge-safety";
 import { topologyRouteEdgeColor, topologyRouteHighlightedEndpoints, topologyRoutePointsValid, type TopologyRouteEdgeData } from "@/lib/topology-route-edge";
+import { topologyZoomTier } from "@/lib/topology-zoom";
 import { TopologyRouteEdge } from "./topology-route-edge";
+export { topologyZoomTier, TOPOLOGY_ZOOM_FAR, TOPOLOGY_ZOOM_NEAR } from "@/lib/topology-zoom";
 import "@xyflow/react/dist/style.css";
 
 export type TopologyCardKind = "host" | "satellite" | "sub-satellite";
@@ -53,17 +55,6 @@ export interface TopologyFocusRequest {
   kind: "node" | "layer";
   id: string;
   seq: number;
-}
-
-export type TopologyZoomTier = "far" | "mid" | "near";
-
-export const TOPOLOGY_ZOOM_FAR = 0.4;
-export const TOPOLOGY_ZOOM_NEAR = 0.75;
-
-export function topologyZoomTier(zoom: number): TopologyZoomTier {
-  if (zoom < TOPOLOGY_ZOOM_FAR) return "far";
-  if (zoom < TOPOLOGY_ZOOM_NEAR) return "mid";
-  return "near";
 }
 
 export interface TopologyMoveViewport {
@@ -682,9 +673,7 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
             crossLayer,
             showLabel: topologyRoutePointsValid(route?.points),
             fallbackIndex,
-            workerLabel: workerLabel
-              ? { rect: workerLabel.rect, hidden: workerLabel.hidden, text: workerLabel.text, segmentIndex: workerLabel.segmentIndex }
-              : undefined,
+            workerLabel,
             status: route?.status,
             renderMode: route?.renderMode,
             fallback: route?.fallback,
