@@ -55,7 +55,10 @@ export interface TopologyFallbackMarkerVisibility {
 }
 
 function strictFiniteRect(rect: RoutingRect): boolean {
-  return [rect.x, rect.y, rect.width, rect.height].every(Number.isFinite)
+  return Number.isFinite(rect.x)
+    && Number.isFinite(rect.y)
+    && Number.isFinite(rect.width)
+    && Number.isFinite(rect.height)
     && rect.width >= 0
     && rect.height >= 0;
 }
@@ -141,6 +144,7 @@ export class TopologyFallbackRectIndex {
     const cellCount = (Math.max(0, x1 - x0 + 1)) * (Math.max(0, y1 - y0 + 1));
     const result: TopologyFallbackSafetyRect[] = [];
     const seen = new Set<string>();
+    const seenItems = new Set<TopologyFallbackSafetyRect>();
 
     if (cellCount > FALLBACK_MAX_CANDIDATES) {
       for (const item of this.rects) {
@@ -171,6 +175,8 @@ export class TopologyFallbackRectIndex {
             return [];
           }
           if (!strictOverlap(item, rect, 0)) continue;
+          if (seenItems.has(item)) continue;
+          seenItems.add(item);
           const key = this.rectIdentity(item);
           if (seen.has(key)) continue;
           seen.add(key);

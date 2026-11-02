@@ -227,6 +227,18 @@ describe("topology fallback safety", () => {
     expect(index.candidatesExceeded()).toBe(true);
   });
 
+  it("deduplicates repeated object references without accepting later invalid geometry", () => {
+    const index = new TopologyFallbackRectIndex(10);
+    const rect = { kind: "card" as const, nodeId: "multi-cell", x: 1, y: 1, width: 25, height: 25 };
+    index.add(rect);
+    index.add(rect);
+    index.add({ ...rect });
+    expect(index.candidates({ x: 0, y: 0, width: 30, height: 30 })).toEqual([rect]);
+    rect.x = Number.NaN;
+    expect(index.candidates({ x: 0, y: 0, width: 30, height: 30 })).toEqual([]);
+    expect(index.candidatesExceeded()).toBe(true);
+  });
+
   it("measures 500 and 1000 synthetic fallback preview geometry with a shared index", () => {
     for (const fixtureName of ["topology-500", "topology-1000"] as const) {
       const topology = generateTopologyFixture("topology-500");
@@ -253,9 +265,18 @@ describe("topology fallback safety", () => {
       const elapsed = performance.now() - started;
       console.log(JSON.stringify({ scale: fixtureName, elapsedMs: Math.round(elapsed * 100) / 100, previewCount: visible, timeoutCount: timeouts, checkedRectCount: checked }));
       expect(elapsed).toBeLessThan(1000);
-      expect(visible).toBeGreaterThanOrEqual(0);
+      expect(visible).toBe(visibleEdges.length);
+      expect(timeouts).toBe(0);
+      expect(checked).toBeGreaterThan(0);
 
     }
+  });
+
+  it.each(["x", "y", "width", "height"] as const)("fails closed for non-finite rectangle %s", (field) => {
+    const index = new TopologyFallbackRectIndex();
+    index.add({ kind: "card", nodeId: "invalid", x: 0, y: 0, width: 10, height: 10, [field]: Number.NaN });
+    expect(index.candidates({ x: 0, y: 0, width: 20, height: 20 })).toEqual([]);
+    expect(index.candidatesExceeded()).toBe(true);
   });
 
   it("observes detailed clipping work and enforces the remaining aggregate check budget", () => {
