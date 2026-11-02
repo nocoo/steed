@@ -73,6 +73,7 @@ export function computeStraightTopologyLayout(topology: Topology, options: Topol
   };
   layout.labels = { labels: {}, hiddenEdgeIds: [] };
   layout.hiddenEdgeIds = [];
+  layout.layoutPhase = "preview";
   layout.bundles = [];
   layout.bundleDiagnostics = { routeFailures: [], elapsedMs: 0 };
   return layout;

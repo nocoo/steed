@@ -16,6 +16,7 @@ export interface TopologyFallbackSafetyRect extends RoutingRect {
   laneId?: string;
   frameId?: string;
   nodeId?: string;
+  edgeId?: string;
   frameNodeIds?: string[];
 }
 
@@ -88,6 +89,8 @@ export class TopologyFallbackRectIndex {
   private readonly overflow: TopologyFallbackSafetyRect[] = [];
   private readonly rects: TopologyFallbackSafetyRect[] = [];
   private laneByNode = new Map<string, TopologyLayoutLane>();
+  private readonly labelRects = new Map<string, RoutingRect>();
+  private readonly labelCells = new Map<string, Array<{ edgeId: string; rect: RoutingRect }>>();
 
   constructor(private readonly cellSize = FALLBACK_SPATIAL_CELL_SIZE) {}
 
@@ -210,7 +213,7 @@ export class TopologyFallbackRectIndex {
   candidateLimitExceeded = false;
 
   private rectIdentity(rect: TopologyFallbackSafetyRect): string {
-    return `${rect.kind}:${rect.x}:${rect.y}:${rect.width}:${rect.height}:${rect.laneId ?? ""}:${rect.frameId ?? ""}:${rect.nodeId ?? ""}`;
+    return `${rect.kind}:${rect.x}:${rect.y}:${rect.width}:${rect.height}:${rect.laneId ?? ""}:${rect.frameId ?? ""}:${rect.nodeId ?? ""}:${rect.edgeId ?? ""}`;
   }
 
   private deduplicateRects(rects: readonly TopologyFallbackSafetyRect[]): TopologyFallbackSafetyRect[] {
@@ -227,6 +230,74 @@ export class TopologyFallbackRectIndex {
 
   get candidateLimitWasExceeded(): boolean {
     return this.candidateLimitExceeded;
+  }
+
+  addLabelRect(edgeId: string, rect: RoutingRect, margin = 2): void {
+    this.releaseLabelRect(edgeId);
+    if (!strictFiniteRect(rect)) return;
+    const labelRect = inflateFallbackRect(rect, margin);
+    this.labelRects.set(edgeId, labelRect);
+    const x0 = Math.floor(labelRect.x / this.cellSize);
+    const y0 = Math.floor(labelRect.y / this.cellSize);
+    const x1 = Math.floor((labelRect.x + labelRect.width) / this.cellSize);
+    const y1 = Math.floor((labelRect.y + labelRect.height) / this.cellSize);
+    for (let y = y0; y <= y1; y++) {
+      for (let x = x0; x <= x1; x++) {
+        const key = rectKey(x, y);
+        const bucket = this.labelCells.get(key);
+        const item = { edgeId, rect: labelRect };
+        if (bucket) bucket.push(item);
+        else this.labelCells.set(key, [item]);
+      }
+    }
+  }
+
+  reserveLabelRect(edgeId: string, rect: RoutingRect, margin = 2): void {
+    this.addLabelRect(edgeId, rect, margin);
+  }
+
+  releaseLabelRect(edgeId: string): void {
+    const rect = this.labelRects.get(edgeId);
+    if (!rect) return;
+    this.labelRects.delete(edgeId);
+    const x0 = Math.floor(rect.x / this.cellSize);
+    const y0 = Math.floor(rect.y / this.cellSize);
+    const x1 = Math.floor((rect.x + rect.width) / this.cellSize);
+    const y1 = Math.floor((rect.y + rect.height) / this.cellSize);
+    for (let y = y0; y <= y1; y++) {
+      for (let x = x0; x <= x1; x++) {
+        const key = rectKey(x, y);
+        const bucket = this.labelCells.get(key);
+        if (!bucket) continue;
+        const remaining = bucket.filter((item) => item.edgeId !== edgeId);
+        if (remaining.length) this.labelCells.set(key, remaining);
+        else this.labelCells.delete(key);
+      }
+    }
+  }
+
+  labelRectCount(): number {
+    return this.labelRects.size;
+  }
+
+  private labelCandidates(rect: RoutingRect): Array<{ edgeId: string; rect: RoutingRect }> {
+    if (!strictFiniteRect(rect)) return [];
+    const x0 = Math.floor(rect.x / this.cellSize);
+    const y0 = Math.floor(rect.y / this.cellSize);
+    const x1 = Math.floor((rect.x + rect.width) / this.cellSize);
+    const y1 = Math.floor((rect.y + rect.height) / this.cellSize);
+    const result: Array<{ edgeId: string; rect: RoutingRect }> = [];
+    const seen = new Set<string>();
+    for (let y = y0; y <= y1; y++) {
+      for (let x = x0; x <= x1; x++) {
+        for (const item of this.labelCells.get(rectKey(x, y)) ?? []) {
+          if (seen.has(item.edgeId)) continue;
+          seen.add(item.edgeId);
+          if (strictOverlap(item.rect, rect, 0)) result.push(item);
+        }
+      }
+    }
+    return result;
   }
 
   protectedCandidates(rect: RoutingRect, sourceId: string, targetId: string): TopologyFallbackSafetyRect[] {
@@ -254,11 +325,15 @@ export class TopologyFallbackRectIndex {
     return false;
   }
 
-  overlapsLabelEnvelope(rect: RoutingRect, sourceId: string, targetId: string, margin = 0): boolean {
+  overlapsLabelEnvelope(rect: RoutingRect, sourceId: string, targetId: string, margin = 0, ignoredEdgeId?: string): boolean {
     const sourceLane = this.laneByNode.get(sourceId);
     const targetLane = this.laneByNode.get(targetId);
     const candidates = this.candidates(inflateFallbackRect(rect, margin));
     if (this.candidateLimitExceeded) return true;
+    for (const label of this.labelCandidates(inflateFallbackRect(rect, margin))) {
+      if (label.edgeId === ignoredEdgeId) continue;
+      if (strictOverlap(label.rect, rect, 0)) return true;
+    }
     for (const candidate of candidates) {
       if (!strictOverlap(candidate, rect, 0)) continue;
       if (candidate.kind === "section-title" || candidate.kind === "frame-title") return true;

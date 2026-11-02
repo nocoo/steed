@@ -250,8 +250,13 @@ export class TopologyLayoutRuntime {
         this.fallbackStraightAndSync(pending.requestId, pending.topology, pending.options, pending.key, pending.onResult, pending.onError, undefined, pending.routerOptions);
         return;
       }
+      response.result.layoutPhase = "worker";
       const status = response.result.routeDiagnostics?.status;
       if (status === undefined || status === "complete") this.cache.set(pending.key, response.result);
+      if (status !== undefined && status !== "complete") {
+        const failures = response.result.routeDiagnostics?.routeFailures.length ?? 0;
+        console.warn(`[steed] Worker routing degraded (${status}); ${failures} route failure${failures === 1 ? "" : "s"} reported.`, response.result.routeDiagnostics);
+      }
       pending.onResult(response.result);
     };
     worker.onerror = () => {
@@ -303,6 +308,7 @@ export class TopologyLayoutRuntime {
 
     try {
       const preview = this.straightLayout(topology, options);
+      preview.layoutPhase = "fallback";
       onResult?.(preview);
     } catch (error) {
       const resolved = error instanceof Error ? error : new Error(cause instanceof Error ? cause.message : "Straight layout failed");
@@ -322,6 +328,7 @@ export class TopologyLayoutRuntime {
         const status = routed.routeDiagnostics?.status;
         const complete = status === undefined || status === "complete";
         if (complete) this.cache.set(key, routed);
+        routed.layoutPhase = "synchronous";
         onResult?.(routed);
       };
       const failSync = (error: unknown) => {

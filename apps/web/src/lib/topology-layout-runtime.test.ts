@@ -49,6 +49,42 @@ function mockWorker(postMessage: (message: LayoutWorkerRequest, worker: LayoutWo
 }
 
 describe("topology layout runtime", () => {
+  it.each([
+    ["undefined", undefined], ["complete", "complete"], ["fallback-no-path", "fallback"],
+    ["timeout", "timeout"], ["resource-limit", "resource-limit"],
+  ] as const)("keeps result diagnostics coherent for worker status %s", (_name, status) => {
+    vi.useFakeTimers();
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const topology = sample();
+    const messages: LayoutWorkerRequest[] = [];
+    const worker = mockWorker((message) => messages.push(message));
+    const runtime = new TopologyLayoutRuntime(() => worker);
+    const callback = vi.fn();
+    runtime.request({ topology }, callback);
+    vi.advanceTimersByTime(TOPOLOGY_LAYOUT_PREVIEW_MS);
+    expect(callback.mock.calls.at(-1)?.[0].layoutPhase).toBe("preview");
+
+    const result = computeTopologyLayout(topology);
+    if (status) {
+      result.routeDiagnostics = {
+        unresolvedTwoPointSharedChannels: [],
+        status,
+        routeFailures: status === "complete" ? [] : [{ edgeId: "a-b", reason: status === "timeout" ? "timeout" : "no_path" }],
+        fallbackCount: status === "complete" ? 0 : 1,
+        unroutedEdgeIds: status === "complete" ? [] : ["a-b"],
+        elapsedMs: 1,
+        bundleFailures: [],
+      };
+    }
+    const message = messages[0]!;
+    worker.onmessage?.({ data: { requestId: message.requestId, layoutVersion: LAYOUT_VERSION, ok: true, result } } as MessageEvent<LayoutWorkerResponse>);
+    expect(callback.mock.calls.at(-1)?.[0].layoutPhase).toBe("worker");
+    if (status && status !== "complete") expect(warning).toHaveBeenCalled();
+    runtime.dispose();
+    warning.mockRestore();
+    vi.useRealTimers();
+  });
+
   it("reports non-Error preview failures without losing a healthy worker result", () => {
     vi.useFakeTimers();
     const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -65,6 +101,73 @@ describe("topology layout runtime", () => {
     worker.onmessage?.({ data: { requestId: messages[0]!.requestId, layoutVersion: LAYOUT_VERSION, ok: true, result } } as MessageEvent<LayoutWorkerResponse>);
     expect(onResult).toHaveBeenCalledWith(result);
     runtime.dispose();
+    warning.mockRestore();
+    vi.useRealTimers();
+  });
+
+  it("marks preview, worker and synchronous fallback layout phases explicitly", () => {
+    vi.useFakeTimers();
+    const topology = sample();
+    const messages: LayoutWorkerRequest[] = [];
+    const worker = mockWorker((message) => messages.push(message));
+    const workerRuntime = new TopologyLayoutRuntime(() => worker);
+    const workerCallback = vi.fn();
+    workerRuntime.request({ topology }, workerCallback);
+    vi.advanceTimersByTime(TOPOLOGY_LAYOUT_PREVIEW_MS);
+    expect(workerCallback.mock.calls.at(-1)?.[0].layoutPhase).toBe("preview");
+
+    const complete = computeTopologyLayout(topology);
+    complete.routeDiagnostics = { unresolvedTwoPointSharedChannels: [], status: "complete", routeFailures: [], fallbackCount: 0, unroutedEdgeIds: [], elapsedMs: 1, bundleFailures: [] };
+    const message = messages[0]!;
+    worker.onmessage?.({ data: { requestId: message.requestId, layoutVersion: LAYOUT_VERSION, ok: true, result: complete } } as MessageEvent<LayoutWorkerResponse>);
+    expect(workerCallback.mock.calls.at(-1)?.[0].layoutPhase).toBe("worker");
+
+    const sync = vi.fn(computeTopologyLayout);
+    const fallbackRuntime = new TopologyLayoutRuntime(() => undefined, sync);
+    const fallbackCallback = vi.fn();
+    fallbackRuntime.request({ topology }, fallbackCallback);
+    expect(fallbackCallback.mock.calls.at(-1)?.[0].layoutPhase).toBe("fallback");
+    vi.runAllTimers();
+    expect(sync).toHaveBeenCalled();
+    expect(fallbackCallback.mock.calls.at(-1)?.[0].layoutPhase).toBe("synchronous");
+
+    workerRuntime.dispose();
+    fallbackRuntime.dispose();
+    vi.useRealTimers();
+  });
+
+  it("classifies preview and complete or terminal worker status replies", () => {
+    vi.useFakeTimers();
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const topology = sample();
+
+    for (const status of [undefined, "complete", "fallback", "timeout", "resource-limit"] as const) {
+      const messages: LayoutWorkerRequest[] = [];
+      const worker = mockWorker((message) => messages.push(message));
+      const runtime = new TopologyLayoutRuntime(() => worker);
+      const callback = vi.fn();
+      runtime.request({ topology: { ...topology, revision: status ? status.length : 1 } }, callback);
+      vi.advanceTimersByTime(TOPOLOGY_LAYOUT_PREVIEW_MS);
+      expect(callback.mock.calls.at(-1)?.[0].layoutPhase).toBe("preview");
+
+      const result = computeTopologyLayout(topology);
+      if (status) {
+        result.routeDiagnostics = {
+          unresolvedTwoPointSharedChannels: [],
+          status,
+          routeFailures: status === "complete" ? [] : [{ edgeId: "a-b", reason: status === "timeout" ? "timeout" : "no_path" }],
+          fallbackCount: status === "complete" ? 0 : 1,
+          unroutedEdgeIds: status === "complete" ? [] : ["a-b"],
+          elapsedMs: 1,
+          bundleFailures: [],
+        };
+      }
+      const message = messages[0]!;
+      worker.onmessage?.({ data: { requestId: message.requestId, layoutVersion: LAYOUT_VERSION, ok: true, result } } as MessageEvent<LayoutWorkerResponse>);
+      expect(callback.mock.calls.at(-1)?.[0].layoutPhase).toBe("worker");
+      runtime.dispose();
+    }
+
     warning.mockRestore();
     vi.useRealTimers();
   });
@@ -115,6 +218,32 @@ describe("topology layout runtime", () => {
       else expect(messages).toHaveLength(2);
     }
     vi.useRealTimers();
+  });
+
+  it("exposes successful worker fallback diagnostics instead of swallowing degradation", () => {
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const topology = sample();
+    const messages: LayoutWorkerRequest[] = [];
+    const worker = mockWorker((message) => messages.push(message));
+    const runtime = new TopologyLayoutRuntime(() => worker);
+    const onResult = vi.fn();
+    runtime.request({ topology, viewId: "fallback" }, onResult);
+    const message = messages[0]!;
+    const result = computeTopologyLayout(topology);
+    result.routeDiagnostics = {
+      unresolvedTwoPointSharedChannels: [],
+      status: "fallback",
+      routeFailures: [{ edgeId: "a-b", reason: "no_path" }],
+      fallbackCount: 1,
+      unroutedEdgeIds: ["a-b"],
+      elapsedMs: 1,
+      bundleFailures: [],
+    };
+    worker.onmessage?.({ data: { requestId: message.requestId, layoutVersion: LAYOUT_VERSION, ok: true, result } } as MessageEvent<LayoutWorkerResponse>);
+    expect(onResult).toHaveBeenCalledWith(result);
+    expect(warning).toHaveBeenCalledWith(expect.stringContaining("Worker routing degraded (fallback)"), result.routeDiagnostics);
+    runtime.dispose();
+    warning.mockRestore();
   });
 
   it("isolates obsolete worker errors, post throws and stale replies", () => {

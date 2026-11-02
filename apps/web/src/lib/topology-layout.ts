@@ -108,6 +108,7 @@ export interface TopologyLayoutResult {
   hiddenEdgeIds?: string[];
   bundles?: TopologyLayerPairBundleResult["bundles"];
   bundleDiagnostics?: TopologyLayerPairBundleResult["diagnostics"];
+  layoutPhase?: "preview" | "worker" | "fallback" | "synchronous";
   width: number;
   height: number;
 }

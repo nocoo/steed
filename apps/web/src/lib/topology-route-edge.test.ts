@@ -8,6 +8,8 @@ import {
   topologyRouteHighlightedEndpoints,
   topologyRouteLabelCapsuleWidth,
   topologyRouteSafeLabelPosition,
+  topologyRouteWorkerLabelPosition,
+  topologyRouteLabelDetail,
   topologyRouteLabelText,
   topologyRoutePointsValid,
   topologyRouteStrokeWidth,
@@ -64,6 +66,104 @@ describe("topology route edge", () => {
       { a: { x: 0, y: 30 }, b: { x: 80, y: 30 } },
     ];
     expect(topologyRouteSafeLabelPosition(segments, index, "a", "b", "x", 21, 48)).toEqual({ x: 24, y: 10 });
+  });
+
+  it.each([
+    ["missing-index", undefined, null, 22, 48],
+    ["missing-rect", new TopologyFallbackRectIndex(), null, 22, 48],
+    ["nan-x", new TopologyFallbackRectIndex(), { x: Number.NaN, y: 89, width: 48, height: 22 }, 22, 48],
+    ["infinite-width", new TopologyFallbackRectIndex(), { x: 100, y: 89, width: Number.POSITIVE_INFINITY, height: 22 }, 22, 48],
+    ["diagonal-segment", new TopologyFallbackRectIndex(), { x: 50, y: 50, width: 48, height: 22 }, 22, 48],
+    ["vertical-segment", new TopologyFallbackRectIndex(), { x: 50, y: 50, width: 48, height: 22 }, 22, 48],
+    ["nan-height", new TopologyFallbackRectIndex(), { x: 100, y: 89, width: 48, height: 22 }, Number.NaN, 48],
+    ["nan-measured-width", new TopologyFallbackRectIndex(), { x: 100, y: 89, width: 48, height: 22 }, 22, Number.NaN],
+    ["narrow-width", new TopologyFallbackRectIndex(), { x: 100, y: 89, width: 48, height: 22 }, 22, 48],
+    ["wide-width", new TopologyFallbackRectIndex(), { x: 100, y: 89, width: 48, height: 22 }, 22, 100],
+    ["short-height", new TopologyFallbackRectIndex(), { x: 100, y: 89, width: 48, height: 22 }, 1, 48],
+    ["own-edge", new TopologyFallbackRectIndex(), { x: 100, y: 89, width: 48, height: 22 }, 22, 48],
+    ["other-edge", new TopologyFallbackRectIndex(), { x: 100, y: 89, width: 48, height: 22 }, 22, 48],
+    ["zero-length", new TopologyFallbackRectIndex(), { x: 100, y: 100, width: 48, height: 22 }, 22, 48],
+    ["off-horizontal", new TopologyFallbackRectIndex(), { x: 100, y: 300, width: 48, height: 22 }, 22, 48],
+    ["before-start", new TopologyFallbackRectIndex(), { x: -100, y: 100, width: 48, height: 22 }, 22, 48],
+    ["after-end", new TopologyFallbackRectIndex(), { x: 400, y: 100, width: 48, height: 22 }, 22, 48],
+    ["valid-center", new TopologyFallbackRectIndex(), { x: 100, y: 89, width: 48, height: 22 }, 22, 48],
+    ["valid-near-card", new TopologyFallbackRectIndex(), { x: 100, y: 89, width: 48, height: 22 }, 22, 48],
+    ["valid-far-label", new TopologyFallbackRectIndex(), { x: 100, y: 89, width: 48, height: 22 }, 22, 48],
+  ])("covers worker label %s", (_name, index, rect, height, width) => {
+    const segment = _name === "diagonal-segment"
+      ? [{ a: { x: 0, y: 0 }, b: { x: 100, y: 100 } }]
+      : _name === "vertical-segment"
+        ? [{ a: { x: 100, y: 0 }, b: { x: 100, y: 200 } }]
+        : _name === "zero-length"
+          ? [{ a: { x: 100, y: 100 }, b: { x: 100, y: 100 } }]
+          : [{ a: { x: 0, y: 100 }, b: { x: 300, y: 100 } }];
+    const edgeId = _name === "own-edge" ? "edge-a" : _name === "other-edge" ? "edge-b" : "edge-a";
+    if (index instanceof TopologyFallbackRectIndex) {
+      if (_name === "own-edge") index.addLabelRect("edge-a", rect as never);
+      if (_name === "other-edge") index.addLabelRect("edge-b", rect as never);
+      if (_name === "valid-near-card") index.add({ kind: "card", nodeId: "card", x: 100, y: 100, width: 40, height: 40 });
+      if (_name === "valid-far-label") index.addLabelRect("far", { x: 260, y: 89, width: 48, height: 22 });
+    }
+    const result = topologyRouteWorkerLabelPosition(segment, index as TopologyFallbackRectIndex | undefined, "a", "b", rect as never, height as number, width as number, edgeId);
+    if (["valid-center", "nan-height", "nan-measured-width"].includes(String(_name))) expect(result).not.toBeNull();
+  });
+
+  it("validates worker label rectangles against segment, finite size and label obstacles", () => {
+    const segments = [{ a: { x: 0, y: 100 }, b: { x: 300, y: 100 } }];
+    const index = new TopologyFallbackRectIndex();
+    expect(topologyRouteWorkerLabelPosition(segments, undefined, "a", "b", { x: 100, y: 89, width: 48, height: 22 })).toBeNull();
+    expect(topologyRouteWorkerLabelPosition(segments, index, "a", "b", null)).toBeNull();
+    expect(topologyRouteWorkerLabelPosition(segments, index, "a", "b", { x: Number.NaN, y: 89, width: 48, height: 22 })).toBeNull();
+    expect(topologyRouteWorkerLabelPosition(segments, index, "a", "b", { x: 100, y: 89, width: 48, height: 22 }, Number.NaN, Number.NaN)).toEqual({ x: 124, y: 100 });
+    expect(topologyRouteWorkerLabelPosition([{ a: { x: 0, y: 200 }, b: { x: 300, y: 200 } }], index, "a", "b", { x: 100, y: 89, width: 48, height: 22 })).toBeNull();
+    expect(topologyRouteWorkerLabelPosition([{ a: { x: 400, y: 100 }, b: { x: 500, y: 100 } }], index, "a", "b", { x: 100, y: 89, width: 48, height: 22 })).toBeNull();
+    expect(topologyRouteWorkerLabelPosition([{ a: { x: 0, y: 0 }, b: { x: 100, y: 100 } }], index, "a", "b", { x: 50, y: 50, width: 48, height: 22 })).toBeNull();
+
+    expect(topologyRouteWorkerLabelPosition(segments, index, "a", "b", { x: 100, y: 89, width: 48, height: 22 }, 22, 48, "edge-a")).toEqual({ x: 124, y: 100 });
+
+    index.addLabelRect("other", { x: 124 - 24, y: 89, width: 48, height: 22 });
+    expect(topologyRouteWorkerLabelPosition(segments, index, "a", "b", { x: 100, y: 89, width: 48, height: 22 }, 22, 48, "missing-edge")).toBeNull();
+    expect(topologyRouteWorkerLabelPosition(segments, index, "a", "b", { x: 100, y: 89, width: 48, height: 22 }, 22, 48, "edge-a")).toBeNull();
+  });
+
+  it("covers label text, points, dash and route shape fallbacks as meaningful branches", () => {
+    expect(topologyRouteLabelDetail(edge({ protocol: undefined, port: undefined }))).toBe("");
+    expect(topologyRouteLabelDetail(edge({ protocol: "HTTPS", port: 443 }))).toBe("HTTPS :443");
+    expect(topologyRouteLabelDetail(edge({ protocol: undefined, port: 443 }))).toBe(":443");
+    expect(topologyRouteLabelDetail(edge({ protocol: "HTTPS", port: undefined }))).toBe("HTTPS");
+    expect(topologyRouteLabelText(edge({ label: "", kind: "uses", protocol: undefined, port: undefined }))).toBe("uses");
+
+    expect(topologyRoutePointsValid(undefined)).toBe(false);
+    expect(topologyRoutePointsValid([])).toBe(false);
+    expect(topologyRoutePointsValid([{ x: Number.NaN, y: 0 }, { x: 1, y: 0 }])).toBe(false);
+    expect(topologyRoutePointsValid([{ x: 0, y: 0 }, { x: 0, y: 0 }])).toBe(false);
+    expect(topologyRoutePointsValid([{ x: 0, y: 0 }, { x: 1, y: 0 }])).toBe(true);
+
+    expect(topologyRouteDash(edge({ style: { dash: "solid", animated: false } }))).toBeUndefined();
+    expect(topologyRouteDash(edge({ style: { dash: "dotted", animated: false } }))).toBe("2 5");
+    expect(topologyRouteDash(edge({ style: { dash: "dashed", animated: false } }))).toBe("6 5");
+    expect(topologyRouteStrokeWidth(edge({ style: { width: 0 } }), false)).toBe(1);
+    expect(topologyRouteStrokeWidth(edge({ style: { width: 99 } }), false)).toBe(4);
+
+    expect(topologyRoundedOrthogonalPath([])).toBe("");
+    expect(topologyRoundedOrthogonalPath([{ x: 1, y: 2 }])).toBe("M 1 2");
+    expect(topologyRoundedOrthogonalPath([{ x: 1, y: 2 }, { x: 1, y: 2 }])).toBe("M 1 2");
+    expect(topologySafeRoundedOrthogonalPath([{ x: 0, y: 0 }], new TopologyFallbackRectIndex(), "a", "b")).toBe("M 0 0");
+  });
+
+  it("fails closed across empty, short and fully blocked label candidate shapes", () => {
+    const empty = new TopologyFallbackRectIndex();
+    expect(topologyRouteSafeLabelPosition([], empty, "a", "b", "OK")).toBeNull();
+    expect(topologyRouteSafeLabelPosition([{ a: { x: 0, y: 10 }, b: { x: 10, y: 10 } }], empty, "a", "b", "OK", 22, 48)).toBeNull();
+    expect(topologyRouteSafeLabelPosition([{ a: { x: 0, y: 10 }, b: { x: 100, y: 10 } }], empty, "a", "b", "", 22, 48)).not.toBeNull();
+
+    const blocked = new TopologyFallbackRectIndex();
+    blocked.add({ kind: "frame-title", frameId: "title", frameNodeIds: ["a", "b"], x: 20, y: 0, width: 60, height: 20 });
+    expect(topologyRouteSafeLabelPosition([{ a: { x: 0, y: 10 }, b: { x: 100, y: 10 } }], blocked, "a", "b", "OK", 22, 48)).toBeNull();
+
+    expect(topologySharpOrthogonalPath([])).toBe("");
+    expect(topologySharpOrthogonalPath([{ x: 0, y: 0 }, { x: 0, y: 0 }])).toBe("M 0 0");
+    expect(topologySafeRoundedOrthogonalPath([{ x: 0, y: 0 }], undefined, "a", "b")).toBe("M 0 0");
   });
 
   it("maps kind colours, dash, width and evidence fallback", () => {

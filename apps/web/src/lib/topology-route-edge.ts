@@ -1,5 +1,5 @@
 import type { TopologyEdge } from "@steed/api/shared";
-import type { RoutingPoint } from "./topology-routing-grid";
+import type { RoutingPoint, RoutingRect } from "./topology-routing-grid";
 import type { TopologyFallbackRectIndex } from "./topology-route-edge-safety";
 
 export const TOPOLOGY_ROUTE_CORNER_RADIUS = 8;
@@ -14,6 +14,7 @@ export interface TopologyRouteEdgeData extends Record<string, unknown> {
   fallbackStyle?: "dashed" | "faded";
   fallback?: "no_path" | "timeout";
   fallbackIndex?: TopologyFallbackRectIndex;
+  workerLabel?: { rect: RoutingRect | null; hidden: boolean; text: string; segmentIndex: number | null };
   strokeMargin?: number;
   deadline?: number;
   clock?: () => number;
@@ -76,6 +77,7 @@ export function topologyRouteSafeLabelPosition(
   text: string,
   capsuleHeight = 21,
   measuredCapsuleWidth?: number,
+  edgeId?: string,
 ): RoutingPoint | null {
   if (!fallbackIndex || segments.length === 0) return null;
   const width = Number.isFinite(measuredCapsuleWidth)
@@ -105,7 +107,7 @@ export function topologyRouteSafeLabelPosition(
         width,
         height: capsuleHeight,
       };
-      if (!fallbackIndex.overlapsLabelEnvelope(capsule, sourceId, targetId, 0)) {
+      if (!fallbackIndex.overlapsLabelEnvelope(capsule, sourceId, targetId, 0, edgeId)) {
         return { x: centerX, y: centerY };
       }
     }
@@ -114,6 +116,31 @@ export function topologyRouteSafeLabelPosition(
 }
 
 const EPSILON_LABEL = 1e-7;
+
+export function topologyRouteWorkerLabelPosition(
+  segments: readonly { a: RoutingPoint; b: RoutingPoint }[],
+  fallbackIndex: TopologyFallbackRectIndex | undefined,
+  sourceId: string,
+  targetId: string,
+  workerRect: RoutingRect | null | undefined,
+  capsuleHeight = 22,
+  measuredCapsuleWidth = 48,
+  edgeId?: string,
+): RoutingPoint | null {
+  if (!fallbackIndex || !workerRect || ![workerRect.x, workerRect.y, workerRect.width, workerRect.height].every(Number.isFinite)) return null;
+  const width = Number.isFinite(measuredCapsuleWidth) ? Math.max(48, measuredCapsuleWidth) : 48;
+  const height = Number.isFinite(capsuleHeight) ? Math.max(1, capsuleHeight) : 22;
+  const center = { x: workerRect.x + workerRect.width / 2, y: workerRect.y + workerRect.height / 2 };
+  const onSegment = segments.some((segment) => {
+    if (Math.abs(segment.b.y - segment.a.y) > EPSILON_LABEL) return false;
+    const minX = Math.min(segment.a.x, segment.b.x);
+    const maxX = Math.max(segment.a.x, segment.b.x);
+    return Math.abs(center.y - segment.a.y) <= EPSILON_LABEL && center.x >= minX - 1e-6 && center.x <= maxX + 1e-6;
+  });
+  if (!onSegment) return null;
+  const capsule = { x: center.x - width / 2, y: center.y - height / 2, width, height };
+  return fallbackIndex.overlapsLabelEnvelope(capsule, sourceId, targetId, 2, edgeId) ? null : center;
+}
 
 export function topologyRouteDash(edge: TopologyEdge): string | undefined {
   if (edge.style?.dash === "solid") return undefined;

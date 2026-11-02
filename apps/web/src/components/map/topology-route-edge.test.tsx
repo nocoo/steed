@@ -8,8 +8,8 @@ import { createTopologyFallbackRectIndex, TopologyFallbackRectIndex } from "@/li
 
 vi.mock("@xyflow/react", () => ({
   useStore: (selector: (value: { transform: number[] }) => unknown) => selector({ transform: [0, 0, 1] }),
-  BaseEdge: (props: { id: string; path: string; markerStart?: string; markerEnd?: string; style?: Record<string, unknown>; className?: string; "data-fallback"?: string; "data-diagnostic"?: string; "data-visible-segments"?: number; "data-fallback-style"?: string }) => (
-    <svg><path data-testid="route-edge-path" data-id={props.id} d={props.path} markerStart={props.markerStart ?? undefined} markerEnd={props.markerEnd ?? undefined} className={props.className} data-fallback={props["data-fallback"]} data-diagnostic={props["data-diagnostic"]} data-visible-segments={props["data-visible-segments"]} data-fallback-style={props["data-fallback-style"]} style={props.style} /></svg>
+  BaseEdge: (props: { id: string; path: string; markerStart?: string; markerEnd?: string; style?: Record<string, unknown>; className?: string; "data-fallback"?: string; "data-diagnostic"?: string; "data-visible-segments"?: number; "data-fallback-style"?: string; "data-route"?: string }) => (
+    <svg><path data-testid="route-edge-path" data-id={props.id} d={props.path} markerStart={props.markerStart ?? undefined} markerEnd={props.markerEnd ?? undefined} className={props.className} data-fallback={props["data-fallback"]} data-diagnostic={props["data-diagnostic"]} data-visible-segments={props["data-visible-segments"]} data-fallback-style={props["data-fallback-style"]} data-route={props["data-route"]} style={props.style} /></svg>
   ),
   EdgeLabelRenderer: ({ children }: { children: ReactNode }) => <div data-testid="edge-label-renderer">{children}</div>,
 }));
@@ -77,6 +77,7 @@ describe("TopologyRouteEdge", () => {
 
     const path = screen.getByTestId("route-edge-path");
     expect(path).toHaveAttribute("d", "M 0 0 L 292 0 Q 300 0 300 8 L 300 100");
+    expect(path).toHaveAttribute("data-route", "routed");
     expect(path).toHaveAttribute("marker-start", "url(#marker-start)");
     expect(path).toHaveAttribute("marker-end", "url(#marker-end)");
     expect(path).toHaveClass("topology-route-edge-animated");
@@ -116,6 +117,67 @@ describe("TopologyRouteEdge", () => {
     expect(screen.queryByRole("button", { name: "NoHeight" })).not.toBeInTheDocument();
     rerender(<TopologyRouteEdge {...props({ data: { ...data, edge: edge({ label: "Recovered", protocol: undefined, port: undefined }) } })} />);
     expect(screen.getByRole("button", { name: "Recovered" })).toBeVisible();
+  });
+
+  it("uses worker label rectangles and prevents independently measured labels from overlapping", () => {
+    const index = fallbackIndex([]);
+    const workerA = { rect: { x: 525, y: 181, width: 30, height: 22 }, hidden: false, text: "OK", segmentIndex: 0 };
+    const workerB = { rect: { x: 564, y: 175, width: 30, height: 22 }, hidden: false, text: "OK", segmentIndex: 2 };
+    index.addLabelRect("edge-a", workerA.rect);
+    index.addLabelRect("edge-b", workerB.rect);
+
+    render(<>
+      <TopologyRouteEdge {...props({ id: "topology-edge:edge-a", data: { edge: edge({ id: "edge-a", label: "OK", protocol: undefined, port: undefined }), points: [{ x: 280, y: 192 }, { x: 800, y: 192 }], crossLayer: false, showLabel: true, fallbackIndex: index, workerLabel: workerA } })} />
+      <TopologyRouteEdge {...props({ id: "topology-edge:edge-b", data: { edge: edge({ id: "edge-b", kind: "uses", label: "OK", protocol: undefined, port: undefined }), points: [{ x: 280, y: 192 }, { x: 292, y: 192 }, { x: 292, y: 186 }, { x: 788, y: 186 }, { x: 788, y: 192 }, { x: 800, y: 192 }], crossLayer: false, showLabel: true, fallbackIndex: index, workerLabel: workerB } })} />
+    </>);
+
+    const labelButtons = screen.getAllByRole("button", { name: "OK" });
+    expect(labelButtons).toHaveLength(2);
+    expect(labelButtons.every((button) => button.style.visibility === "visible")).toBe(true);
+    const transforms = labelButtons.map((button) => button.style.transform.match(/translate\(([-\d.]+)px, ([-\d.]+)px\)/));
+    const points = transforms.map((match) => match ? { x: Number(match[1]), y: Number(match[2]) } : null);
+    expect(points[0] && points[1]).toBeTruthy();
+    expect(Math.abs(points[0]!.x - points[1]!.x) >= 48 || Math.abs(points[0]!.y - points[1]!.y) >= 22).toBe(true);
+  });
+
+  it("recovers a worker-unallocated routed label from a 48px real measurement", () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (): DOMRect {
+      return { x: 0, y: 0, left: 0, top: 0, right: 48, bottom: 22, width: 48, height: 22, toJSON: () => ({}) } as DOMRect;
+    });
+    const index = fallbackIndex([]);
+    render(<TopologyRouteEdge {...props({
+      data: {
+        edge: edge({ id: "unallocated", label: "iiiiii", protocol: undefined, port: undefined }),
+        points: [{ x: 0, y: 200 }, { x: 64, y: 200 }],
+        status: "routed",
+        crossLayer: false,
+        showLabel: true,
+        fallbackIndex: index,
+        workerLabel: { rect: null, hidden: true, text: "iiiiii", segmentIndex: null },
+      },
+    })} />);
+    expect(screen.getByRole("button", { name: "iiiiii" })).toBeVisible();
+  });
+
+  it("hides worker-muted routed labels but recovers short measured labels", () => {
+    const hiddenIndex = fallbackIndex([]);
+    const hidden = edge({ id: "hidden", label: "Hidden", protocol: undefined, port: undefined });
+    const { rerender } = render(<TopologyRouteEdge {...props({ data: { edge: hidden, points: [{ x: 280, y: 192 }, { x: 800, y: 192 }], crossLayer: false, showLabel: false, fallbackIndex: hiddenIndex, workerLabelHidden: true, workerLabel: { rect: null, hidden: true, text: "Hidden", segmentIndex: null } } })} />);
+    expect(screen.queryByRole("button", { name: "Hidden" })).not.toBeInTheDocument();
+
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (): DOMRect {
+      return { x: 0, y: 0, left: 0, top: 0, right: 48, bottom: 22, width: 48, height: 22, toJSON: () => ({}) } as DOMRect;
+    });
+    const shortIndex = fallbackIndex([]);
+    rerender(<TopologyRouteEdge {...props({ data: { edge: edge({ id: "short", label: "HELLO", protocol: undefined, port: undefined }), points: [{ x: 0, y: 200 }, { x: 64, y: 200 }], crossLayer: false, showLabel: true, fallbackIndex: shortIndex } })} />);
+    expect(screen.getByRole("button", { name: "HELLO" })).toBeVisible();
+  });
+
+  it("keeps fallback and routed previews observable without accepting a label collision", () => {
+    const index = fallbackIndex([]);
+    index.addLabelRect("other", { x: 120, y: 186, width: 48, height: 22 });
+    render(<TopologyRouteEdge {...props({ data: { edge: edge({ id: "preview", label: "OK", protocol: undefined, port: undefined }), points: [{ x: 0, y: 200 }, { x: 300, y: 200 }], status: "routed", crossLayer: false, showLabel: true, fallbackIndex: index } })} />);
+    expect(screen.getByRole("button", { name: "OK" })).toBeVisible();
   });
 
   it("renders a normal label inside the endpoint-own section", () => {
@@ -230,6 +292,7 @@ describe("TopologyRouteEdge", () => {
     expect(paths[0]?.getAttribute("d")).toContain("M 0 120");
     expect(paths[1]).toHaveAttribute("marker-end", "url(#marker-end)");
     expect(paths[0]).toHaveAttribute("data-fallback", "no_path");
+    expect(paths[0]).toHaveAttribute("data-route", "fallback");
     expect(paths[0]).toHaveAttribute("data-fallback-style", "dashed");
     expect(paths[0]).toHaveAttribute("data-diagnostic", "visible-fallback");
   });
@@ -248,7 +311,9 @@ describe("TopologyRouteEdge", () => {
     })} />);
 
     expect(screen.queryAllByTestId("route-edge-path")).toHaveLength(0);
-    expect(screen.getByTestId(/topology-fallback-geometry-unavailable-/)).toHaveAttribute("data-diagnostic", "geometry-unavailable");
+    const diagnostic = screen.getByTestId(/topology-fallback-geometry-unavailable-/);
+    expect(diagnostic).toHaveAttribute("data-diagnostic", "geometry-unavailable");
+    expect(diagnostic).toHaveAttribute("data-route", "fallback");
   });
 
   it("renders no unsafe geometry and exposes no-visible-segments diagnostics when no straight preview is safe", () => {
@@ -269,7 +334,9 @@ describe("TopologyRouteEdge", () => {
     })} />);
 
     expect(screen.queryAllByTestId("route-edge-path")).toHaveLength(0);
-    expect(screen.getByTestId(/topology-fallback-preview-safe-/)).toHaveAttribute("data-diagnostic", "fallback-preview-no-visible-segments");
+    const diagnostic = screen.getByTestId(/topology-fallback-preview-safe-/);
+    expect(diagnostic).toHaveAttribute("data-diagnostic", "fallback-preview-no-visible-segments");
+    expect(diagnostic).toHaveAttribute("data-route", "fallback");
   });
 
   it("diagnoses fully blocked detailed fallback instead of returning an empty fragment", () => {
@@ -290,6 +357,7 @@ describe("TopologyRouteEdge", () => {
     expect(screen.queryAllByTestId("route-edge-path")).toHaveLength(0);
     const diagnostic = screen.getByTestId(/topology-fallback-detailed-no-visible-/);
     expect(diagnostic).toHaveAttribute("data-diagnostic", "fallback-detailed-no-visible-segments");
+    expect(diagnostic).toHaveAttribute("data-route", "fallback");
     expect(diagnostic).toHaveAttribute("data-edge-source", "a");
     expect(diagnostic).toHaveAttribute("data-edge-target", "b");
   });
@@ -313,6 +381,32 @@ describe("TopologyRouteEdge", () => {
 
     expect(screen.getAllByTestId("route-edge-path").length).toBeGreaterThan(0);
     expect(screen.getAllByTestId("route-edge-path")[0]).toHaveAttribute("data-diagnostic", "fallback-preview");
+  });
+
+  it("marks known fallback geometry unavailable without painting a path", () => {
+    const index = fallbackIndex([]);
+    const { rerender } = render(<TopologyRouteEdge {...props({
+      id: "topology-edge:invalid",
+      data: { edge: edge({ id: "invalid" }), points: [], status: "fallback", fallbackIndex: index },
+    })} />);
+
+    for (const points of [[], undefined, [{ x: 0, y: 200 }, { x: Number.NaN, y: 200 }]]) {
+      rerender(<TopologyRouteEdge {...props({
+        id: "topology-edge:invalid",
+        data: { edge: edge({ id: "invalid" }), points, status: "fallback", fallbackIndex: index },
+      })} />);
+      const diagnostic = screen.getByTestId(/topology-route-geometry-unavailable-/);
+      expect(diagnostic).toHaveAttribute("data-diagnostic", "geometry-unavailable");
+      expect(diagnostic).toHaveAttribute("data-route", "fallback");
+      expect(screen.queryByTestId("route-edge-path")).not.toBeInTheDocument();
+    }
+
+    rerender(<TopologyRouteEdge {...props({
+      id: "topology-edge:routed",
+      data: { edge: edge({ id: "routed" }), points: [], status: "routed", fallbackIndex: index },
+    })} />);
+    const routedDiagnostic = screen.getByTestId(/topology-route-geometry-unavailable-/);
+    expect(routedDiagnostic).not.toHaveAttribute("data-route", "fallback");
   });
 
   it("reports missing and empty fallback index geometry explicitly", () => {
@@ -438,7 +532,9 @@ describe("TopologyRouteEdge", () => {
         crossLayer: true,
       },
     })} />);
-    expect(screen.getByTestId(/topology-fallback-preview-budget-/)).toHaveAttribute("data-diagnostic", "fallback-preview-candidate-limit");
+    const budget = screen.getByTestId(/topology-fallback-preview-budget-/);
+    expect(budget).toHaveAttribute("data-diagnostic", "fallback-preview-candidate-limit");
+    expect(budget).toHaveAttribute("data-route", "fallback");
 
     const blocked = fallbackIndex([{ kind: "section", x: -10000, y: -10000, width: 30000, height: 30000 }]);
     render(<TopologyRouteEdge {...props({
@@ -457,7 +553,9 @@ describe("TopologyRouteEdge", () => {
         deadline: 1,
       },
     })} />);
-    expect(screen.getAllByTestId(/topology-fallback-preview-safe-/).length).toBeGreaterThan(0);
+    const previews = screen.getAllByTestId(/topology-fallback-preview-safe-/);
+    expect(previews.length).toBeGreaterThan(0);
+    expect(previews.every((preview) => preview.getAttribute("data-route") === "fallback")).toBe(true);
   });
 
   it("renders normal cross-layer and unanimated routes with label suppression", () => {

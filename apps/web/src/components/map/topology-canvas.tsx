@@ -56,6 +56,7 @@ export interface TopologyFocusRequest {
 }
 
 export type TopologyZoomTier = "far" | "mid" | "near";
+
 export const TOPOLOGY_ZOOM_FAR = 0.4;
 export const TOPOLOGY_ZOOM_NEAR = 0.75;
 
@@ -503,6 +504,14 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
     }
 
     const fallbackIndex = createTopologyFallbackRectIndex(layout, laneByNode, 8);
+    const hiddenEdgeIds = new Set(layout.hiddenEdgeIds ?? layout.labels?.hiddenEdgeIds ?? []);
+    for (const edge of visibleEdges) {
+      if (hiddenEdgeIds.has(edge.id)) continue;
+      const workerLabel = layout.labels?.labels[edge.id];
+      if (workerLabel && !workerLabel.hidden && workerLabel.rect) {
+        fallbackIndex.addLabelRect(edge.id, workerLabel.rect);
+      }
+    }
     const highlightedEndpoints = topologyRouteHighlightedEndpoints(visibleEdges, hoveredEdgeId, selectedEdgeId);
 
     const laneNodes: Node<TopologyCanvasNode>[] = layout.lanes
@@ -641,6 +650,7 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
         const satellite = byId.get(edge.source)?.parentId !== undefined || byId.get(edge.target)?.parentId !== undefined;
         const color = topologyRouteEdgeColor(edge, crossLayer);
         const route = computedRoute;
+        const workerLabel = layout.labels?.labels[edge.id];
         return [{
           id: `topology-edge:${edge.id}`,
           source: edge.source,
@@ -672,6 +682,9 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
             crossLayer,
             showLabel: topologyRoutePointsValid(route?.points),
             fallbackIndex,
+            workerLabel: workerLabel
+              ? { rect: workerLabel.rect, hidden: workerLabel.hidden, text: workerLabel.text, segmentIndex: workerLabel.segmentIndex }
+              : undefined,
             status: route?.status,
             renderMode: route?.renderMode,
             fallback: route?.fallback,
@@ -760,6 +773,16 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
   }, [focusSeq]);
 
   const tier = useStore((state) => topologyZoomTier(state.transform[2]));
+  const routeDiagnostics = layout.routeDiagnostics;
+  const previewPhase = layout.layoutPhase === "preview";
+  const routeFailureIds = previewPhase ? [] : routeDiagnostics?.routeFailures.map((failure) => failure.edgeId) ?? [];
+  const routeFallbackCount = previewPhase ? 0 : routeDiagnostics?.fallbackCount ?? 0;
+  const routeStatus = previewPhase ? "preview" : routeDiagnostics?.status ?? "complete";
+  const geometryEdgeCount = projected.edges.filter((edge) => topologyRoutePointsValid(edge.data?.points)).length;
+  const routeDegraded = !previewPhase && (routeStatus !== "complete" || routeFailureIds.length > 0 || routeFallbackCount > 0);
+  const routeWarning = routeDegraded
+    ? `Routing degraded (${routeStatus}): ${routeFailureIds.length} route failure${routeFailureIds.length === 1 ? "" : "s"}, ${routeFallbackCount} fallback${routeFallbackCount === 1 ? "" : "s"}.`
+    : "";
 
   return (
     <div
@@ -770,6 +793,12 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
       data-selected-node={selectedNodeId}
       data-visible-nodes={visibleNodes.length}
       data-visible-edges={visibleEdges.length}
+      data-route-geometry-edges={geometryEdgeCount}
+      data-route-status={routeStatus}
+      data-route-phase={layout.layoutPhase ?? "synchronous"}
+      data-route-failures={routeFailureIds.length}
+      data-route-failure-ids={routeFailureIds.join(",")}
+      data-route-fallback-count={routeFallbackCount}
       // Keyboard focus can still scroll React Flow's overflow-hidden panes; the
       // viewport transform is the only source of truth for where the map sits.
       onScrollCapture={(event) => {
@@ -808,6 +837,9 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
         </Controls>
         <VisibleRouteDetours edges={projected.edges} positions={layout.positions} onHover={setHoveredEdgeId} onSelect={setSelectedEdgeId} />
       </ReactFlow>
+      {routeWarning && <div role="status" aria-live="polite" data-route-warning={routeStatus} className="pointer-events-none absolute bottom-3 right-3 z-10 rounded-md border border-basalt-border bg-basalt-card px-3 py-2 text-xs text-basalt-card-foreground shadow-sm">
+        {routeWarning}
+      </div>}
       {!visibleNodes.length && <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 text-basalt-muted-foreground">
         <Network className="h-10 w-10 opacity-40" aria-hidden="true" />
         <p>No topology nodes match the current filters.</p>

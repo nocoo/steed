@@ -476,6 +476,81 @@ describe("topology fallback safety", () => {
     expect(nearby.overlapsLabelEnvelope(box, "a", "b", 50)).toBe(false);
   });
 
+  it("ignores only the same label edge and continues to detect later card or title obstacles", () => {
+    const box = { x: 10, y: 10, width: 20, height: 20 };
+    const index = new TopologyFallbackRectIndex();
+    index.addLabelRect("self", box);
+
+    expect(index.overlapsLabelEnvelope(box, "a", "b", 0, "self")).toBe(false);
+    expect(index.overlapsLabelEnvelope(box, "a", "b", 0, "other")).toBe(true);
+
+    index.addLabelRect("self", { x: Number.NaN, y: 10, width: 20, height: 20 });
+    expect(index.labelRectCount()).toBe(0);
+    index.releaseLabelRect("missing-edge");
+    expect(index.labelRectCount()).toBe(0);
+    expect(index.overlapsLabelEnvelope({ x: Number.POSITIVE_INFINITY, y: 10, width: 20, height: 20 }, "a", "b", 0, "self")).toBe(true);
+    expect(index.overlapsLabelEnvelope({ x: 10, y: 10, width: Number.NEGATIVE_INFINITY, height: 20 }, "a", "b", 0, "self")).toBe(true);
+
+    index.add({ kind: "card", nodeId: "later-card", x: 10, y: 10, width: 20, height: 20 });
+    expect(index.overlapsLabelEnvelope(box, "a", "b", 0, "self")).toBe(true);
+  });
+
+  it("incrementally replaces and removes a label across spatial cells", () => {
+    const index = new TopologyFallbackRectIndex();
+    index.addLabelRect("edge", { x: 0, y: 0, width: 300, height: 300 });
+    expect(index.labelRectCount()).toBe(1);
+
+    index.addLabelRect("edge", { x: 2000, y: 2000, width: 20, height: 20 });
+    expect(index.labelRectCount()).toBe(1);
+    expect(index.overlapsLabelEnvelope({ x: 100, y: 100, width: 20, height: 20 }, "a", "b", 0, "edge")).toBe(false);
+
+    index.releaseLabelRect("edge");
+    expect(index.labelRectCount()).toBe(0);
+
+    index.addLabelRect("solo", { x: 10, y: 10, width: 20, height: 20 });
+    index.addLabelRect("same", { x: 10, y: 10, width: 20, height: 20 });
+    expect(index.overlapsLabelEnvelope({ x: 10, y: 10, width: 20, height: 20 }, "a", "b", 0, "missing")).toBe(true);
+  });
+
+  it("keeps label rects outside fallback clipping, protected candidates and marker decisions", () => {
+    const index = new TopologyFallbackRectIndex();
+    index.add({ kind: "card", nodeId: "source", x: 100, y: 180, width: 40, height: 40 });
+    const points = [{ x: 0, y: 200 }, { x: 300, y: 200 }];
+    const beforeClip = splitTopologyFallbackPolylineIndexed(index, points, "a", "b", { strokeMargin: 8 });
+    const beforeMarker = topologyFallbackMarkerVisibility([{ a: { x: 0, y: 200 }, b: { x: 300, y: 200 } }], points[0]!, points[1]!, { index, strokeWidth: 2, sourceId: "a", targetId: "b" });
+
+    index.addLabelRect("edge-a", { x: 130, y: 189, width: 48, height: 22 });
+    index.addLabelRect("edge-b", { x: 180, y: 189, width: 48, height: 22 });
+
+    expect(index.labelRectCount()).toBe(2);
+    expect(index.candidates({ x: 0, y: 180, width: 300, height: 40 }).every((rect) => rect.edgeId === undefined)).toBe(true);
+    expect(index.protectedCandidates({ x: 0, y: 180, width: 300, height: 40 }, "a", "b").every((rect) => rect.edgeId === undefined)).toBe(true);
+    expect(splitTopologyFallbackPolylineIndexed(index, points, "a", "b", { strokeMargin: 8 })).toEqual(beforeClip);
+    expect(topologyFallbackMarkerVisibility([{ a: { x: 0, y: 200 }, b: { x: 300, y: 200 } }], points[0]!, points[1]!, { index, strokeWidth: 2, sourceId: "a", targetId: "b" })).toEqual(beforeMarker);
+
+    index.releaseLabelRect("edge-a");
+    index.releaseLabelRect("edge-b");
+    expect(index.labelRectCount()).toBe(0);
+    expect(splitTopologyFallbackPolylineIndexed(index, points, "a", "b", { strokeMargin: 8 })).toEqual(beforeClip);
+  });
+
+  it("inserts and removes 1000 label rects incrementally", () => {
+    const index = new TopologyFallbackRectIndex();
+    const start = performance.now();
+    for (let i = 0; i < 1000; i++) {
+      index.addLabelRect(`edge-${i}`, { x: (i % 100) * 20, y: Math.floor(i / 100) * 20, width: 48, height: 22 });
+    }
+    const insertMs = performance.now() - start;
+    expect(index.labelRectCount()).toBe(1000);
+
+    const removeStart = performance.now();
+    for (let i = 0; i < 1000; i++) index.releaseLabelRect(`edge-${i}`);
+    const removeMs = performance.now() - removeStart;
+    expect(index.labelRectCount()).toBe(0);
+    expect(insertMs).toBeLessThan(1000);
+    expect(removeMs).toBeLessThan(1000);
+  });
+
   it("allows a capsule in either endpoint section but rejects another section", () => {
     const sourceLane = lane("source", 0, 100, ["a"]);
     const targetLane = lane("target", 200, 100, ["b"]);

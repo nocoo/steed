@@ -13,6 +13,7 @@ import {
   topologyRouteLabelText,
   topologyRoutePointsValid,
   topologyRouteSafeLabelPosition,
+  topologyRouteWorkerLabelPosition,
   topologySafeRoundedOrthogonalPath,
   topologyRouteStrokeWidth,
   type TopologyRouteEdgeData,
@@ -30,11 +31,22 @@ function TopologyRouteMeasuredLabel(props: {
   fallback?: boolean;
   preview?: boolean;
   pointerEvents?: "auto" | "none";
+  edgeId: string;
+  workerLabel?: { rect: { x: number; y: number; width: number; height: number } | null; hidden: boolean; text: string; segmentIndex: number | null };
 }) {
   const labelRef = useRef<HTMLButtonElement>(null);
   const zoom = useStore((state) => state.transform[2] || 1);
   const segmentKey = JSON.stringify(props.segments);
-  const conservativePosition = topologyRouteSafeLabelPosition(props.segments, props.fallbackIndex, props.sourceId, props.targetId, props.text);
+  const conservativePosition = topologyRouteWorkerLabelPosition(
+    props.segments,
+    props.fallbackIndex,
+    props.sourceId,
+    props.targetId,
+    props.workerLabel?.rect,
+    22,
+    48,
+    props.edgeId,
+  ) ?? topologyRouteSafeLabelPosition(props.segments, props.fallbackIndex, props.sourceId, props.targetId, props.text, 21, 48, props.edgeId);
   const [measurement, setMeasurement] = useState<{
     index: TopologyFallbackRectIndex;
     segmentsKey: string;
@@ -47,6 +59,7 @@ function TopologyRouteMeasuredLabel(props: {
   } | null>(null);
 
   useLayoutEffect(() => {
+    props.fallbackIndex.releaseLabelRect(props.edgeId);
     setMeasurement(null);
     const element = labelRef.current;
     if (!element) return;
@@ -66,7 +79,17 @@ function TopologyRouteMeasuredLabel(props: {
       });
       return;
     }
-    const exactPosition = topologyRouteSafeLabelPosition(
+    const workerPosition = topologyRouteWorkerLabelPosition(
+      props.segments,
+      props.fallbackIndex,
+      props.sourceId,
+      props.targetId,
+      props.workerLabel?.rect,
+      measuredHeight,
+      measuredWidth,
+      props.edgeId,
+    );
+    const exactPosition = workerPosition ?? topologyRouteSafeLabelPosition(
       props.segments,
       props.fallbackIndex,
       props.sourceId,
@@ -74,7 +97,16 @@ function TopologyRouteMeasuredLabel(props: {
       props.text,
       measuredHeight,
       measuredWidth,
+      props.edgeId,
     );
+    if (exactPosition) {
+      props.fallbackIndex.reserveLabelRect(props.edgeId, {
+        x: exactPosition.x - measuredWidth / 2,
+        y: exactPosition.y - measuredHeight / 2,
+        width: measuredWidth,
+        height: measuredHeight,
+      });
+    }
     setMeasurement({
       index: props.fallbackIndex,
       segmentsKey: segmentKey,
@@ -85,7 +117,8 @@ function TopologyRouteMeasuredLabel(props: {
       measured: true,
       position: exactPosition,
     });
-  }, [props.fallbackIndex, props.sourceId, props.targetId, props.text, zoom, segmentKey]);
+    return () => props.fallbackIndex.releaseLabelRect(props.edgeId);
+  }, [props.fallbackIndex, props.sourceId, props.targetId, props.text, zoom, segmentKey, props.edgeId, props.workerLabel?.rect]);
 
   const measurementMatches = measurement !== null
     && measurement.index === props.fallbackIndex
@@ -129,6 +162,7 @@ export function TopologyRouteEdge(props: Pick<EdgeProps<TopologyRouteEdgeType>, 
   const edge = data?.edge;
   if (!data || !edge) return <EdgeLabelRenderer><span className="pointer-events-none absolute" data-diagnostic="geometry-unavailable" data-edge-id={props.id} aria-label="Routing geometry unavailable" /></EdgeLabelRenderer>;
   const suppliedPoints = data.points;
+  const knownFallback = data.status === "fallback" || data.renderMode === "straight";
   if (!topologyRoutePointsValid(suppliedPoints)) {
     return (
       <EdgeLabelRenderer>
@@ -137,6 +171,7 @@ export function TopologyRouteEdge(props: Pick<EdgeProps<TopologyRouteEdgeType>, 
           style={{ transform: `translate(-50%, -50%) translate(0px, 0px)` }}
           data-testid={`topology-route-geometry-unavailable-${props.id}`}
           data-diagnostic="geometry-unavailable"
+          data-route={knownFallback ? "fallback" : undefined}
           aria-label="Routing geometry unavailable"
           data-edge-id={props.id}
           data-edge-source={edge.source}
@@ -174,6 +209,7 @@ export function TopologyRouteEdge(props: Pick<EdgeProps<TopologyRouteEdgeType>, 
             style={{ transform: `translate(-50%, -50%) translate(${diagnosticPosition.x}px, ${diagnosticPosition.y}px)` }}
             data-testid={`topology-fallback-geometry-unavailable-${props.id}`}
             data-diagnostic="geometry-unavailable"
+            data-route="fallback"
             aria-label="Routing fallback geometry unavailable"
           />
         </EdgeLabelRenderer>
@@ -192,6 +228,7 @@ export function TopologyRouteEdge(props: Pick<EdgeProps<TopologyRouteEdgeType>, 
             style={{ transform: `translate(-50%, -50%) translate(${diagnosticPosition.x}px, ${diagnosticPosition.y}px)` }}
             data-testid={`topology-fallback-geometry-unavailable-${props.id}`}
             data-diagnostic="geometry-unavailable"
+            data-route="fallback"
             aria-label="Routing fallback geometry unavailable"
           />
         </EdgeLabelRenderer>
@@ -213,6 +250,7 @@ export function TopologyRouteEdge(props: Pick<EdgeProps<TopologyRouteEdgeType>, 
               style={{ transform: `translate(-50%, -50%) translate(${diagnosticPosition.x}px, ${diagnosticPosition.y}px)` }}
               data-testid={`topology-fallback-geometry-unavailable-${props.id}`}
               data-diagnostic="geometry-unavailable"
+              data-route="fallback"
               aria-label="Routing fallback geometry unavailable"
             />
           </EdgeLabelRenderer>
@@ -226,6 +264,7 @@ export function TopologyRouteEdge(props: Pick<EdgeProps<TopologyRouteEdgeType>, 
               style={{ transform: `translate(-50%, -50%) translate(${diagnosticPosition.x}px, ${diagnosticPosition.y}px)` }}
               data-testid={`topology-fallback-preview-budget-${props.id}`}
               data-diagnostic="fallback-preview-candidate-limit"
+              data-route="fallback"
               aria-label="Routing fallback preview exceeded candidate budget"
             />
           </EdgeLabelRenderer>
@@ -239,6 +278,7 @@ export function TopologyRouteEdge(props: Pick<EdgeProps<TopologyRouteEdgeType>, 
               style={{ transform: `translate(-50%, -50%) translate(${diagnosticPosition.x}px, ${diagnosticPosition.y}px)` }}
               data-testid={`topology-fallback-preview-safe-${props.id}`}
               data-diagnostic="fallback-preview-no-visible-segments"
+              data-route="fallback"
               aria-label="Routing fallback has no safe straight segment"
             />
           </EdgeLabelRenderer>
@@ -256,7 +296,6 @@ export function TopologyRouteEdge(props: Pick<EdgeProps<TopologyRouteEdgeType>, 
             targetId: edge.target,
           })
         : { markerStart: false, markerEnd: false };
-      const previewLabelPosition = topologyRouteSafeLabelPosition(preview.segments, fallbackIndex, edge.source, edge.target, edgeLabelText);
       const faded = data.fallbackStyle === "faded";
       return (
         <>
@@ -271,6 +310,7 @@ export function TopologyRouteEdge(props: Pick<EdgeProps<TopologyRouteEdgeType>, 
               className={`topology-route-edge topology-route-edge-fallback topology-route-edge-preview${highlight ? " topology-route-edge-highlighted" : ""}`}
               data-fallback={data.fallback ?? "no_path"}
               data-diagnostic="fallback-preview"
+              data-route="fallback"
               data-deferred="false"
               data-background-completion="none"
               data-fallback-style={data.fallbackStyle ?? "dashed"}
@@ -285,7 +325,7 @@ export function TopologyRouteEdge(props: Pick<EdgeProps<TopologyRouteEdgeType>, 
               }}
             />
           ))}
-          {data.showLabel !== false && previewLabelPosition !== null && (
+          {data.showLabel !== false && (
             <TopologyRouteMeasuredLabel
               segments={preview.segments}
               fallbackIndex={fallbackIndex}
@@ -296,6 +336,8 @@ export function TopologyRouteEdge(props: Pick<EdgeProps<TopologyRouteEdgeType>, 
               fallback
               preview
               pointerEvents="none"
+              edgeId={edge.id}
+              workerLabel={data.workerLabel}
             />
           )}
         </>
@@ -321,6 +363,7 @@ export function TopologyRouteEdge(props: Pick<EdgeProps<TopologyRouteEdgeType>, 
             style={{ transform: `translate(-50%, -50%) translate(${diagnosticPosition.x}px, ${diagnosticPosition.y}px)` }}
             data-testid={`topology-fallback-detailed-no-visible-${props.id}`}
             data-diagnostic="fallback-detailed-no-visible-segments"
+            data-route="fallback"
             aria-label="Routing fallback has no visible safe segment"
             data-edge-id={props.id}
             data-edge-source={edge.source}
@@ -329,7 +372,6 @@ export function TopologyRouteEdge(props: Pick<EdgeProps<TopologyRouteEdgeType>, 
         </EdgeLabelRenderer>
       );
     }
-    const fallbackLabelPosition = topologyRouteSafeLabelPosition(split.segments, fallbackIndex, edge.source, edge.target, edgeLabelText);
     const faded = props.data?.fallbackStyle === "faded";
 
     return (
@@ -345,6 +387,7 @@ export function TopologyRouteEdge(props: Pick<EdgeProps<TopologyRouteEdgeType>, 
             className={`topology-route-edge topology-route-edge-fallback${highlight ? " topology-route-edge-highlighted" : ""}`}
             data-fallback={props.data?.fallback ?? "no_path"}
             data-diagnostic="visible-fallback"
+            data-route="fallback"
             data-fallback-style={props.data?.fallbackStyle ?? "dashed"}
             data-checked-rect-count={split.checkedRectCount}
             data-visible-segments={split.visibleSegmentCount}
@@ -358,7 +401,7 @@ export function TopologyRouteEdge(props: Pick<EdgeProps<TopologyRouteEdgeType>, 
             }}
           />
         ))}
-        {props.data?.showLabel !== false && fallbackLabelPosition !== null && (
+        {props.data?.showLabel !== false && (
           <TopologyRouteMeasuredLabel
             segments={split.segments}
             fallbackIndex={fallbackIndex}
@@ -368,6 +411,8 @@ export function TopologyRouteEdge(props: Pick<EdgeProps<TopologyRouteEdgeType>, 
             detail={edgeLabelDetail}
             fallback
             pointerEvents="none"
+            edgeId={edge.id}
+            workerLabel={props.data?.workerLabel}
           />
         )}
       </>
@@ -382,6 +427,7 @@ export function TopologyRouteEdge(props: Pick<EdgeProps<TopologyRouteEdgeType>, 
         markerStart={props.markerStart}
         markerEnd={props.markerEnd}
         interactionWidth={16}
+        data-route={props.data?.status === "fallback" ? "fallback" : "routed"}
         className={`topology-route-edge${highlight ? " topology-route-edge-highlighted" : ""}${animated ? " topology-route-edge-animated" : ""}`}
         style={{
           stroke: props.style?.stroke ?? topologyRouteEdgeColor(edge, crossLayer),
@@ -390,7 +436,7 @@ export function TopologyRouteEdge(props: Pick<EdgeProps<TopologyRouteEdgeType>, 
           strokeOpacity: props.style?.strokeOpacity ?? (crossLayer ? 0.55 : 0.8),
         }}
       />
-      {props.data?.showLabel !== false && labelPosition !== null && fallbackIndex && (
+      {props.data?.showLabel !== false && fallbackIndex && (
         <TopologyRouteMeasuredLabel
           segments={routeSegments}
           fallbackIndex={fallbackIndex}
@@ -399,6 +445,8 @@ export function TopologyRouteEdge(props: Pick<EdgeProps<TopologyRouteEdgeType>, 
           text={edgeLabelText}
           detail={edgeLabelDetail}
           pointerEvents="auto"
+          edgeId={edge.id}
+          workerLabel={props.data?.workerLabel}
         />
       )}
     </>

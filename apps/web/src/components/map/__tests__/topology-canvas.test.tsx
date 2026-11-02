@@ -347,6 +347,14 @@ describe("topology canvas", () => {
   it("wires preview route data and fallback status into the canvas edge without smuggling a renderer", () => {
   const topology = sample();
   render(<TopologyCanvas topology={topology} visibleNodes={topology.nodes} visibleEdges={topology.edges} view={topology.views[0]} selectedNodeId="" onSelect={vi.fn()} />);
+  const region = screen.getByRole("region", { name: "Topology graph" });
+  expect(region).toHaveAttribute("data-visible-edges", "1");
+  expect(region).toHaveAttribute("data-route-geometry-edges", "1");
+  expect(region).toHaveAttribute("data-route-status", "timeout");
+  expect(region).toHaveAttribute("data-route-phase", "fallback");
+  expect(region).toHaveAttribute("data-route-failures", "1");
+  expect(region).toHaveAttribute("data-route-fallback-count", "1");
+  expect(screen.getByRole("status")).toHaveAttribute("data-route-warning", "timeout");
   const routed = state.renders.at(-1)?.edges[0] as Edge<TopologyCanvasEdge> | undefined;
   expect(routed?.data).toMatchObject({ status: "fallback", fallback: "timeout" });
   expect((routed?.data?.route as { points?: unknown[] } | undefined)?.points?.length).toBeGreaterThanOrEqual(2);
@@ -359,6 +367,22 @@ describe("topology canvas", () => {
   const targetHandle = target?.handles?.find((handle) => handle.id === routed?.targetHandle);
   expect(sourceHandle && { x: source!.position.x + sourceHandle.x + 3, y: source!.position.y + sourceHandle.y + 3 }).toEqual(routed?.data?.route?.points[0]);
   expect(targetHandle && { x: target!.position.x + targetHandle.x + 3, y: target!.position.y + targetHandle.y + 3 }).toEqual(routed?.data?.route?.points.at(-1));
+});
+
+it("summarizes multiple terminal route fallbacks on the canvas", () => {
+  const topology = sample();
+  topology.edges = [
+    topology.edges[0]!,
+    { ...topology.edges[0]!, id: "peer-root", source: "peer", target: "root", label: "Fallback peer" },
+  ];
+  render(<TopologyCanvas topology={topology} visibleNodes={topology.nodes} visibleEdges={topology.edges} view={topology.views[0]} selectedNodeId="" onSelect={vi.fn()} />);
+
+  const region = screen.getByRole("region", { name: "Topology graph" });
+  expect(region).toHaveAttribute("data-visible-edges", "2");
+  expect(region).toHaveAttribute("data-route-failures", "2");
+  expect(region).toHaveAttribute("data-route-fallback-count", "2");
+  expect(region).toHaveAttribute("data-route-failure-ids", "peer-root,root-service");
+  expect(screen.getByRole("status")).toHaveTextContent("2 route failures, 2 fallbacks");
 });
 
 it("keeps selection controlled so clicks cannot loop through React Flow", () => {

@@ -101,6 +101,85 @@ function manualLayout(options: {
   };
 }
 
+  it.each([
+    ["horizontal", { a: { x: 100, y: 160, width: 100, height: 100 }, b: { x: 300, y: 160, width: 100, height: 100 } }, ["lane-cloud"], undefined],
+    ["vertical", { a: { x: 200, y: 100, width: 100, height: 100 }, b: { x: 200, y: 300, width: 100, height: 100 } }, ["lane-cloud"], undefined],
+    ["diagonal", { a: { x: 100, y: 100, width: 100, height: 100 }, b: { x: 400, y: 300, width: 100, height: 100 } }, ["lane-cloud"], undefined],
+    ["missing-a", { b: { x: 300, y: 160, width: 100, height: 100 } }, ["lane-cloud"], undefined],
+    ["missing-b", { a: { x: 100, y: 160, width: 100, height: 100 } }, ["lane-cloud"], undefined],
+    ["equal", { a: { x: 200, y: 200, width: 100, height: 100 }, b: { x: 200, y: 200, width: 100, height: 100 } }, ["lane-cloud"], undefined],
+    ["nan-a", { a: { x: Number.NaN, y: 160, width: 100, height: 100 }, b: { x: 300, y: 160, width: 100, height: 100 } }, ["lane-cloud"], undefined],
+    ["cross-layer", { a: { x: 100, y: 160, width: 100, height: 100 }, c: { x: 760, y: 160, width: 100, height: 100 } }, ["lane-cloud", "lane-edge"], [{ id: "a-c", source: "a", target: "c" }]],
+    ["parallel-two", { a: { x: 100, y: 160, width: 100, height: 100 }, b: { x: 300, y: 160, width: 100, height: 100 } }, ["lane-cloud"], [{ id: "a-b-1", source: "a", target: "b" }, { id: "a-b-2", source: "a", target: "b" }]],
+    ["bidirectional", { a: { x: 100, y: 160, width: 100, height: 100 }, b: { x: 300, y: 160, width: 100, height: 100 } }, ["lane-cloud"], [{ id: "b-a", source: "b", target: "a" }]],
+    ["zero-layout-timeout", { a: { x: 100, y: 160, width: 100, height: 100 }, b: { x: 300, y: 160, width: 100, height: 100 } }, ["lane-cloud"], undefined],
+    ["zero-edge-timeout", { a: { x: 100, y: 160, width: 100, height: 100 }, b: { x: 300, y: 160, width: 100, height: 100 } }, ["lane-cloud"], undefined],
+    ["zero-maxbytes", { a: { x: 100, y: 160, width: 100, height: 100 }, b: { x: 300, y: 160, width: 100, height: 100 } }, ["lane-cloud"], undefined],
+    ["tiny-maxbytes", { a: { x: 100, y: 160, width: 100, height: 100 }, b: { x: 300, y: 160, width: 100, height: 100 } }, ["lane-cloud"], undefined],
+    ["tiny-bundlebytes", { a: { x: 100, y: 160, width: 100, height: 100 }, b: { x: 300, y: 160, width: 100, height: 100 } }, ["lane-cloud"], undefined],
+    ["blocked-card", { a: { x: 100, y: 160, width: 100, height: 100 }, b: { x: 300, y: 160, width: 100, height: 100 } }, ["lane-cloud"], undefined],
+    ["blocked-frame", { a: { x: 100, y: 160, width: 100, height: 100 }, b: { x: 300, y: 160, width: 100, height: 100 } }, ["lane-cloud"], undefined],
+    ["clock-expired", { a: { x: 100, y: 160, width: 100, height: 100 }, b: { x: 300, y: 160, width: 100, height: 100 } }, ["lane-cloud"], undefined],
+    ["wide-corridor", { a: { x: 100, y: 160, width: 100, height: 100 }, b: { x: 900, y: 160, width: 100, height: 100 } }, ["lane-cloud"], undefined],
+    ["short-corridor", { a: { x: 100, y: 160, width: 100, height: 100 }, b: { x: 180, y: 160, width: 100, height: 100 } }, ["lane-cloud"], undefined],
+    ["three-lanes", { a: { x: 100, y: 160, width: 100, height: 100 }, c: { x: 1420, y: 160, width: 100, height: 100 } }, ["lane-cloud", "lane-edge", "lane-third"], [{ id: "a-c", source: "a", target: "c" }]],
+    ["five-parallel", { a: { x: 100, y: 160, width: 100, height: 100 }, b: { x: 300, y: 160, width: 100, height: 100 } }, ["lane-cloud"], Array.from({ length: 5 }, (_, index) => ({ id: `parallel-${index}`, source: "a", target: "b" }))],
+    ["twenty-parallel", { a: { x: 100, y: 160, width: 100, height: 100 }, b: { x: 300, y: 160, width: 100, height: 100 } }, ["lane-cloud"], Array.from({ length: 20 }, (_, index) => ({ id: `many-${index}`, source: "a", target: "b" }))],
+    ["offscreen-left", { a: { x: -500, y: 160, width: 100, height: 100 }, b: { x: 300, y: 160, width: 100, height: 100 } }, ["lane-cloud"], undefined],
+    ["offscreen-right", { a: { x: 5000, y: 160, width: 100, height: 100 }, b: { x: 300, y: 160, width: 100, height: 100 } }, ["lane-cloud"], undefined],
+    ["offscreen-top", { a: { x: 100, y: -500, width: 100, height: 100 }, b: { x: 300, y: 160, width: 100, height: 100 } }, ["lane-cloud"], undefined],
+    ["zero-card-width", { a: { x: 100, y: 160, width: 0, height: 100 }, b: { x: 300, y: 160, width: 100, height: 100 } }, ["lane-cloud"], undefined],
+    ["zero-card-height", { a: { x: 100, y: 160, width: 100, height: 0 }, b: { x: 300, y: 160, width: 100, height: 100 } }, ["lane-cloud"], undefined],
+    ["zero-lane-width", { a: { x: 100, y: 160, width: 100, height: 100 }, b: { x: 300, y: 160, width: 100, height: 100 } }, ["lane-cloud"], undefined],
+    ["zero-lane-height", { a: { x: 100, y: 160, width: 100, height: 100 }, b: { x: 300, y: 160, width: 100, height: 100 } }, ["lane-cloud"], undefined],
+    ["bytes-eight", { a: { x: 100, y: 160, width: 100, height: 100 }, b: { x: 300, y: 160, width: 100, height: 100 } }, ["lane-cloud"], undefined],
+    ["bytes-sixteen", { a: { x: 100, y: 160, width: 100, height: 100 }, b: { x: 300, y: 160, width: 100, height: 100 } }, ["lane-cloud"], undefined],
+    ["bundle-zero", { a: { x: 100, y: 160, width: 100, height: 100 }, b: { x: 300, y: 160, width: 100, height: 100 } }, ["lane-cloud"], undefined],
+    ["edge-zero", { a: { x: 100, y: 160, width: 100, height: 100 }, b: { x: 300, y: 160, width: 100, height: 100 } }, ["lane-cloud"], undefined],
+    ["cooperative-clock", { a: { x: 100, y: 160, width: 100, height: 100 }, b: { x: 300, y: 160, width: 100, height: 100 } }, ["lane-cloud"], undefined],
+    ["clock-step", { a: { x: 100, y: 160, width: 100, height: 100 }, b: { x: 300, y: 160, width: 100, height: 100 } }, ["lane-cloud"], undefined],
+    ["infinite-clock", { a: { x: 100, y: 160, width: 100, height: 100 }, b: { x: 300, y: 160, width: 100, height: 100 } }, ["lane-cloud"], undefined],
+  ] as const)("covers router route matrix %s", (_name, positions, laneIds, extraEdges) => {
+    const edges = extraEdges ?? [{ id: "a-b", source: "a", target: "b" }];
+    const topology = simpleTopology(edges as Array<{ id: string; source: string; target: string }>);
+    const layout = manualLayout({ ids: Object.keys(positions), positions: positions as Record<string, TopologyLayoutPosition>, laneIds: [...laneIds] });
+    if (_name === "blocked-card") layout.positions.blocked = { x: 200, y: 100, width: 40, height: 180 };
+    if (_name === "three-lanes") layout.lanes = [...layout.lanes, { id: "lane-third", layerId: "edge", order: 2, x: 1320, y: 0, width: 500, height: 400, blockIds: [], nodeIds: ["c"] }];
+    if (_name === "zero-lane-width" && layout.lanes[0]) layout.lanes[0].width = 0;
+    if (_name === "zero-lane-height" && layout.lanes[0]) layout.lanes[0].height = 0;
+    if (_name === "blocked-frame") layout.frames = [{ id: "frame", boundaryId: "b", title: "Frame", kind: "site", x: 180, y: 100, width: 40, height: 220, nodeIds: ["a", "b"] } as never];
+    const options = _name === "zero-layout-timeout"
+      ? { layoutTimeoutMs: 0 }
+      : _name === "zero-edge-timeout"
+        ? { edgeTimeoutMs: 0 }
+        : _name === "zero-maxbytes"
+          ? { maxBytes: 0 }
+          : _name === "tiny-maxbytes"
+            ? { maxBytes: 1 }
+            : _name === "tiny-bundlebytes"
+              ? { bundleMaxBytes: 1 }
+              : _name === "clock-expired"
+                ? { clock: () => 1_000_000 }
+                : _name === "bytes-eight"
+                ? { maxBytes: 8, bundleMaxBytes: 8 }
+                : _name === "bytes-sixteen"
+                  ? { maxBytes: 16, bundleMaxBytes: 16 }
+                  : _name === "bundle-zero"
+                    ? { bundleMaxBytes: 0 }
+                    : _name === "edge-zero"
+                      ? { edgeTimeoutMs: 0, layoutTimeoutMs: 0 }
+                      : _name === "cooperative-clock"
+                        ? { cooperativeChunkClock: () => 1, cooperativeChunkWallMs: 0 }
+                        : _name === "clock-step"
+                          ? { clock: () => 1 }
+                          : _name === "infinite-clock"
+                            ? { clock: () => Number.POSITIVE_INFINITY }
+                            : {};
+    const result = routeTopology(topology, layout, options);
+    expect(result.routes).toBeDefined();
+    expect(result.diagnostics).toBeDefined();
+  });
+
 function inflate(rect: RoutingRect, margin = ROUTE_MARGIN): RoutingRect {
   return { x: rect.x - margin, y: rect.y - margin, width: rect.width + margin * 2, height: rect.height + margin * 2 };
 }

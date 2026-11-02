@@ -381,6 +381,50 @@ describe("topology route extras", () => {
     expect(result.labels.budget?.reason).toBe("timeout");
   });
 
+  it.each([
+    ["missing-route", undefined, undefined],
+    ["fallback-route", [{ x: 0, y: 300 }, { x: 200, y: 300 }], "fallback"],
+    ["vertical-route", [{ x: 100, y: 40 }, { x: 100, y: 160 }], undefined],
+    ["negative-x", [{ x: -1, y: 300 }, { x: 200, y: 300 }], undefined],
+    ["negative-y", [{ x: 0, y: -1 }, { x: 200, y: -1 }], undefined],
+    ["x-outside", [{ x: 0, y: 300 }, { x: 20000, y: 300 }], undefined],
+    ["y-outside", [{ x: 0, y: 30000 }, { x: 200, y: 30000 }], undefined],
+    ["nan-point", [{ x: Number.NaN, y: 300 }, { x: 200, y: 300 }], undefined],
+    ["zero-width-layout", undefined, "zero-width-layout"],
+    ["zero-height-layout", undefined, "zero-height-layout"],
+    ["oversized-width", undefined, "oversized-width"],
+    ["oversized-height", undefined, "oversized-height"],
+    ["deadline-before", undefined, "deadline-before"],
+    ["deadline-during", undefined, "deadline-during"],
+    ["card-blocked", [{ x: 0, y: 300 }, { x: 200, y: 300 }], "card-blocked"],
+    ["frame-title-blocked", [{ x: 0, y: 300 }, { x: 200, y: 300 }], "frame-title-blocked"],
+    ["empty-text", [{ x: 0, y: 300 }, { x: 200, y: 300 }], "empty-text"],
+    ["wide-text", [{ x: 0, y: 300 }, { x: 200, y: 300 }], "wide-text"],
+    ["mutual-label", [{ x: 0, y: 300 }, { x: 200, y: 300 }], "mutual-label"],
+    ["valid-short", [{ x: 40, y: 300 }, { x: 160, y: 300 }], undefined],
+  ])("covers route-label placement branch %s", (_name, points, mode) => {
+    const layout = simpleLayout();
+    const edgeItem = edge("matrix", "a", "b", "traffic", { label: mode === "empty-text" ? "" : mode === "wide-text" ? "WWWWWWWWWWWW" : "Matrix" });
+    const routes: Record<string, TopologyRoute> = {};
+    if (points) routes.matrix = route("matrix", points as Array<{ x: number; y: number }>, mode === "fallback" ? "fallback" : undefined);
+
+    if (mode === "zero-width-layout") layout.width = 0;
+    if (mode === "zero-height-layout") layout.height = 0;
+    if (mode === "oversized-width") { layout.width = 1; layout.positions = {}; }
+    if (mode === "oversized-height") { layout.height = 1; layout.positions = {}; }
+    if (mode === "card-blocked") layout.positions.blocked = { x: 50, y: 289, width: 100, height: 22 };
+    if (mode === "frame-title-blocked") layout.frames = [{ id: "frame", boundaryId: "b", title: "Frame", kind: "site", style: { border: "solid", color: "#000", tint: "#fff" } as never, x: 40, y: 280, width: 120, height: 40, nodeIds: ["a", "b"] } as never];
+
+    const options: Parameters<typeof placeTopologyRouteLabels>[3] = mode === "deadline-before"
+      ? { deadline: 10, clock: () => 10 }
+      : mode === "deadline-during"
+        ? { deadline: 10, clock: () => 11 }
+        : { positionStep: 8, paddingX: 8, height: 22, cardMargin: 6, labelMargin: 6 };
+    const result = placeTopologyRouteLabels([edgeItem], routes, layout, options);
+    expect(result.labels.matrix).toBeDefined();
+    if (mode === "valid-short") expect(result.labels.matrix.hidden).toBe(false);
+  });
+
   it("avoids earlier labels and hides labels that cannot fit", () => {
     const layout = simpleLayout();
     const routeMap = {

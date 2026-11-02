@@ -74,6 +74,50 @@ function contains(outer: Box, inner: Box) {
 }
 
 describe("partitioned topology layout", () => {
+  it.each([
+    ["empty", "empty", {}],
+    ["single", "single", {}],
+    ["default-aspect", "normal", {}],
+    ["zero-aspect", "normal", { aspect: 0 }],
+    ["small-aspect", "normal", { aspect: 1 }],
+    ["large-aspect", "normal", { aspect: 100 }],
+    ["infinite-aspect", "normal", { aspect: Number.POSITIVE_INFINITY }],
+    ["nan-aspect", "normal", { aspect: Number.NaN }],
+    ["origin-zero", "normal", { origin: { x: 0, y: 0 } }],
+    ["origin-negative", "normal", { origin: { x: -100, y: -100 } }],
+    ["pin-host", "normal", { pins: { "host-alpha": { x: 700, y: 180 } } }],
+    ["pin-missing", "normal", { pins: { missing: { x: 700, y: 180 } } }],
+    ["no-boundaries", "no-boundaries", {}],
+    ["cycle-parent", "cycle-parent", {}],
+    ["self-parent", "self-parent", {}],
+    ["deep-satellites", "deep-satellites", {}],
+    ["many-satellites", "many-satellites", {}],
+    ["no-views", "no-views", {}],
+    ["wide-hosts", "wide-hosts", {}],
+    ["many-boundaries", "many-boundaries", {}],
+  ] as const)("covers layout branch matrix %s", (_name, mode, options) => {
+    const topology = sample();
+    if (mode === "empty") topology.nodes = [];
+    if (mode === "single") topology.nodes = [topology.nodes[0]!];
+    if (mode === "no-boundaries") topology.boundaries = [];
+    if (mode === "cycle-parent") topology.nodes[0]!.parentId = "host-beta";
+    if (mode === "self-parent") topology.nodes[0]!.parentId = "host-beta";
+    if (mode === "deep-satellites") topology.nodes[6]!.parentId = "port-b";
+    if (mode === "many-satellites") {
+      topology.nodes = Array.from({ length: 40 }, (_, index) => ({ id: `sat-${index}`, type: "host", label: `Sat ${index}`, layerId: "first", parentId: index % 2 ? "host-alpha" : "host-beta", lifecycle: "active" as const, description: "", tags: [], attrs: {} }));
+    }
+    if (mode === "no-views") topology.views = [];
+    if (mode === "wide-hosts") topology.nodes = topology.nodes.map((node) => ({ ...node, label: node.label.repeat(8) }));
+    if (mode === "many-boundaries") topology.boundaries = Array.from({ length: 20 }, (_, index) => ({ id: `b-${index}`, label: `B ${index}`, kind: "trust", description: "" }));
+
+    const result = layoutTopology(topology, options as never);
+    expect(result.width).toBeGreaterThanOrEqual(0);
+    expect(result.height).toBeGreaterThanOrEqual(0);
+    for (const position of Object.values(result.positions)) {
+      expect([position.x, position.y, position.width, position.height].every(Number.isFinite)).toBe(true);
+    }
+  });
+
   it("is valid for the fixture and treats a constructor ID like any other ID", () => {
     const topology = sample();
     topology.nodes = topology.nodes.map((node) => ({
