@@ -118,14 +118,14 @@ describe("worker cooperative integration", () => {
       const runtime = runtimeForCooperative();
       const results: unknown[] = [];
       runtime.request({ topology }, (result) => results.push(result));
-      await new Promise<void>((resolve) => setTimeout(resolve, 20));
-      expect(results.length).toBeGreaterThanOrEqual(1);
-      await new Promise<void>((resolve) => setTimeout(resolve, topology.nodes.length >= 500 ? 10_000 : 1000));
+      expect(results).toHaveLength(1);
+      expect((results[0] as { routeDiagnostics?: { status?: string } }).routeDiagnostics?.status).toBe("timeout");
+      await vi.waitFor(() => expect(results).toHaveLength(2), { timeout: 25_000, interval: 25 });
       const complete = results.at(-1) as { routeDiagnostics?: { status?: string; fallbackCount?: number }; routes?: Record<string, unknown> } | undefined;
       expect(complete?.routeDiagnostics?.status).toBe("complete");
       expect(complete?.routeDiagnostics?.fallbackCount).toBe(0);
       expect(Object.keys(complete?.routes ?? {})).toHaveLength(topology.edges.length);
-    }, 15_000);
+    }, 30_000);
   }
 
   it("resource-limit cooperative result is reported and never cached", async () => {
