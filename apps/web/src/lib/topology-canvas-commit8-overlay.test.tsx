@@ -23,6 +23,7 @@ vi.mock("@xyflow/react", async (importOriginal) => {
       "data-marker-start": props.markerStart ? "visible" : "hidden",
       "data-marker-end": props.markerEnd ? "visible" : "hidden",
     }),
+    EdgeLabelRenderer: ({ children }: { children: ReactNode }) => React.createElement(React.Fragment, null, children),
     ReactFlowProvider: ({ children }: { children: ReactNode }) => React.createElement(React.Fragment, null, children),
     useReactFlow: () => ({ setViewport: flow.setViewport, setCenter: flow.setCenter, getZoom: () => flow.zoom }),
     useUpdateNodeInternals: () => vi.fn(),
@@ -62,7 +63,9 @@ vi.mock("@xyflow/react", async (importOriginal) => {
   };
 });
 
-import { TopologyCanvas, TopologyRouteEdge } from "../components/map/topology-canvas";
+import { TopologyCanvas } from "../components/map/topology-canvas";
+import { TopologyRouteEdge } from "../components/map/topology-route-edge";
+import { TopologyFallbackRectIndex } from "./topology-route-edge-safety";
 
 afterEach(cleanup);
 
@@ -143,7 +146,14 @@ describe("commit8 route edge rendering overlay", () => {
     fireEvent.click(screen.getByRole("button", { name: "Focus layer Cloud" }));
     expect(flow.setViewport.mock.calls.length).toBeGreaterThan(callsBeforeFocus);
   });
-  const baseProps = { id: "route-a-b", sourceX: 0, sourceY: 0, targetX: 100, targetY: 0 };
+  const baseProps = { id: "route-a-b", selected: false };
+  const model: Topology["edges"][number] = { id: "route-a-b", source: "a", target: "b", kind: "uses", label: "", direction: "bi", evidence: "documented", description: "", tags: [] };
+  const indexFor = (rects: Array<{ x: number; y: number; width: number; height: number }>) => {
+    const index = new TopologyFallbackRectIndex();
+    for (const rect of rects) index.add({ kind: "frame-title", ...rect });
+    if (!rects.length) index.add({ kind: "frame-title", x: 10000, y: 10000, width: 1, height: 1 });
+    return index;
+  };
 
   it("projects cross-layer, satellite, bidirectional and styled edges while keeping selection controlled", () => {
     const topology: Topology = {
@@ -199,8 +209,7 @@ describe("commit8 route edge rendering overlay", () => {
       markerStart: "url(#start)",
       markerEnd: "url(#end)",
       data: {
-        route: { points: [{ x: 0, y: 50 }, { x: 200, y: 50 }], status: "fallback", fallback: "timeout" },
-        protectedRects: [{ x: 80, y: 40, width: 40, height: 20 }],
+        edge: model, points: [{ x: 0, y: 50 }, { x: 200, y: 50 }], status: "fallback", fallback: "timeout", showLabel: false, fallbackIndex: indexFor([{ x: 80, y: 40, width: 40, height: 20 }]),
       },
     } as never));
 
@@ -217,8 +226,7 @@ describe("commit8 route edge rendering overlay", () => {
       markerStart: "url(#start)",
       markerEnd: "url(#end)",
       data: {
-        route: { points: [{ x: 0, y: 50 }, { x: 200, y: 50 }], status: "fallback", fallback: "timeout" },
-        protectedRects: [],
+        edge: model, points: [{ x: 0, y: 50 }, { x: 200, y: 50 }], status: "fallback", fallback: "timeout", showLabel: false, fallbackIndex: indexFor([]),
       },
     } as never));
     const control = positive.container.querySelector('[data-testid="topology-base-edge"]');
@@ -231,15 +239,14 @@ describe("commit8 route edge rendering overlay", () => {
     const { rerender } = render(createElement(TopologyRouteEdge, {
       ...baseProps,
       data: {
-        route: { points: [{ x: 0, y: 50 }, { x: 100, y: 50 }], status: "fallback", fallback: "no_path" },
-        protectedRects: [{ x: 0, y: 0, width: 100, height: 100 }],
+        edge: model, points: [{ x: 0, y: 50 }, { x: 100, y: 50 }], status: "fallback", fallback: "no_path", showLabel: false, fallbackIndex: indexFor([{ x: 0, y: 0, width: 100, height: 100 }]),
       },
     } as never));
-    expect(document.querySelector('[data-diagnostic="fallback-no-visible-segment"]')).not.toBeNull();
+    expect(document.querySelector('[data-diagnostic="fallback-detailed-no-visible-segments"]')).not.toBeNull();
     expect(screen.queryByTestId("topology-base-edge")).toBeNull();
 
-    rerender(createElement(TopologyRouteEdge, { ...baseProps, data: undefined } as never));
-    expect(document.querySelector('[data-diagnostic="routed-geometry-unavailable"]')).not.toBeNull();
+    rerender(createElement(TopologyRouteEdge, { ...baseProps, data: { edge: model, points: [] } } as never));
+    expect(document.querySelector('[data-diagnostic="geometry-unavailable"]')).not.toBeNull();
     expect(screen.queryByTestId("topology-base-edge")).toBeNull();
   });
 
@@ -248,7 +255,7 @@ describe("commit8 route edge rendering overlay", () => {
       ...baseProps,
       markerStart: "url(#start)",
       markerEnd: "url(#end)",
-      data: { route: { points: [{ x: 1, y: 2 }, { x: 30, y: 40 }], status: "routed" } },
+      data: { edge: model, points: [{ x: 1, y: 2 }, { x: 30, y: 40 }], status: "routed", showLabel: false },
     } as never));
     expect(screen.getByTestId("topology-base-edge")).toHaveAttribute("d", "M 1 2 L 30 40");
     expect(screen.getByTestId("topology-base-edge")).toHaveAttribute("data-marker-start", "visible");
@@ -256,9 +263,9 @@ describe("commit8 route edge rendering overlay", () => {
 
     rerender(createElement(TopologyRouteEdge, {
       ...baseProps,
-      data: { route: { points: [undefined, { x: 30, y: 40 }], status: "routed" } },
+      data: { edge: model, points: [undefined, { x: 30, y: 40 }], status: "routed", showLabel: false },
     } as never));
-    expect(document.querySelector('[data-diagnostic="routed-geometry-unavailable"]')).not.toBeNull();
+    expect(document.querySelector('[data-diagnostic="geometry-unavailable"]')).not.toBeNull();
     expect(screen.queryByTestId("topology-base-edge")).toBeNull();
   });
 });

@@ -29,11 +29,25 @@ import {
   topologyEdgeSides,
   topologyNodeBadgeValues,
   topologyNodeBoundaryLabels,
-  topologyPreviewMarkerVisible,
-  topologyPreviewVisibleSegments,
   topologyTint,
   topologyZoomTier,
 } from "../components/map/topology-canvas";
+
+import { TopologyFallbackRectIndex, splitTopologyFallbackPolylinePreview, topologyFallbackMarkerVisibility } from "./topology-route-edge-safety";
+
+function previewIndex(rects: Array<{ x: number; y: number; width: number; height: number }>) {
+  const index = new TopologyFallbackRectIndex();
+  for (const rect of rects) index.add({ kind: "frame-title", ...rect });
+  if (!rects.length) index.add({ kind: "frame-title", x: 100000, y: 100000, width: 1, height: 1 });
+  return index;
+}
+function topologyPreviewVisibleSegments(points: Array<{ x: number; y: number }>, rects: Array<{ x: number; y: number; width: number; height: number }>) {
+  return splitTopologyFallbackPolylinePreview(previewIndex(rects), points, "a", "b", { strokeMargin: 0 }).segments;
+}
+function topologyPreviewMarkerVisible(points: Array<{ x: number; y: number }>, segments: Array<{ a: { x: number; y: number }; b: { x: number; y: number } }>) {
+  const first = points[0], last = points.at(-1);
+  return first && last ? topologyFallbackMarkerVisibility(segments, first, last) : { markerStart: false, markerEnd: false };
+}
 
 function sample(revision = 1): Topology {
   return {

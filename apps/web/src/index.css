@@ -69,6 +69,10 @@
 .topology-zoom-mid .react-flow__edge-textwrapper {
   display: none;
 }
+.topology-zoom-far .topology-route-edge-label,
+.topology-zoom-mid .topology-route-edge-label {
+  visibility: hidden !important;
+}
 .topology-zoom-far .react-flow__handle {
   opacity: 0;
 }
@@ -84,6 +88,12 @@
 }
 .topology-canvas .react-flow__edge-text {
   font-size: 11px;
+}
+.topology-canvas .react-flow__edge.topology-edge-highlighted .react-flow__edge-path {
+  stroke-opacity: 1 !important;
+}
+.topology-canvas .react-flow__node.topology-edge-highlighted {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-basalt-primary) 35%, transparent);
 }
 :is(.dark, [data-mode="dark"]) .topology-canvas .react-flow__edge-textbg {
   fill: var(--color-basalt-card);

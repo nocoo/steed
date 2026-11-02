@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import type { Topology } from "@steed/api/shared";
 import { generateTopologyFixture } from "../../../../scripts/topology-fixture";
 import { layoutTopology, TOPOLOGY_FRAME_HEADER, TOPOLOGY_SECTION_HEADER, TOPOLOGY_ROUTE_HEADER_CLEARANCE } from "./topology-layout";
-import { topologyPreviewVisibleSegments } from "../components/map/topology-canvas";
 import { createTopologyFallbackRectIndex, splitTopologyFallbackPolylinePreview } from "./topology-route-edge-safety";
 import { computeStraightTopologyLayout } from "./topology-layout-preview";
 
@@ -88,32 +87,46 @@ describe("straight topology preview", () => {
     expect(result.routeDiagnostics?.unroutedEdgeIds).toContain("ghost");
   });
 
-  it("keeps 200 and 500 rendered preview segments outside card, section and frame title bands", () => {
-    for (const name of ["topology-200", "topology-500"] as const) {
-      const topology = generateTopologyFixture(name);
-      const result = computeStraightTopologyLayout(topology);
-      const layout = layoutTopology(topology);
-      const protectedRects = [
-        ...Object.values(layout.positions).map((rect) => ({ x: rect.x - 3, y: rect.y - 3, width: rect.width + 6, height: rect.height + 6 })),
-        ...layout.lanes.map((lane) => ({ x: lane.x - 3, y: lane.y + 2 - 3, width: lane.width + 6, height: TOPOLOGY_SECTION_HEADER + 6 })),
-        ...layout.lanes.map((lane) => ({ x: lane.x - 3, y: lane.y - 3, width: lane.width + 6, height: lane.height + 6 })),
-        ...layout.frames.map((frame) => ({ x: frame.x - 3, y: frame.y - 3, width: frame.width + 6, height: TOPOLOGY_FRAME_HEADER + 6 })),
+  it.each(["topology-200", "topology-500"] as const)("keeps %s rendered preview segments outside protected geometry", (name) => {
+    const topology = generateTopologyFixture(name);
+    const result = computeStraightTopologyLayout(topology);
+    const layout = layoutTopology(topology);
+    const laneByNode = new Map(layout.lanes.flatMap((lane) => lane.nodeIds.map((id) => [id, lane] as const)));
+    const index = createTopologyFallbackRectIndex(layout, laneByNode, 8);
+    let visibleCount = 0;
+    const failures: string[] = [];
+    for (const edge of topology.edges) {
+      const route = result.routes?.[edge.id];
+      if (!route) { failures.push(`${edge.id}:missing`); continue; }
+      const split = splitTopologyFallbackPolylinePreview(index, route.points, edge.source, edge.target, { strokeMargin: 8 });
+      if (split.timeout || split.geometryUnavailable) { failures.push(`${edge.id}:unavailable`); continue; }
+      visibleCount += split.segments.length;
+      const sourceLane = laneByNode.get(edge.source)?.id;
+      const targetLane = laneByNode.get(edge.target)?.id;
+      const rects = [
+        ...Object.entries(layout.positions).filter(([id]) => id !== edge.source && id !== edge.target).map(([, rect]) => rect),
+        ...layout.lanes.map((lane) => ({ ...lane, height: TOPOLOGY_SECTION_HEADER })),
+        ...layout.lanes.filter((lane) => lane.id !== sourceLane && lane.id !== targetLane),
+        ...layout.frames.map((frame) => ({ ...frame, height: TOPOLOGY_FRAME_HEADER })),
+        ...layout.frames.filter((frame) => !frame.nodeIds.includes(edge.source) && !frame.nodeIds.includes(edge.target)),
       ];
-      for (const route of Object.values(result.routes ?? {})) {
-        const visible = topologyPreviewVisibleSegments(route.points, protectedRects);
-        for (const segment of visible) {
-          for (const rect of protectedRects) {
-            const hit = segment.a.x === segment.b.x
-              ? segment.a.x > rect.x && segment.a.x < rect.x + rect.width && Math.max(segment.a.y, segment.b.y) > rect.y && Math.min(segment.a.y, segment.b.y) < rect.y + rect.height
-              : segment.a.y === segment.b.y
-                ? segment.a.y > rect.y && segment.a.y < rect.y + rect.height && Math.max(segment.a.x, segment.b.x) > rect.x && Math.min(segment.a.x, segment.b.x) < rect.x + rect.width
-                : false;
-            expect(hit, `${name}:${route.edgeId}`).toBe(false);
-          }
+      for (const segment of split.segments) for (const rect of rects) {
+        let lo = 0, hi = 1;
+        for (const [start, end, min, max] of [
+          [segment.a.x, segment.b.x, rect.x - 8 + 1e-6, rect.x + rect.width + 8 - 1e-6],
+          [segment.a.y, segment.b.y, rect.y - 8 + 1e-6, rect.y + rect.height + 8 - 1e-6],
+        ]) {
+          const delta = end! - start!;
+          if (Math.abs(delta) < 1e-9) { if (start! <= min! || start! >= max!) { lo = 1; hi = 0; break; } continue; }
+          lo = Math.max(lo, Math.min((min! - start!) / delta, (max! - start!) / delta));
+          hi = Math.min(hi, Math.max((min! - start!) / delta, (max! - start!) / delta));
         }
+        if (hi > lo + 1e-9) { failures.push(`${edge.id}:protected-intersection`); break; }
       }
     }
-  });
+    expect(visibleCount).toBeGreaterThan(0);
+    expect(failures).toEqual([]);
+  }, 30_000);
 
   it("covers left/right/top/bottom preview ports and duplicate/missing points", () => {
     const base = topology(4);
