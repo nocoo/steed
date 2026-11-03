@@ -8,6 +8,7 @@ export default tseslint.config(
       "**/node_modules/**",
       "**/.wrangler/**",
       "**/coverage/**",
+      ".p3-local/**",
       "eslint.config.mjs",
       "vitest.config.ts",
       "vitest.workspace.ts",
