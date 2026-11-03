@@ -270,6 +270,159 @@ describe("partitioned topology layout", () => {
     for (const frame of frames) expect(overlap(frame, unbounded)).toBe(false);
   });
 
+  it("compacts top-level sibling frames and preserves nested frame containment", () => {
+    const topology = sample();
+    topology.layers = [{ id: "first", label: "First", provider: "Fixture", order: 10, description: "" }];
+    topology.boundaries = Array.from({ length: 5 }, (_, index) => ({ id: `vendor-${index + 1}`, label: `Vendor ${index + 1}`, kind: "trust" as const, description: "" }));
+    topology.nodes = [
+      { id: "tall-host", type: "host", label: "Tall", layerId: "first", boundaryIds: ["vendor-1"], lifecycle: "active", description: "", tags: [], attrs: {} },
+      ...Array.from({ length: 10 }, (_, index) => ({ id: `sat-${index}`, type: "host", label: `Sat ${index}`, layerId: "first", parentId: "tall-host", role: "service", lifecycle: "active", description: "", tags: [], attrs: {} })),
+      ...Array.from({ length: 4 }, (_, index) => ({ id: `short-${index + 1}`, type: "host", label: `Short ${index + 1}`, layerId: "first", boundaryIds: [`vendor-${index + 2}`], lifecycle: "active", description: "", tags: [], attrs: {} })),
+    ];
+    topology.views = [];
+
+    const result = layoutTopology(topology);
+    const frames = topology.boundaries
+      .map((boundary) => result.frames.find((frame) => frame.boundaryId === boundary.id))
+      .filter((frame): frame is (typeof result.frames)[number] => frame !== undefined)
+      .sort((a, b) => a.y - b.y || a.x - b.x);
+    expect(frames).toHaveLength(5);
+    expect(frames.at(-1)!.y).toBeLessThan(frames[0]!.y + frames[0]!.height);
+    for (let i = 0; i < frames.length; i++) {
+      for (let j = i + 1; j < frames.length; j++) {
+        expect(!overlap(frames[i]!, frames[j]!)).toBe(true);
+      }
+    }
+
+    const lanTopology = sample();
+    lanTopology.layers = [{ id: "first", label: "First", provider: "Fixture", order: 10, description: "" }];
+    lanTopology.boundaries = [
+      { id: "site", label: "Site", kind: "site", description: "" },
+      { id: "lan", label: "LAN", kind: "network", parentId: "site", description: "" },
+    ];
+    lanTopology.nodes = [
+      { id: "nested-host", type: "host", label: "Nested host", layerId: "first", boundaryIds: ["lan"], lifecycle: "active", description: "", tags: [], attrs: {} },
+      { id: "nested-satellite", type: "host", label: "Nested satellite", layerId: "first", parentId: "nested-host", role: "service", lifecycle: "active", description: "", tags: [], attrs: {} },
+    ];
+    lanTopology.views = [];
+    const nested = layoutTopology(lanTopology);
+    const site = nested.frames.find((frame) => frame.boundaryId === "site")!;
+    const lan = nested.frames.find((frame) => frame.boundaryId === "lan")!;
+    expect(lan.nodeIds).toEqual(["nested-host", "nested-satellite"]);
+    expect(contains(site, lan)).toBe(true);
+    expect(contains(lan, nested.positions["nested-host"]!)).toBe(true);
+    expect(contains(lan, nested.positions["nested-satellite"]!)).toBe(true);
+  });
+
+  it("preserves pinned host order and y/x semantics while sorting only unpinned hosts", () => {
+    const topology = sample();
+    topology.boundaries = [];
+    topology.nodes = [
+      { id: "pinned-small", type: "host", label: "Pinned small", layerId: "first", boundaryIds: [], lifecycle: "active", description: "", tags: [], attrs: {} },
+      { id: "tall-unpinned", type: "host", label: "Tall", layerId: "first", boundaryIds: [], lifecycle: "active", description: "", tags: [], attrs: {} },
+      { id: "tall-satellite", type: "host", label: "Tall satellite", layerId: "first", parentId: "tall-unpinned", role: "service", lifecycle: "active", description: "", tags: [], attrs: {} },
+      { id: "other-unpinned", type: "host", label: "Other", layerId: "first", boundaryIds: [], lifecycle: "active", description: "", tags: [], attrs: {} },
+    ];
+    topology.views = [];
+
+    const result = layoutTopology(topology, { pins: {
+      "pinned-small": { x: 900, y: 10 },
+    } });
+    const pinnedIndex = result.blocks.findIndex((block) => block.hostId === "pinned-small");
+    const tallIndex = result.blocks.findIndex((block) => block.hostId === "tall-unpinned");
+    const otherIndex = result.blocks.findIndex((block) => block.hostId === "other-unpinned");
+    expect(pinnedIndex).toBe(0);
+    expect(tallIndex).toBeGreaterThan(pinnedIndex);
+    expect(otherIndex).toBeGreaterThan(pinnedIndex);
+    expect(tallIndex).toBeLessThan(otherIndex);
+  });
+
+  it("compacts top-level siblings and preserves pin-first semantics", () => {
+    const topology = sample();
+    topology.layers = [{ id: "first", label: "First", provider: "Fixture", order: 10, description: "" }];
+    topology.boundaries = [];
+    topology.nodes = [
+      { id: "pinned-small", type: "host", label: "Pinned small", layerId: "first", boundaryIds: [], lifecycle: "active", description: "", tags: [], attrs: {} },
+      { id: "tall-unpinned", type: "host", label: "Tall", layerId: "first", boundaryIds: [], lifecycle: "active", description: "", tags: [], attrs: {} },
+      { id: "tall-satellite", type: "host", label: "Tall satellite", layerId: "first", parentId: "tall-unpinned", role: "service", lifecycle: "active", description: "", tags: [], attrs: {} },
+      { id: "short-unpinned", type: "host", label: "Short", layerId: "first", boundaryIds: [], lifecycle: "active", description: "", tags: [], attrs: {} },
+    ];
+    topology.views = [];
+
+    const result = layoutTopology(topology, { pins: { "pinned-small": { x: 900, y: 10 } } });
+    const pinned = result.blocks.findIndex((block) => block.hostId === "pinned-small");
+    const tall = result.blocks.findIndex((block) => block.hostId === "tall-unpinned");
+    const short = result.blocks.findIndex((block) => block.hostId === "short-unpinned");
+    expect(pinned).toBe(0);
+    expect(tall).toBeGreaterThan(pinned);
+    expect(short).toBeGreaterThan(tall);
+
+    for (let i = 0; i < result.blocks.length; i++) {
+      for (let j = i + 1; j < result.blocks.length; j++) {
+        expect(!overlap(result.blocks[i]!, result.blocks[j]!)).toBe(true);
+      }
+    }
+  });
+
+  it("compacts mixed-height nested frames and avoids the 760px lower child gap", () => {
+    const topology = sample();
+    topology.layers = [{ id: "first", label: "First", provider: "Fixture", order: 10, description: "" }];
+    topology.boundaries = [
+      { id: "outer", label: "Outer", kind: "trust", description: "" },
+      ...Array.from({ length: 5 }, (_, index) => ({ id: `network-${index + 1}`, label: `Network ${index + 1}`, kind: "network" as const, parentId: "outer", description: "" })),
+    ];
+    topology.nodes = [
+      { id: "tall-host", type: "host", label: "Tall", layerId: "first", boundaryIds: ["network-1"], lifecycle: "active", description: "", tags: [], attrs: {} },
+      ...Array.from({ length: 10 }, (_, index) => ({ id: `sat-${index}`, type: "host", label: `Sat ${index}`, layerId: "first", parentId: "tall-host", role: "service", lifecycle: "active", description: "", tags: [], attrs: {} })),
+      ...Array.from({ length: 4 }, (_, index) => ({ id: `short-host-${index + 1}`, type: "host", label: `Short ${index + 1}`, layerId: "first", boundaryIds: [`network-${index + 2}`], lifecycle: "active", description: "", tags: [], attrs: {} })),
+    ];
+    topology.views = [];
+
+    const result = layoutTopology(topology);
+    const outer = result.frames.find((frame) => frame.boundaryId === "outer")!;
+    const children = result.frames
+      .filter((frame) => frame.boundaryId.startsWith("network-") && frame.layerId === "first")
+      .sort((a, b) => a.y - b.y || a.x - b.x);
+    expect(children).toHaveLength(5);
+    expect(children[0]!.height).toBeGreaterThan(children[1]!.height);
+    expect(children.at(-1)!.y).toBeLessThanOrEqual(children[1]!.y + 276);
+
+    for (const child of children) {
+      expect(contains(outer, child)).toBe(true);
+      for (const id of child.nodeIds) expect(contains(child, result.positions[id]!)).toBe(true);
+    }
+    for (let i = 0; i < children.length; i++) {
+      for (let j = i + 1; j < children.length; j++) {
+        expect(!overlap(children[i]!, children[j]!)).toBe(true);
+      }
+    }
+  });
+
+  it("compacts mixed-height hosts within one frame without moving pinned hosts", () => {
+    const topology = sample();
+    topology.layers = [{ id: "first", label: "First", provider: "Fixture", order: 10, description: "" }];
+    topology.boundaries = [{ id: "frame", label: "Frame", kind: "trust", description: "" }];
+    topology.nodes = [
+      { id: "pinned-host", type: "host", label: "Pinned", layerId: "first", boundaryIds: ["frame"], lifecycle: "active", description: "", tags: [], attrs: {} },
+      { id: "tall-host", type: "host", label: "Tall", layerId: "first", boundaryIds: ["frame"], lifecycle: "active", description: "", tags: [], attrs: {} },
+      ...Array.from({ length: 10 }, (_, index) => ({ id: `sat-${index}`, type: "host", label: `Sat ${index}`, layerId: "first", parentId: "tall-host", role: "service", lifecycle: "active", description: "", tags: [], attrs: {} })),
+      { id: "short-host", type: "host", label: "Short", layerId: "first", boundaryIds: ["frame"], lifecycle: "active", description: "", tags: [], attrs: {} },
+    ];
+    topology.views = [];
+
+    const result = layoutTopology(topology, { pins: { "pinned-host": { x: 1, y: 1 } } });
+    const frame = result.frames.find((item) => item.boundaryId === "frame")!;
+    const pinned = result.positions["pinned-host"]!;
+    const tall = result.positions["tall-host"]!;
+    const short = result.positions["short-host"]!;
+    expect(pinned.y).toBeLessThan(tall.y);
+    expect(pinned.y).toBeLessThanOrEqual(short.y);
+    expect(contains(frame, pinned)).toBe(true);
+    expect(contains(frame, tall)).toBe(true);
+    expect(contains(frame, short)).toBe(true);
+    expect(!overlap(pinned, tall) && !overlap(pinned, short) && !overlap(tall, short)).toBe(true);
+  });
+
   it("picks the primary boundary by kind priority, then ID, ignoring unknown IDs", () => {
     const topology = sample();
     const node = { ...topology.nodes[0], boundaryIds: ["missing", "site", "beta", "alpha"] };

@@ -135,25 +135,30 @@ function compareIds(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
-/** Row ("shelf") packing with a width budget. Items keep their order. */
-function shelfPack<T extends Size>(items: T[], maxWidth: number, gap: number): { offsets: Array<TopologyPoint & { item: T }>; width: number; height: number } {
+export function topologyContentBottomShelfPack<T extends Size>(items: T[], maxWidth: number, gap: number): { offsets: Array<TopologyPoint & { item: T }>; width: number; height: number } {
+  if (!items.length) return { offsets: [], width: 0, height: 0 };
+  const widest = Math.max(...items.map((item) => item.width));
+  const columnWidth = widest + gap;
+  const usable = Number.isFinite(maxWidth) && maxWidth >= widest ? maxWidth : widest;
+  const columns = Math.max(1, Math.min(items.length, Math.floor((usable + gap) / columnWidth)));
+  const bottoms = Array<number>(columns).fill(0);
   const offsets: Array<TopologyPoint & { item: T }> = [];
-  let x = 0;
-  let y = 0;
-  let rowHeight = 0;
   let width = 0;
+  let height = 0;
   for (const item of items) {
-    if (x > 0 && x + item.width > maxWidth) {
-      y += rowHeight + gap;
-      x = 0;
-      rowHeight = 0;
+    let column = 0;
+    for (let candidate = 1; candidate < columns; candidate++) {
+      if ((bottoms[candidate] ?? 0) < (bottoms[column] ?? 0)) column = candidate;
     }
+    const x = column * columnWidth;
+    const y = bottoms[column] ?? 0;
+    const bottom = y + item.height;
+    bottoms[column] = bottom + gap;
     offsets.push({ item, x, y });
-    x += item.width + gap;
-    rowHeight = Math.max(rowHeight, item.height);
-    width = Math.max(width, x - gap);
+    width = Math.max(width, x + item.width);
+    height = Math.max(height, bottom);
   }
-  return { offsets, width, height: items.length ? y + rowHeight : 0 };
+  return { offsets, width, height };
 }
 
 /** Width budget so a group of items packs to roughly the given aspect. */
@@ -212,7 +217,7 @@ function packFrame(tree: FrameTree, depth: number): Packed {
     ...[...tree.children.values()].sort((a, b) => a.kindPriority - b.kindPriority || compareIds(a.boundaryId, b.boundaryId)).map((child) => packFrame(child, depth + 1)),
     ...tree.hosts,
   ];
-  const packed = shelfPack(items, packWidth(items, TOPOLOGY_ITEM_GAP, TOPOLOGY_TARGET_ASPECT), TOPOLOGY_ITEM_GAP);
+  const packed = topologyContentBottomShelfPack(items, packWidth(items, TOPOLOGY_ITEM_GAP, TOPOLOGY_TARGET_ASPECT), TOPOLOGY_ITEM_GAP);
   const nodeIds = items.flatMap((item) => item.nodeIds);
   return {
     width: packed.width + 2 * TOPOLOGY_FRAME_PADDING,
@@ -383,11 +388,24 @@ export function layoutTopology(topology: Topology, options: TopologyLayoutOption
       }
       tree.hosts.push(hostComposite(host, children, styles));
     }
+    const orderedHosts = [...root.hosts].sort((a, b) => {
+      const aId = a.nodeIds[0] ?? "";
+      const bId = b.nodeIds[0] ?? "";
+      const aPinned = pins.has(aId);
+      const bPinned = pins.has(bId);
+      if (aPinned || bPinned) {
+        if (aPinned && bPinned) return pinOrder(pins, aId, bId);
+        if (aPinned) return -1;
+        return 1;
+      }
+      if (b.height !== a.height) return b.height - a.height;
+      return compareIds(aId, bId);
+    });
     const items: Packed[] = [
       ...[...root.children.values()].sort((a, b) => a.kindPriority - b.kindPriority || compareIds(a.boundaryId, b.boundaryId)).map((tree) => packFrame(tree, 0)),
-      ...root.hosts,
+      ...orderedHosts,
     ];
-    const packed = shelfPack(items, packWidth(items, TOPOLOGY_ITEM_GAP, aspect), TOPOLOGY_ITEM_GAP);
+    const packed = topologyContentBottomShelfPack(items, packWidth(items, TOPOLOGY_ITEM_GAP, aspect), TOPOLOGY_ITEM_GAP);
     return {
       layer,
       items,
@@ -397,8 +415,8 @@ export function layoutTopology(topology: Topology, options: TopologyLayoutOption
     };
   });
 
-  // Section grid: uniform column widths and row heights, column count closest to the target aspect.
-  let best = { columns: 1, widths: [] as number[], heights: [] as number[], score: Number.POSITIVE_INFINITY };
+  // Section grid: content-sized row-major sections, with no uniform row-height stretching.
+  let best = { columns: 1, score: Number.POSITIVE_INFINITY };
   for (let columns = 1; columns <= Math.max(1, sections.length); columns++) {
     const widths = Array.from({ length: columns }, (_, column) => Math.max(0, ...sections.filter((_, index) => index % columns === column).map((section) => section.width)));
     const rows = Math.ceil(sections.length / columns);
@@ -406,37 +424,39 @@ export function layoutTopology(topology: Topology, options: TopologyLayoutOption
     const width = widths.reduce((sum, value) => sum + value, 0) + (columns - 1) * TOPOLOGY_SECTION_GAP;
     const height = heights.reduce((sum, value) => sum + value, 0) + (rows - 1) * TOPOLOGY_SECTION_GAP;
     const score = height > 0 ? Math.abs(Math.log(width / height / aspect)) : 0;
-    if (score < best.score) best = { columns, widths, heights, score };
+    if (score < best.score) best = { columns, score };
   }
 
   let rowY = origin.y;
-  best.heights.forEach((height, row) => {
+  const rows = Math.ceil(sections.length / best.columns);
+  for (let row = 0; row < rows; row++) {
     let columnX = origin.x;
-    best.widths.forEach((width, column) => {
+    let rowHeight = 0;
+    for (let column = 0; column < best.columns; column++) {
       const section = sections[row * best.columns + column];
-      if (section) {
-        const firstBlock = result.blocks.length;
-        for (const offset of section.packed.offsets) {
-          offset.item.place(columnX + TOPOLOGY_SECTION_PADDING + offset.x, rowY + TOPOLOGY_SECTION_HEADER + TOPOLOGY_SECTION_PADDING + offset.y, result, section.layer.id);
-        }
-        result.lanes.push({
-          id: section.layer.id,
-          layerId: section.layer.id,
-          order: section.layer.order,
-          x: columnX,
-          y: rowY,
-          width,
-          height,
-          blockIds: result.blocks.slice(firstBlock).map((block) => block.id),
-          nodeIds: section.items.flatMap((item) => item.nodeIds),
-        });
-        result.width = Math.max(result.width, columnX + width - origin.x);
-        result.height = Math.max(result.height, rowY + height - origin.y);
+      if (!section) continue;
+      const firstBlock = result.blocks.length;
+      for (const offset of section.packed.offsets) {
+        offset.item.place(columnX + TOPOLOGY_SECTION_PADDING + offset.x, rowY + TOPOLOGY_SECTION_HEADER + TOPOLOGY_SECTION_PADDING + offset.y, result, section.layer.id);
       }
-      columnX += width + TOPOLOGY_SECTION_GAP;
-    });
-    rowY += height + TOPOLOGY_SECTION_GAP;
-  });
+      result.lanes.push({
+        id: section.layer.id,
+        layerId: section.layer.id,
+        order: section.layer.order,
+        x: columnX,
+        y: rowY,
+        width: section.width,
+        height: section.height,
+        blockIds: result.blocks.slice(firstBlock).map((block) => block.id),
+        nodeIds: section.items.flatMap((item) => item.nodeIds),
+      });
+      rowHeight = Math.max(rowHeight, section.height);
+      result.width = Math.max(result.width, columnX + section.width - origin.x);
+      result.height = Math.max(result.height, rowY + section.height - origin.y);
+      columnX += section.width + TOPOLOGY_SECTION_GAP;
+    }
+    rowY += rowHeight + TOPOLOGY_SECTION_GAP;
+  }
 
   finalizeFrameFragments(topology, result);
   return result;

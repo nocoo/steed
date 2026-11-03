@@ -30,7 +30,7 @@ import {
   type TopologyLayoutLane,
   type TopologyLayoutPosition,
 } from "./topology-layout";
-import { ROUTE_MARGIN, routeTopology, type TopologyRoute } from "./topology-router";
+import { ROUTE_MARGIN, routeTopology, topologySectionTitleObstacle, type TopologyRoute } from "./topology-router";
 import { RoutingGrid, type RoutingPoint, type RoutingRect } from "./topology-routing-grid";
 
 function simpleTopology(edges: Array<{ id: string; source: string; target: string }> = [{ id: "a-b", source: "a", target: "b" }]): Topology {
@@ -244,8 +244,7 @@ function frameCrossingCount(points: RoutingPoint[], rect: RoutingRect): number {
       const point = horizontal ? { x: middle, y: a.y } : { x: a.x, y: middle };
       const onBorder = (point.x === rect.x || point.x === rect.x + rect.width)
         || (point.y === rect.y || point.y === rect.y + rect.height);
-      if (onBorder) continue;
-      const next = strictInside(point, rect);
+      const next = onBorder ? false : strictInside(point, rect);
       if (inside !== undefined && inside !== next) crossings++;
       inside = next;
     }
@@ -820,6 +819,32 @@ describe("topology router", () => {
     expect(Object.keys(result.routes)).toEqual(["__proto__"]);
     expect(Object.prototype.hasOwnProperty.call(result.routes, "__proto__")).toBe(true);
     expect(result.routes["__proto__"]?.edgeId).toBe("__proto__");
+  });
+
+  it("uses the production union to protect rendered and legacy section titles", () => {
+    const lane = { id: "lane-cloud", layerId: "cloud", order: 0, x: 0, y: 2716, width: 1760, height: 1760, blockIds: [], nodeIds: ["a"] };
+    const protectedHeader = topologySectionTitleObstacle(lane);
+    expect(protectedHeader).toEqual({ x: -3, y: 2713, width: 1766, height: 104 });
+    expect(strictSegmentHitsRect({ x: 1762, y: 1919 }, { x: 1762, y: 3902 }, protectedHeader)).toBe(true);
+    expect(strictSegmentHitsRect({ x: 1775, y: 1919 }, { x: 1775, y: 3902 }, protectedHeader)).toBe(false);
+    expect(strictSegmentHitsRect({ x: 100, y: 2712 }, { x: 1600, y: 2712 }, protectedHeader)).toBe(false);
+    expect(strictSegmentHitsRect({ x: 100, y: 2713 }, { x: 1600, y: 2713 }, protectedHeader)).toBe(false);
+    expect(strictSegmentHitsRect({ x: 100, y: 2714 }, { x: 1600, y: 2714 }, protectedHeader)).toBe(true);
+
+    const topology = simpleTopology([{ id: "cross", source: "a", target: "c" }]);
+    const layout = layoutTopology(topology);
+    const result = routeTopology(topology, layout, { clock: () => 0, layoutTimeoutMs: 1000, edgeTimeoutMs: 100 });
+    const route = result.routes.cross;
+    expect(route).toBeDefined();
+    expect(route?.fallback).toBeUndefined();
+    for (const actualLane of layout.lanes) {
+      const title = topologySectionTitleObstacle(actualLane);
+      for (let index = 1; index < (route?.points.length ?? 0); index++) {
+        const a = route!.points[index - 1]!;
+        const b = route!.points[index]!;
+        expect(strictSegmentHitsRect(a, b, title)).toBe(false);
+      }
+    }
   });
 
   it("covers edge 0042 rounded-bend, foreign-section boundary, stroke and marker envelopes", () => {

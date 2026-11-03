@@ -118,6 +118,16 @@ function directions(from: RoutingRect, to: RoutingRect): RouteSide[] {
   return Math.abs(dx) >= Math.abs(dy) ? [horizontal, vertical, oppositeV, oppositeH] : [vertical, horizontal, oppositeH, oppositeV];
 }
 function header(rect: RoutingRect, height: number): RoutingRect { return topologyHeaderObstacle(rect, height); }
+export function topologySectionTitleObstacle(lane: TopologyLayoutLane): RoutingRect {
+  const legacyHeader = topologyHeaderObstacle(lane, TOPOLOGY_SECTION_HEADER);
+  const renderedHeader = topologyHeaderObstacle({ x: lane.x, y: lane.y + 2, width: lane.width, height: TOPOLOGY_SECTION_HEADER }, TOPOLOGY_SECTION_HEADER);
+  return {
+    x: Math.min(legacyHeader.x, renderedHeader.x),
+    y: Math.min(legacyHeader.y, renderedHeader.y),
+    width: Math.max(legacyHeader.x + legacyHeader.width, renderedHeader.x + renderedHeader.width) - Math.min(legacyHeader.x, renderedHeader.x),
+    height: Math.max(legacyHeader.y + legacyHeader.height, renderedHeader.y + renderedHeader.height) - Math.min(legacyHeader.y, renderedHeader.y),
+  };
+}
 function endpoint(edgeId: string, nodeId: string, rect: RoutingRect, other: RoutingRect, cards: Array<{ id: string; rect: RoutingRect }>, headers: RoutingRect[]): Endpoint {
   const candidates = directions(rect, other);
   const attachments: Endpoint["alternatives"] = [];
@@ -451,8 +461,8 @@ export class TopologyRouterSession {
       const sourceDescriptor = this.descriptors.get(sourceLane.id);
       const targetDescriptor = this.descriptors.get(targetLane.id);
       if (!sourceDescriptor || !targetDescriptor) continue;
-      const sourceHeaders = [header(sourceDescriptor.lane, TOPOLOGY_SECTION_HEADER), ...sourceDescriptor.frames.map((frame) => header(frame, TOPOLOGY_FRAME_HEADER))];
-      const targetHeaders = [header(targetDescriptor.lane, TOPOLOGY_SECTION_HEADER), ...targetDescriptor.frames.map((frame) => header(frame, TOPOLOGY_FRAME_HEADER))];
+      const sourceHeaders = [topologySectionTitleObstacle(sourceDescriptor.lane), ...sourceDescriptor.frames.map((frame) => header(frame, TOPOLOGY_FRAME_HEADER))];
+      const targetHeaders = [topologySectionTitleObstacle(targetDescriptor.lane), ...targetDescriptor.frames.map((frame) => header(frame, TOPOLOGY_FRAME_HEADER))];
       this.endpoints.push({ edge, source: endpoint(edge.id, edge.source, sourceRect, targetRect, sourceDescriptor.cards, sourceHeaders), target: endpoint(edge.id, edge.target, targetRect, sourceRect, targetDescriptor.cards, targetHeaders) });
     }
     const portGroups = new Map<string, Endpoint[]>();
@@ -477,7 +487,7 @@ export class TopologyRouterSession {
         const point = port(rect, item.side, (index + 1) / (group.length + 1));
         const outside = stub(point, item.side);
         if (section.cards.some((card) => card.id !== item.nodeId && intersects(point, outside, inflate(card.rect)))) return;
-        if ([header(lane, TOPOLOGY_SECTION_HEADER), ...section.frames.map((frame) => header(frame, TOPOLOGY_FRAME_HEADER))].some((rect) => intersects(point, outside, rect))) return;
+        if ([topologySectionTitleObstacle(lane), ...section.frames.map((frame) => header(frame, TOPOLOGY_FRAME_HEADER))].some((rect) => intersects(point, outside, rect))) return;
         item.port = point;
         item.stub = outside;
       });
@@ -493,7 +503,7 @@ export class TopologyRouterSession {
         ];
         const obstacles = [
           ...descriptor.cards.map((card) => inflate(card.rect)),
-          header(descriptor.lane, TOPOLOGY_SECTION_HEADER),
+          topologySectionTitleObstacle(descriptor.lane),
           ...descriptor.frames.map((frame) => header(frame, TOPOLOGY_FRAME_HEADER)),
         ];
         const grid = new RoutingGrid(obstacles, descriptor.frames.map((frame) => ({ ...topologyRouteObstacle(frame, TOPOLOGY_ROUTE_STROKE_MARGIN), id: frame.id })), points, { clock: this.clock, deadline: this.layoutDeadline, maxBytes: this.totalGridLimit - this.gridBytes });
@@ -506,7 +516,10 @@ export class TopologyRouterSession {
         { x: this.layout.width + 160, y: this.layout.height + 160 },
       ];
       if (this.clock() >= this.layoutDeadline) return this.timeoutResult();
-      this.outside = new RoutingGrid(this.layout.lanes.map((lane) => topologyRouteObstacle(lane, TOPOLOGY_ROUTE_STROKE_MARGIN)), [], outsidePoints, { clock: this.clock, deadline: this.layoutDeadline, maxBytes: this.totalGridLimit - this.gridBytes });
+      this.outside = new RoutingGrid([
+        ...this.layout.lanes.map((lane) => topologyRouteObstacle(lane, TOPOLOGY_ROUTE_STROKE_MARGIN)),
+        ...this.layout.lanes.map((lane) => topologySectionTitleObstacle(lane)),
+      ], [], outsidePoints, { clock: this.clock, deadline: this.layoutDeadline, maxBytes: this.totalGridLimit - this.gridBytes });
       this.gridBytes += this.outside.estimatedBytes;
     } catch (error) {
       if (error instanceof RoutingGridTimeout) return this.timeoutResult();
@@ -621,7 +634,7 @@ export class TopologyRouterSession {
       const relevant = sourceSection === targetSection ? [sourceSection] : [sourceSection, targetSection];
       const context: ValidationContext = {
         cards: relevant.flatMap((section) => section.cards),
-        headers: relevant.map((section) => header(section.lane, TOPOLOGY_SECTION_HEADER)),
+        headers: this.layout.lanes.map((lane) => topologySectionTitleObstacle(lane)),
         otherLanes: this.layout.lanes.filter((lane) => lane.id !== sourceLane.id && lane.id !== targetLane.id).map((lane) => topologyRouteObstacle(lane, TOPOLOGY_ROUTE_STROKE_MARGIN)),
         endpointLanes: relevant.map((section) => section.lane),
         frames: relevant.flatMap((section) => section.frames.map((frame) => ({ frame, sourceInside: frame.nodeIds.includes(edge.source), targetInside: frame.nodeIds.includes(edge.target) }))),
