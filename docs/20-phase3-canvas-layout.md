@@ -346,7 +346,7 @@ zoom for every visible text node at each level.
 Decision 4: at the overview level a large topology must read at a glance.
 
 - Every cross-layer edge belongs to the bundle of its unordered layer pair.
-  The v0.6.1 overview requirements below additionally aggregate same-layer
+  The v0.6.2 overview requirements below additionally aggregate same-layer
   satellite edges and cross-frame edges.
 - Each bundle is routed once, section border to section border through the
   gutters (ports on the facing section sides), drawn with width
@@ -528,28 +528,36 @@ owner on 2026-11-01 (PR #113); the body above reflects them.
 Development path: herdr on a Mac allocated by 机器管家 (decided; allocation
 pending).
 
-## v0.6.1 overview and zoom follow-up
+## v0.6.1 compact frames and v0.6.2 follow-up
 
-The requirements owner accepted v0.6.0 with known limitations and prioritized
-the following for v0.6.1:
+The requirements owner accepted v0.6.0 with known limitations. On
+2026-11-03 the follow-up was split into two releases.
+
+v0.6.1 ships compact frame packing only:
 
 - Fit frame heights to their contents and pack frames compactly within each
   row, without stretching shorter frames to a taller neighbour's height.
-- Route cross-frame edges through inter-frame channels rather than unrelated
-  frame interiors; aggregate them by frame pair at overview. Aggregate or
-  fade dense intra-frame edges at overview, including the Cloudflare frame.
-- Compare before and after overview screenshots from the rev578 snapshot in
-  local D1. Report frame blank-area ratio and the count of cross-frame edges
-  passing through unrelated frames, using the same measurements for both.
-- At standard zoom, verify that all 150 satellites in `topology-500` render
-  fully without freezing. The bundle activation and satellite-count rules
-  above remain required, as does layer focus.
+- Before release, report frame blank-area ratio and the tallest row height
+  for the rev578 snapshot in a local copy, before and after, using the same
+  measurements for both, with light and dark overview screenshots.
 
-Planned atomic changes: compact frame packing; cross-frame routing;
-overview aggregation and semantic zoom; layer focus; browser acceptance and
-documentation; then the v0.6.1 version bump. Implement and integrate in that
-order where dependencies permit. The existing quality and geometry gates,
-local-only data rules and three-round review cap remain in force.
+v0.6.2 takes the rest, in this priority order; v0.6.2 may ship once the
+first two are green:
+
+1. Route cross-frame edges through inter-frame channels rather than
+   unrelated frame interiors, and aggregate them by frame pair at overview.
+   Aggregate or fade dense intra-frame edges at overview, including the
+   Cloudflare frame.
+2. At standard zoom, verify that all 150 satellites in `topology-500`
+   render fully without freezing.
+3. Semantic zoom F2 and satellite counts per the bundle activation and
+   satellite-count rules above.
+
+Layer focus is developed separately by a cloud agent in its own PR and
+merges once branch coverage is at least 90%.
+
+The existing quality and geometry gates, local-only data rules and
+three-round review cap remain in force.
 
 ## Atomic commits
 
