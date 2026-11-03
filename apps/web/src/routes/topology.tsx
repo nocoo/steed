@@ -1,11 +1,17 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Link } from "react-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router";
 import { Badge, Button, Input, Label, LayerCard } from "@nocoo/basalt";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@nocoo/basalt/components/select";
 import { ArrowDownLeft, ArrowUpRight, Download, Maximize2, Minimize2, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, RefreshCw, Search, X } from "lucide-react";
 import type { Topology, TopologyNode } from "@steed/api/shared";
 import { useTopologyViewModel, type TopologyReach } from "@/viewmodels/use-topology-viewmodel";
 import { downloadTopology } from "@/lib/topology-client";
+import {
+  adjacentTopologyLayerId,
+  readTopologyLayerFocusParam,
+  topologyLayerVisibleNodeCounts,
+  writeTopologyLayerFocusSearch,
+} from "@/lib/topology-layer-focus";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { topologyNodeBadgeValues, topologyNodeBoundaryLabels, TopologyCanvas, type TopologyFocusRequest } from "@/components/map/topology-canvas";
 import { useMobile } from "@/hooks/use-mobile";
@@ -59,8 +65,10 @@ const iconButton = "h-8 w-8 shrink-0";
 
 export function TopologyPage() {
   const vm = useTopologyViewModel();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [inspectorOpen, setInspectorOpen] = useState(true);
   const [focus, setFocus] = useState<TopologyFocusRequest | undefined>();
+  const [focusedLayerId, setFocusedLayerIdState] = useState(() => readTopologyLayerFocusParam(searchParams.toString()));
   const navigation = useTopologyNavigation();
   const isMobile = useMobile();
   const fullscreen = useFullscreen(navigation.setFullscreenActive);
@@ -71,6 +79,24 @@ export function TopologyPage() {
   const actualValue = (value: string) => value === sentinel ? "" : value;
   const focusOn = (kind: TopologyFocusRequest["kind"], id: string) => setFocus((current) => ({ kind, id, seq: (current?.seq ?? 0) + 1 }));
   const revealNode = (id: string) => { vm.setSelectedNodeId(id); focusOn("node", id); };
+  const setFocusedLayerId = useCallback((layerId: string) => {
+    setFocusedLayerIdState(layerId);
+    setSearchParams((current) => writeTopologyLayerFocusSearch(layerId || undefined, `?${current.toString()}`), { replace: true });
+  }, [setSearchParams]);
+
+  useEffect(() => {
+    const layerFromUrl = readTopologyLayerFocusParam(searchParams.toString());
+    setFocusedLayerIdState((current) => (current === layerFromUrl ? current : layerFromUrl));
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!topology || !focusedLayerId) return;
+    if (!topology.layers.some((layer) => layer.id === focusedLayerId)) setFocusedLayerId("");
+  }, [topology, focusedLayerId, setFocusedLayerId]);
+
+  const visibleNodeIdSet = useMemo(() => new Set(vm.visibleNodes.map((node) => node.id)), [vm.visibleNodes]);
+  const layerCounts = useMemo(() => topology ? topologyLayerVisibleNodeCounts(topology, visibleNodeIdSet) : new Map<string, number>(), [topology, visibleNodeIdSet]);
+  const totalVisibleNodes = vm.visibleNodes.length;
 
   const typeOptions = topology ? [...topology.types].sort((a, b) => a.label.localeCompare(b.label) || a.id.localeCompare(b.id)) : [];
   const layerOptions = topology ? [...topology.layers].sort((a, b) => a.order - b.order || a.id.localeCompare(b.id)) : [];
@@ -91,7 +117,28 @@ export function TopologyPage() {
       className="flex h-full min-h-0 flex-col gap-2 bg-basalt-card"
       data-testid="topology-workspace"
       data-fullscreen={fullscreen.active ? "true" : "false"}
-      onKeyDown={(event) => { if (event.key === "Escape" && vm.selectedNodeId && !(event.target instanceof HTMLInputElement)) vm.setSelectedNodeId(""); }}
+      onKeyDown={(event) => {
+        if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
+        if (event.key === "Escape") {
+          if (focusedLayerId) {
+            event.preventDefault();
+            setFocusedLayerId("");
+            return;
+          }
+          if (vm.selectedNodeId) vm.setSelectedNodeId("");
+          return;
+        }
+        if (!topology || !focusedLayerId) return;
+        if (event.key === "[" || event.key === "]") {
+          const step = event.key === "[" ? -1 : 1;
+          const next = adjacentTopologyLayerId(topology.layers, focusedLayerId, step);
+          if (next) {
+            event.preventDefault();
+            setFocusedLayerId(next);
+            focusOn("layer", next);
+          }
+        }
+      }}
     >
       <div className={`flex flex-wrap items-center gap-2${fullscreen.active ? " px-3 pt-3" : ""}`} role="toolbar" aria-label="Topology toolbar">
         <Network className="h-4 w-4 shrink-0 text-basalt-primary" aria-hidden="true" />
@@ -124,6 +171,30 @@ export function TopologyPage() {
             <SelectContent><SelectItem value={sentinel}>All tags</SelectItem>{tags.map((tag) => <SelectItem key={tag} value={tag}>{tag}</SelectItem>)}</SelectContent>
           </Select>
           {filtered && <Button variant="ghost" size="sm" className="h-8" onClick={() => vm.clearFilters()} aria-label="Clear filters"><X className="h-3 w-3" />Clear</Button>}
+          <nav className="flex max-w-full items-center gap-1 overflow-x-auto" aria-label="Layer navigator" data-testid="topology-layer-navigator">
+            <Button
+              variant={focusedLayerId ? "ghost" : "secondary"}
+              size="sm"
+              className="h-8 shrink-0"
+              aria-current={focusedLayerId ? undefined : "true"}
+              onClick={() => setFocusedLayerId("")}
+            >
+              All layers · {totalVisibleNodes}
+            </Button>
+            {layerOptions.map((layer) => (
+              <Button
+                key={layer.id}
+                variant={focusedLayerId === layer.id ? "secondary" : "ghost"}
+                size="sm"
+                className="h-8 shrink-0"
+                aria-current={focusedLayerId === layer.id ? "true" : undefined}
+                aria-label={`Focus layer ${layer.label}`}
+                onClick={() => { setFocusedLayerId(layer.id); focusOn("layer", layer.id); }}
+              >
+                {layer.label} · {layerCounts.get(layer.id) ?? 0}
+              </Button>
+            ))}
+          </nav>
           <span className="font-mono text-xs text-basalt-muted-foreground" aria-live="polite">{vm.visibleNodes.length} nodes · {vm.visibleEdges.length} edges</span>
         </>}
         <div className="ml-auto flex items-center gap-1">
@@ -184,6 +255,8 @@ export function TopologyPage() {
                   selectedNodeId={vm.selectedNodeId}
                   onSelect={vm.setSelectedNodeId}
                   focus={focus}
+                  focusedLayerId={focusedLayerId}
+                  onFocusedLayerChange={setFocusedLayerId}
                   fitKey={`${navigation.fullscreenActive ? "fullscreen" : "page"}:${navigation.state}`}
                 />
               </ErrorBoundary>

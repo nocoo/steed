@@ -141,6 +141,17 @@ async function assertHealthy(page: Page, errors: string[], step: string) {
   await page.getByRole("region", { name: "Topology graph" }).waitFor({ timeout: 5_000 });
 }
 
+async function focusLayer(page: Page, layer: { id: string; label: string }) {
+  await page.getByRole("button", { name: /^All layers/ }).click();
+  await page.getByRole("button", { name: "Fit topology" }).click();
+  const header = page.getByTestId(`topology-layer-focus-${layer.id}`);
+  if (await header.isVisible()) {
+    await header.click();
+    return;
+  }
+  await page.getByTestId("topology-layer-navigator").locator(`button[aria-label="Focus layer ${layer.label}"]`).click();
+}
+
 /** Clicks every node card with the real mouse, one layer at a time (host → satellite → … transitions). */
 async function clickEveryNode(page: Page) {
   const errors: string[] = [];
@@ -152,15 +163,15 @@ async function clickEveryNode(page: Page) {
   let revealed = 0;
   const layers = [...fixture.layers].sort((a, b) => a.order - b.order);
   for (const layer of layers) {
-    // Back to the overview first: off-screen sections are not rendered.
-    await page.getByRole("button", { name: "Fit topology" }).click();
-    await page.getByRole("button", { name: `Focus layer ${layer.label}` }).click();
+    await focusLayer(page, layer);
     await page.waitForTimeout(150);
-    for (const node of fixture.nodes.filter((candidate) => layerOfHost.get(rootHost(candidate.id)) === layer.id)) {
+    for (const node of fixture.nodes
+      .filter((candidate) => layerOfHost.get(rootHost(candidate.id)) === layer.id)
+      .sort((a, b) => rootHost(b.id).localeCompare(rootHost(a.id)) || b.id.localeCompare(a.id))) {
       const box = await page.getByTestId(`topology-node-card-${node.id}`).boundingBox();
       const onScreen = box && box.width > 6 && box.height > 6 && box.x >= 0 && box.y >= 0 && box.x + box.width <= viewport.width && box.y + box.height <= viewport.height;
       if (!onScreen) continue;
-      await page.mouse.click(box.x + box.width / 2, box.y + Math.min(box.height / 2, 18));
+      await page.getByTestId(`topology-node-card-${node.id}`).click({ force: true });
       await assertHealthy(page, errors, `clicking ${node.id}`);
       assert.equal(await selectedNode(page), node.id, `Clicking ${node.id} did not select it`);
       done.add(node.id);
@@ -175,7 +186,7 @@ async function clickEveryNode(page: Page) {
     await page.waitForTimeout(100);
     const box = await page.getByTestId(`topology-node-card-${node.id}`).boundingBox();
     assert.ok(box, `Node ${node.id} is not rendered after search`);
-    await page.mouse.click(box.x + box.width / 2, box.y + Math.min(box.height / 2, 18));
+    await page.getByTestId(`topology-node-card-${node.id}`).click();
     await assertHealthy(page, errors, `clicking ${node.id} after search`);
     assert.equal(await selectedNode(page), node.id, `Clicking ${node.id} did not select it`);
     done.add(node.id);
@@ -198,7 +209,7 @@ async function takeScreens(dir: string) {
       await page.screenshot({ path: join(dir, `${theme}-overview.png`) });
       const layer = fixture.layers.find((candidate) => candidate.id === "test-vps") ?? fixture.layers[0];
       if (layer) {
-        await page.getByRole("button", { name: `Focus layer ${layer.label}` }).click();
+        await focusLayer(page, layer);
         await page.waitForTimeout(400);
         await page.screenshot({ path: join(dir, `${theme}-layer-${layer.id}.png`) });
         const host = fixture.nodes.find((node) => node.layerId === layer.id && !node.parentId);

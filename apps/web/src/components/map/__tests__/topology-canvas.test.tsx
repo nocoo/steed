@@ -720,11 +720,6 @@ it("maps zoom levels, colours and edge sides", () => {
     expect(byId.get("topology-edge:peer-root")?.style?.strokeDasharray).toBeUndefined();
   });
 
-  it("renders visible edges and lane nodes while omitting peers outside the projection", () => {
-    const topology = sample();
-    render(<TopologyCanvas topology={topology} visibleNodes={[topology.nodes[0]!]} visibleEdges={topology.edges} view={undefined} selectedNodeId="" onSelect={vi.fn()} />);
-    expect(screen.queryByRole("button", { name: "peer" })).not.toBeInTheDocument();
-  });
   it("never lets mouse focus or pane scrolling move the map", () => {
     const topology = sample();
     render(<TopologyCanvas topology={topology} visibleNodes={topology.nodes} visibleEdges={[]} view={undefined} selectedNodeId="" onSelect={vi.fn()} />);
@@ -742,5 +737,43 @@ it("maps zoom levels, colours and edge sides", () => {
     region.scrollTo = vi.fn();
     fireEvent.scroll(region);
     expect(region.scrollTo).not.toHaveBeenCalled();
+  });
+
+  it("renders visible edges and lane nodes while omitting peers outside the projection", () => {
+    const topology = sample();
+    render(<TopologyCanvas topology={topology} visibleNodes={[topology.nodes[0]!]} visibleEdges={topology.edges} view={undefined} selectedNodeId="" onSelect={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: "peer" })).not.toBeInTheDocument();
+  });
+
+  it("clips the canvas to one section and exposes cross-layer stubs when focused", () => {
+    const topology = sample();
+    topology.layers.push({ id: "edge", label: "Edge", provider: "Fixture", order: 1, description: "" });
+    topology.nodes.push({ id: "remote", type: "host", label: "Remote", layerId: "edge", boundaryIds: [], lifecycle: "active", description: "", tags: [], attrs: {} });
+    topology.edges.push({ id: "cross", source: "root", target: "remote", kind: "traffic", label: "Link", direction: "uni", evidence: "documented", description: "", tags: [] });
+    const onFocusedLayerChange = vi.fn();
+    render(<TopologyCanvas topology={topology} visibleNodes={topology.nodes} visibleEdges={topology.edges} view={undefined} selectedNodeId="" onSelect={vi.fn()} focusedLayerId="cloud" onFocusedLayerChange={onFocusedLayerChange} />);
+    const region = screen.getByRole("region", { name: "Topology graph" });
+    expect(region).toHaveAttribute("data-focused-layer", "cloud");
+    expect(screen.queryByTestId("topology-section-edge")).not.toBeInTheDocument();
+    expect(screen.getByTestId("topology-layer-stub-edge")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("topology-layer-stub-edge"));
+    expect(onFocusedLayerChange).toHaveBeenCalledWith("edge");
+  });
+
+  it("keeps all in-section edges rendered while focused at overview zoom", () => {
+    state.zoom = 0.3;
+    const topology = sample();
+    topology.layers[0]!.label = "Cloudflare";
+    topology.layers.push({ id: "edge", label: "Edge", provider: "Fixture", order: 1, description: "" });
+    topology.nodes.push({ id: "remote", type: "host", label: "Remote", layerId: "edge", boundaryIds: [], lifecycle: "active", description: "", tags: [], attrs: {} });
+    topology.edges.push({ id: "cross", source: "root", target: "remote", kind: "traffic", label: "Link", direction: "uni", evidence: "documented", description: "", tags: [] });
+    render(<TopologyCanvas topology={topology} visibleNodes={topology.nodes} visibleEdges={topology.edges} view={undefined} selectedNodeId="" onSelect={vi.fn()} focusedLayerId="cloud" />);
+    const region = screen.getByRole("region", { name: "Topology graph" });
+    expect(region).toHaveAttribute("data-focused-layer", "cloud");
+    expect(region).toHaveAttribute("data-focused-in-section-edges", "1");
+    expect(region).toHaveClass("topology-zoom-far");
+    const rendered = state.renders.at(-1)?.edges as Edge<TopologyCanvasEdge>[] | undefined;
+    expect(rendered?.some((item) => item.id === "topology-edge:root-service")).toBe(true);
+    expect(rendered?.some((item) => item.id === "topology-edge:cross")).toBe(false);
   });
 });
