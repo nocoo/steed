@@ -8,6 +8,13 @@ import { TopologyLayoutRuntime } from "@/lib/topology-layout-runtime";
 import { computeStraightTopologyLayout } from "@/lib/topology-layout-preview";
 import { createTopologyFallbackRectIndex } from "@/lib/topology-route-edge-safety";
 import { topologyRouteEdgeColor, topologyRouteHighlightedEndpoints, topologyRoutePointsValid, type TopologyRouteEdgeData } from "@/lib/topology-route-edge";
+import {
+  TOPOLOGY_LAYER_STUB_HEIGHT,
+  TOPOLOGY_LAYER_STUB_WIDTH,
+  buildTopologyLayerFocusProjection,
+  clipRoutePointsToLane,
+  nodeInFocusedLayer,
+} from "@/lib/topology-layer-focus";
 import { topologyZoomTier } from "@/lib/topology-zoom";
 import { TopologyRouteEdge } from "./topology-route-edge";
 export { topologyZoomTier, TOPOLOGY_ZOOM_FAR, TOPOLOGY_ZOOM_NEAR } from "@/lib/topology-zoom";
@@ -48,6 +55,8 @@ export interface TopologyCanvasNode extends Record<string, unknown> {
   onSelect?: (id: string) => void;
   onFocusLayer?: (id: string) => void;
   handlePorts?: TopologyHandlePort[];
+  stubCount?: number;
+  stubDirection?: string;
 }
 
 /** A one-shot request to move the viewport, e.g. from search or a toolbar. */
@@ -308,6 +317,22 @@ const NodeCard = memo(function NodeCard({ id, data, selected }: NodeProps<Node<T
   );
 });
 
+const LayerStubNode = memo(function LayerStubNode({ data }: NodeProps<Node<TopologyCanvasNode>>) {
+  return (
+    <button
+      type="button"
+      className="nopan rounded-full border border-basalt-border bg-basalt-card px-4 py-2 text-left text-sm font-medium shadow-sm hover:bg-basalt-secondary"
+      style={{ width: TOPOLOGY_LAYER_STUB_WIDTH, height: TOPOLOGY_LAYER_STUB_HEIGHT }}
+      onMouseDown={(event) => event.preventDefault()}
+      onClick={() => data.onFocusLayer?.(data.label)}
+      aria-label={`Focus layer ${data.laneLabel ?? data.label}`}
+      data-testid={`topology-layer-stub-${data.label}`}
+    >
+      <span className="block truncate">{data.stubDirection ?? "→"} {data.laneLabel} · {data.stubCount ?? 0}</span>
+    </button>
+  );
+});
+
 const SectionNode = memo(function SectionNode({ data }: NodeProps<Node<TopologyCanvasNode>>) {
   return (
     <div
@@ -322,6 +347,7 @@ const SectionNode = memo(function SectionNode({ data }: NodeProps<Node<TopologyC
         onMouseDown={(event) => event.preventDefault()}
         onClick={() => data.onFocusLayer?.(data.label)}
         aria-label={`Focus layer ${data.laneLabel ?? data.label}`}
+        data-testid={`topology-layer-focus-${data.label}`}
       >
         <Layers className="h-10 w-10 shrink-0" style={{ color: data.color }} aria-hidden="true" />
         <span className="min-w-0 truncate text-[44px] font-bold leading-none">{data.laneLabel}</span>
@@ -365,7 +391,7 @@ const FrameNode = memo(function FrameNode({ data }: NodeProps<Node<TopologyCanva
   );
 });
 
-const nodeTypes = { topologyNode: NodeCard, topologyLane: SectionNode, topologyFrame: FrameNode };
+const nodeTypes = { topologyNode: NodeCard, topologyLane: SectionNode, topologyFrame: FrameNode, topologyLayerStub: LayerStubNode };
 const edgeTypes = { topologyRoute: TopologyRouteEdge };
 
 export function VisibleRouteDetours({ edges, positions, onHover, onSelect }: { edges: Edge<TopologyCanvasEdge>[]; positions: Record<string, Rect>; onHover?: (id: string) => void; onSelect?: (id: string) => void }) {
@@ -407,13 +433,15 @@ interface Props {
   selectedNodeId: string;
   onSelect: (id: string) => void;
   focus?: TopologyFocusRequest;
+  focusedLayerId?: string;
+  onFocusedLayerChange?: (layerId: string) => void;
   fitKey?: string;
   onInit?: (instance: ReactFlowInstance<Node<TopologyCanvasNode>, Edge<TopologyCanvasEdge>>) => void;
 }
 
 const BOUNDARY_FALLBACK_COLOR = "#64748b";
 
-function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, onSelect, focus, fitKey = "", onInit }: Props) {
+function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, onSelect, focus, focusedLayerId = "", onFocusedLayerChange, fitKey = "", onInit }: Props) {
   const { setViewport, setCenter, getZoom } = useReactFlow();
   const canvasWidth = useStore((state) => state.width);
   const canvasHeight = useStore((state) => state.height);
@@ -463,10 +491,11 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
   const handleMoveEnd = useCallback(() => {
     touchCentroidRef.current = null;
   }, []);
-  const focusLayer = useCallback((layerId: string) => {
+  const enterLayerFocus = useCallback((layerId: string) => {
+    onFocusedLayerChange?.(layerId);
     const lane = layout.lanes.find((candidate) => candidate.layerId === layerId);
     if (lane) fitRect(lane, 0.04, false);
-  }, [layout, fitRect]);
+  }, [layout, fitRect, onFocusedLayerChange]);
   const selectRef = useRef({ onSelect, selectedNodeId });
   selectRef.current = { onSelect, selectedNodeId };
   const selectNode = useCallback((id: string) => selectRef.current.onSelect(id), []);
@@ -476,7 +505,19 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
   const clearFrameFocus = useCallback(() => setFocusedBoundaryId(""), []);
 
   const projected = useMemo(() => {
-    const visibleNodeIds = new Set(visibleNodes.map((node) => node.id));
+    const focusProjection = focusedLayerId
+      ? buildTopologyLayerFocusProjection(topology, layout, visibleNodes, visibleEdges, focusedLayerId)
+      : null;
+    const projectionNodes = focusProjection
+      ? visibleNodes.filter((node) => {
+        const hostLayer = new Map<string, string>();
+        for (const lane of layout.lanes) for (const id of lane.nodeIds) hostLayer.set(id, lane.layerId);
+        return nodeInFocusedLayer(node, hostLayer, focusedLayerId);
+      })
+      : visibleNodes;
+    const visibleNodeIds = new Set(projectionNodes.map((node) => node.id));
+    const suppressedEdgeIds = focusProjection?.suppressedEdgeIds ?? new Set<string>();
+    const inSectionEdgeIds = focusProjection?.inSectionEdgeIds ?? new Set<string>();
     const byId = new Map(topology.nodes.map((node) => [node.id, node]));
     const layerById = new Map(topology.layers.map((layer) => [layer.id, layer]));
     const boundaryById = new Map(topology.boundaries.map((boundary) => [boundary.id, boundary]));
@@ -507,6 +548,7 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
 
     const laneNodes: Node<TopologyCanvasNode>[] = layout.lanes
       .filter((lane) => lane.nodeIds.some((id) => visibleNodeIds.has(id)))
+      .filter((lane) => !focusProjection || lane.layerId === focusProjection.focusedLayerId)
       .map((lane) => {
         const layer = layerById.get(lane.layerId);
         return {
@@ -528,13 +570,34 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
             counts: { hosts: lane.blockIds.length, nodes: lane.nodeIds.length },
             width: lane.width,
             height: lane.height,
-            onFocusLayer: focusLayer,
+            onFocusLayer: enterLayerFocus,
           },
           style: { width: lane.width, height: lane.height },
         };
       });
+    const stubNodes: Node<TopologyCanvasNode>[] = (focusProjection?.stubs ?? []).map((stub) => ({
+      id: stub.id,
+      type: "topologyLayerStub",
+      position: { x: stub.x, y: stub.y },
+      width: TOPOLOGY_LAYER_STUB_WIDTH,
+      height: TOPOLOGY_LAYER_STUB_HEIGHT,
+      selectable: false,
+      draggable: false,
+      focusable: false,
+      zIndex: 4,
+      data: {
+        label: stub.remoteLayerId,
+        kind: "host",
+        laneLabel: stub.remoteLayerLabel,
+        stubCount: stub.count,
+        stubDirection: "→",
+        onFocusLayer: enterLayerFocus,
+      },
+      style: { width: TOPOLOGY_LAYER_STUB_WIDTH, height: TOPOLOGY_LAYER_STUB_HEIGHT },
+    }));
     const frameNodes: Node<TopologyCanvasNode>[] = layout.frames
       .filter((frame) => frame.depth < TOPOLOGY_FRAME_VISUAL_DEPTH_LIMIT && frame.nodeIds.some((id) => visibleNodeIds.has(id)))
+      .filter((frame) => !focusProjection || frame.layerId === focusProjection.focusedLayerId)
       .map((frame) => {
         const boundary = boundaryById.get(frame.boundaryId);
         return {
@@ -594,7 +657,7 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
     }
 
     const nodeLayer: Node<TopologyCanvasNode>[] = [];
-    for (const node of visibleNodes) {
+    for (const node of projectionNodes) {
       const position = layout.positions[node.id];
       if (!position) continue;
       const parent = node.parentId ? byId.get(node.parentId) : undefined;
@@ -631,6 +694,7 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
 
     const edges: Edge<TopologyCanvasEdge>[] = visibleEdges
       .flatMap((edge) => {
+        if (suppressedEdgeIds.has(edge.id) && !inSectionEdgeIds.has(edge.id)) return [];
         const source = layout.positions[edge.source];
         const target = layout.positions[edge.target];
         if (!source || !target || !visibleNodeIds.has(edge.source) || !visibleNodeIds.has(edge.target)) return [];
@@ -640,7 +704,10 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
         const crossLayer = sourceLayer !== hostLayer.get(edge.target);
         const satellite = byId.get(edge.source)?.parentId !== undefined || byId.get(edge.target)?.parentId !== undefined;
         const color = topologyRouteEdgeColor(edge, crossLayer);
-        const route = computedRoute;
+        let route = computedRoute;
+        if (focusProjection && crossLayer && route && topologyRoutePointsValid(route.points)) {
+          route = { ...route, points: clipRoutePointsToLane(route.points, focusProjection.lane) };
+        }
         const workerLabel = layout.labels?.labels[edge.id];
         return [{
           id: `topology-edge:${edge.id}`,
@@ -682,8 +749,8 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
           },
         }];
       });
-    return { nodes: [...laneNodes, ...frameNodes, ...nodeLayer], laneNodes, edges };
-  }, [topology, visibleNodes, visibleEdges, layout, selectNode, focusLayer, hoveredBoundaryId, focusedBoundaryId, hoveredEdgeId, selectedEdgeId, hoverFrame, clearFrameHover, focusFrame, clearFrameFocus]);
+    return { nodes: [...laneNodes, ...frameNodes, ...nodeLayer, ...stubNodes], laneNodes: focusProjection ? laneNodes : laneNodes, edges, translateExtent: focusProjection?.translateExtent, inSectionEdgeIds };
+  }, [topology, visibleNodes, visibleEdges, layout, selectNode, enterLayerFocus, hoveredBoundaryId, focusedBoundaryId, hoveredEdgeId, selectedEdgeId, hoverFrame, clearFrameHover, focusFrame, clearFrameFocus, focusedLayerId]);
 
   useEffect(() => {
     if (!hoveredBoundaryId) return;
@@ -734,8 +801,14 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
     viewId: view?.id ?? "",
     pins: view?.pins ?? {},
     fitKey,
+    focusedLayerId,
     sections: projected.laneNodes.map((node) => [node.id, node.position.x, node.position.y, node.width, node.height]),
   });
+  useEffect(() => {
+    if (!focusedLayerId) return;
+    const lane = layout.lanes.find((candidate) => candidate.layerId === focusedLayerId);
+    if (lane) fitRect(lane, 0.04, false);
+  }, [focusedLayerId, layout.lanes, fitRect]);
   useEffect(() => {
     const nodes = fitNodesRef.current;
     if (nodes.length) fitRect(getNodesBounds(nodes), 0.06, true);
@@ -744,14 +817,21 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
   const focusSeq = focus?.seq;
   const focusRef = useRef(focus);
   focusRef.current = focus;
+  const enterLayerFocusRef = useRef(enterLayerFocus);
+  enterLayerFocusRef.current = enterLayerFocus;
+  const onFocusedLayerChangeRef = useRef(onFocusedLayerChange);
+  onFocusedLayerChangeRef.current = onFocusedLayerChange;
+  const layoutPositionsRef = useRef(layout.positions);
+  layoutPositionsRef.current = layout.positions;
   useEffect(() => {
     const request = focusRef.current;
     if (!request) return;
     if (request.kind === "layer") {
-      focusLayer(request.id);
+      onFocusedLayerChangeRef.current?.(request.id);
+      enterLayerFocusRef.current(request.id);
       return;
     }
-    const position = layout.positions[request.id];
+    const position = layoutPositionsRef.current[request.id];
     if (position) {
       manualPannedRef.current = false;
       const zoom = Math.max(getZoom(), 0.9);
@@ -782,6 +862,8 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
       data-selected-node={selectedNodeId}
       data-visible-nodes={visibleNodes.length}
       data-visible-edges={visibleEdges.length}
+      data-focused-layer={focusedLayerId || undefined}
+      data-focused-in-section-edges={projected.inSectionEdgeIds?.size || undefined}
       data-route-geometry-edges={geometryEdgeCount}
       data-route-status={routeStatus}
       data-route-phase={layout.layoutPhase ?? "synchronous"}
@@ -818,6 +900,7 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
         fitView={false}
         minZoom={0.05}
         maxZoom={2}
+        translateExtent={projected.translateExtent}
         proOptions={{ hideAttribution: true }}
       >
         <Background gap={32} size={1} color="hsl(var(--basalt-border))" />

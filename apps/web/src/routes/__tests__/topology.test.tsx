@@ -15,7 +15,7 @@ vi.mock("@/components/map/topology-canvas", async (original) => {
   return {
     ...actual,
     TopologyCanvas: (props: ComponentProps<typeof TopologyCanvas>) => (
-      <div data-testid="canvas" data-visible-nodes={props.visibleNodes.length} data-visible-edges={props.visibleEdges.length} data-selected={props.selectedNodeId} data-focus={props.focus ? `${props.focus.kind}:${props.focus.id}:${props.focus.seq}` : ""} data-fit-key={props.fitKey ?? ""}>
+      <div data-testid="canvas" data-visible-nodes={props.visibleNodes.length} data-visible-edges={props.visibleEdges.length} data-selected={props.selectedNodeId} data-focus={props.focus ? `${props.focus.kind}:${props.focus.id}:${props.focus.seq}` : ""} data-focused-layer={props.focusedLayerId ?? ""} data-fit-key={props.fitKey ?? ""}>
         {props.visibleNodes.map((node) => <button key={node.id} type="button" onClick={() => props.onSelect(node.id)}>Canvas {node.id}</button>)}
       </div>
     ),
@@ -242,7 +242,7 @@ describe("read-only topology page", () => {
     fireEvent.keyDown(screen.getByLabelText("Find a node"), { key: "Escape" });
     fireEvent.keyDown(screen.getByTestId("topology-workspace"), { key: "Enter" });
     expect(screen.getByTestId("canvas")).toHaveAttribute("data-selected", "root");
-    fireEvent.keyDown(screen.getByRole("button", { name: "Canvas root" }), { key: "Escape" });
+    fireEvent.keyDown(screen.getByTestId("topology-workspace"), { key: "Escape" });
     expect(screen.getByTestId("canvas")).toHaveAttribute("data-selected", "");
   });
 
@@ -295,6 +295,31 @@ describe("read-only topology page", () => {
     await screen.findByRole("heading", { name: "Fixture topology" });
     expect(screen.getByRole("button", { name: "Hide navigation" })).toBeInTheDocument();
     expect(screen.getByTestId("canvas")).toHaveAttribute("data-fit-key", "page:rail");
+  });
+
+  it("focuses a layer from the navigator, syncs the URL and clears with Escape", async () => {
+    const router = setup();
+    await screen.findByRole("heading", { name: "Fixture topology" });
+    fireEvent.click(screen.getByRole("navigation", { name: "Layer navigator" }).querySelector("button[aria-label='Focus layer Cloud']")!);
+    expect(screen.getByTestId("canvas")).toHaveAttribute("data-focused-layer", "cloud");
+    expect(router.state.location.search).toContain("layer=cloud");
+    fireEvent.keyDown(screen.getByTestId("topology-workspace"), { key: "Escape" });
+    expect(screen.getByTestId("canvas")).toHaveAttribute("data-focused-layer", "");
+    expect(router.state.location.search).not.toContain("layer=cloud");
+  });
+
+  it("steps across focused layers with bracket keys", async () => {
+    const topology = sample();
+    topology.layers.push({ id: "edge", label: "Edge", provider: "Fixture", order: 1, description: "" });
+    topology.nodes.push({ id: "remote", type: "host", label: "Remote", layerId: "edge", boundaryIds: [], lifecycle: "active", description: "", tags: [], attrs: {} });
+    client.get.mockResolvedValue({ data: topology, updatedAt: "2026-10-31T00:00:00.000Z" });
+    const router = setup();
+    await screen.findByRole("heading", { name: "Fixture topology" });
+    fireEvent.click(screen.getByRole("navigation", { name: "Layer navigator" }).querySelector("button[aria-label='Focus layer Cloud']")!);
+    fireEvent.keyDown(screen.getByTestId("topology-workspace"), { key: "]" });
+    expect(router.state.location.search).toContain("layer=edge");
+    fireEvent.keyDown(screen.getByTestId("topology-workspace"), { key: "[" });
+    expect(router.state.location.search).toContain("layer=cloud");
   });
 
   it("toggles fullscreen on the workspace when the browser supports it", async () => {
