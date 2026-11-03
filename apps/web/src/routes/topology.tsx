@@ -171,7 +171,7 @@ export function TopologyPage() {
             <SelectContent><SelectItem value={sentinel}>All tags</SelectItem>{tags.map((tag) => <SelectItem key={tag} value={tag}>{tag}</SelectItem>)}</SelectContent>
           </Select>
           {filtered && <Button variant="ghost" size="sm" className="h-8" onClick={() => vm.clearFilters()} aria-label="Clear filters"><X className="h-3 w-3" />Clear</Button>}
-          <nav className="flex max-w-full items-center gap-1 overflow-x-auto" aria-label="Layer navigator">
+          <nav className="flex max-w-full items-center gap-1 overflow-x-auto" aria-label="Layer navigator" data-testid="topology-layer-navigator">
             <Button
               variant={focusedLayerId ? "ghost" : "secondary"}
               size="sm"

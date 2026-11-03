@@ -584,7 +584,7 @@ function Canvas({ topology, visibleNodes, visibleEdges, view, selectedNodeId, on
       selectable: false,
       draggable: false,
       focusable: false,
-      zIndex: 4,
+      zIndex: 1,
       data: {
         label: stub.remoteLayerId,
         kind: "host",
