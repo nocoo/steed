@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.6.1] - 2026-11-03
+
+### Changed
+
+- Compact topology frames: section heights now fit their content and
+  sections are packed into a grid instead of being stretched to the tallest
+  row. On the real rev578 topology the overall section blank ratio drops from
+  81.0% to 39.9%, the tallest section from 4632 to 2528 px, and the canvas
+  area by 42% (#124).
+- Defer cross-frame edge aggregation, the 150-satellite render gate, semantic
+  zoom F2 with satellite counts, and focus mode to v0.6.2.
+
 ## [0.6.0] - 2026-11-02
 
 ### Added
