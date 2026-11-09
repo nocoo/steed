@@ -1,0 +1,7336 @@
+{
+ "schemaVersion": 2,
+ "title": "TEST acceptance topology v0.5.0",
+ "description": "Synthetic acceptance data; safe to delete.",
+ "provenance": "acceptance-test",
+ "layers": [
+  {
+   "id": "test-cloudflare",
+   "label": "TEST Cloudflare",
+   "provider": "Cloudflare",
+   "order": 900,
+   "color": "#f38020",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-vps",
+   "label": "TEST VPS",
+   "provider": "VPS vendor",
+   "order": 901,
+   "color": "#3b82f6",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-apple",
+   "label": "TEST Apple",
+   "provider": "Apple",
+   "order": 902,
+   "color": "#a3a3a3",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-nas",
+   "label": "TEST NAS",
+   "provider": "Synology",
+   "order": 903,
+   "color": "#22c55e",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-microsoft",
+   "label": "TEST Microsoft",
+   "provider": "Microsoft",
+   "order": 904,
+   "color": "#0ea5e9",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-tailscale",
+   "label": "TEST Tailscale",
+   "provider": "Tailscale",
+   "order": 905,
+   "color": "#6366f1",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-github",
+   "label": "TEST GitHub",
+   "provider": "GitHub",
+   "order": 906,
+   "color": "#e5e7eb",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  }
+ ],
+ "types": [
+  {
+   "id": "test-host",
+   "label": "TEST host",
+   "shape": "rounded",
+   "description": "acceptance",
+   "provenance": "acceptance-test",
+   "attrs": [
+    {
+     "key": "cpu",
+     "label": "CPU",
+     "valueType": "number",
+     "unit": "C",
+     "badge": true,
+     "order": 1,
+     "required": true
+    },
+    {
+     "key": "memory_gb",
+     "label": "Mem",
+     "valueType": "number",
+     "unit": "G",
+     "badge": true,
+     "order": 2,
+     "required": false
+    },
+    {
+     "key": "region",
+     "label": "Region",
+     "valueType": "enum",
+     "enumValues": [
+      "jp",
+      "us",
+      "cn",
+      "home"
+     ],
+     "badge": true,
+     "order": 3,
+     "required": false
+    },
+    {
+     "key": "commit",
+     "label": "Commit",
+     "valueType": "identifier",
+     "badge": false,
+     "order": 4,
+     "required": false
+    }
+   ]
+  },
+  {
+   "id": "test-service",
+   "label": "TEST service",
+   "shape": "pill",
+   "description": "acceptance",
+   "provenance": "acceptance-test",
+   "attrs": [
+    {
+     "key": "port",
+     "label": "Port",
+     "valueType": "number",
+     "badge": true,
+     "order": 1,
+     "required": false
+    }
+   ]
+  },
+  {
+   "id": "test-port",
+   "label": "TEST port",
+   "shape": "circle",
+   "description": "acceptance",
+   "provenance": "acceptance-test",
+   "attrs": []
+  }
+ ],
+ "boundaries": [
+  {
+   "id": "test-home",
+   "label": "TEST Home",
+   "kind": "trust",
+   "description": "acceptance",
+   "style": {
+    "color": "#16a34a",
+    "border": {
+     "style": "dashed",
+     "width": 2
+    }
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-home-lan",
+   "label": "TEST Home LAN",
+   "kind": "network",
+   "parentId": "test-home",
+   "description": "acceptance",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-office",
+   "label": "TEST Office",
+   "kind": "trust",
+   "description": "acceptance",
+   "style": {
+    "color": "#2563eb",
+    "border": {
+     "style": "solid",
+     "width": 2
+    }
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-office-domain",
+   "label": "TEST Office domain-joined",
+   "kind": "trust",
+   "parentId": "test-office",
+   "description": "nested trust",
+   "style": {
+    "border": {
+     "style": "dotted",
+     "width": 1
+    },
+    "icon": "shield"
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-cloud",
+   "label": "TEST Cloud account",
+   "kind": "account",
+   "description": "acceptance",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-tailnet",
+   "label": "TEST tailnet",
+   "kind": "network",
+   "description": "acceptance",
+   "provenance": "acceptance-test"
+  }
+ ],
+ "nodes": [
+  {
+   "id": "test-cloudflare-h00",
+   "type": "test-host",
+   "label": "TEST cloudflare host 0",
+   "layerId": "test-cloudflare",
+   "boundaryIds": [],
+   "attrs": {
+    "cpu": 2,
+    "memory_gb": 4,
+    "region": "jp",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-cloudflare-h00"
+   ],
+   "style": {
+    "shape": "rect",
+    "size": "s",
+    "color": "#f38020",
+    "border": {
+     "style": "solid",
+     "width": 0
+    },
+    "icon": "server"
+   },
+   "lifecycle": "active",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-cloudflare-h00-s0",
+   "type": "test-service",
+   "label": "svc 0 on cloudflare-0",
+   "layerId": "test-cloudflare",
+   "parentId": "test-cloudflare-h00",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-cloudflare-h00-s0-p0",
+   "type": "test-port",
+   "label": "port of test-cloudflare-h00-s0",
+   "layerId": "test-cloudflare",
+   "parentId": "test-cloudflare-h00-s0",
+   "role": "subresource",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-cloudflare-h00-s1",
+   "type": "test-service",
+   "label": "svc 1 on cloudflare-0",
+   "layerId": "test-cloudflare",
+   "parentId": "test-cloudflare-h00",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-cloudflare-h01",
+   "type": "test-host",
+   "label": "TEST cloudflare host 1",
+   "layerId": "test-cloudflare",
+   "boundaryIds": [
+    "test-cloud"
+   ],
+   "attrs": {
+    "cpu": 3,
+    "memory_gb": 8,
+    "region": "us",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-cloudflare-h01"
+   ],
+   "style": {
+    "shape": "rounded",
+    "size": "m",
+    "color": "#f38020",
+    "border": {
+     "style": "dashed",
+     "width": 1
+    },
+    "icon": "server"
+   },
+   "lifecycle": "planned",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-cloudflare-h01-s0",
+   "type": "test-service",
+   "label": "svc 0 on cloudflare-1",
+   "layerId": "test-cloudflare",
+   "parentId": "test-cloudflare-h01",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-cloudflare-h01-s1",
+   "type": "test-service",
+   "label": "svc 1 on cloudflare-1",
+   "layerId": "test-cloudflare",
+   "parentId": "test-cloudflare-h01",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-cloudflare-h02",
+   "type": "test-host",
+   "label": "TEST cloudflare host 2",
+   "layerId": "test-cloudflare",
+   "boundaryIds": [
+    "test-cloud"
+   ],
+   "attrs": {
+    "cpu": 4,
+    "memory_gb": 12,
+    "region": "cn",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-cloudflare-h02"
+   ],
+   "style": {
+    "shape": "pill",
+    "size": "l",
+    "color": "#f38020",
+    "border": {
+     "style": "dotted",
+     "width": 2
+    },
+    "icon": "server"
+   },
+   "lifecycle": "deprecated",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-cloudflare-h02-s0",
+   "type": "test-service",
+   "label": "svc 0 on cloudflare-2",
+   "layerId": "test-cloudflare",
+   "parentId": "test-cloudflare-h02",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-cloudflare-h02-s0-p0",
+   "type": "test-port",
+   "label": "port of test-cloudflare-h02-s0",
+   "layerId": "test-cloudflare",
+   "parentId": "test-cloudflare-h02-s0",
+   "role": "subresource",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-cloudflare-h02-s1",
+   "type": "test-service",
+   "label": "svc 1 on cloudflare-2",
+   "layerId": "test-cloudflare",
+   "parentId": "test-cloudflare-h02",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-cloudflare-h03",
+   "type": "test-host",
+   "label": "TEST cloudflare host 3",
+   "layerId": "test-cloudflare",
+   "boundaryIds": [
+    "test-cloud"
+   ],
+   "attrs": {
+    "cpu": 5,
+    "memory_gb": 16,
+    "region": "home",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-cloudflare-h03"
+   ],
+   "style": {
+    "shape": "hexagon",
+    "size": "s",
+    "color": "#f38020",
+    "border": {
+     "style": "double",
+     "width": 3
+    },
+    "icon": "server"
+   },
+   "lifecycle": "active",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-cloudflare-h03-s0",
+   "type": "test-service",
+   "label": "svc 0 on cloudflare-3",
+   "layerId": "test-cloudflare",
+   "parentId": "test-cloudflare-h03",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-cloudflare-h03-s1",
+   "type": "test-service",
+   "label": "svc 1 on cloudflare-3",
+   "layerId": "test-cloudflare",
+   "parentId": "test-cloudflare-h03",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-cloudflare-h04",
+   "type": "test-host",
+   "label": "TEST cloudflare host 4",
+   "layerId": "test-cloudflare",
+   "boundaryIds": [
+    "test-cloud"
+   ],
+   "attrs": {
+    "cpu": 6,
+    "memory_gb": 4,
+    "region": "jp",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-cloudflare-h04"
+   ],
+   "style": {
+    "shape": "cylinder",
+    "size": "m",
+    "color": "#f38020",
+    "border": {
+     "style": "solid",
+     "width": 4
+    },
+    "icon": "server"
+   },
+   "lifecycle": "active",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-cloudflare-h04-s0",
+   "type": "test-service",
+   "label": "svc 0 on cloudflare-4",
+   "layerId": "test-cloudflare",
+   "parentId": "test-cloudflare-h04",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-cloudflare-h04-s0-p0",
+   "type": "test-port",
+   "label": "port of test-cloudflare-h04-s0",
+   "layerId": "test-cloudflare",
+   "parentId": "test-cloudflare-h04-s0",
+   "role": "subresource",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-cloudflare-h04-s1",
+   "type": "test-service",
+   "label": "svc 1 on cloudflare-4",
+   "layerId": "test-cloudflare",
+   "parentId": "test-cloudflare-h04",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-cloudflare-h05",
+   "type": "test-host",
+   "label": "TEST cloudflare host 5",
+   "layerId": "test-cloudflare",
+   "boundaryIds": [],
+   "attrs": {
+    "cpu": 7,
+    "memory_gb": 8,
+    "region": "us",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-cloudflare-h05"
+   ],
+   "style": {
+    "shape": "diamond",
+    "size": "l",
+    "color": "#f38020",
+    "border": {
+     "style": "dashed",
+     "width": 0
+    },
+    "icon": "server"
+   },
+   "lifecycle": "planned",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-cloudflare-h05-s0",
+   "type": "test-service",
+   "label": "svc 0 on cloudflare-5",
+   "layerId": "test-cloudflare",
+   "parentId": "test-cloudflare-h05",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-cloudflare-h05-s1",
+   "type": "test-service",
+   "label": "svc 1 on cloudflare-5",
+   "layerId": "test-cloudflare",
+   "parentId": "test-cloudflare-h05",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-cloudflare-h06",
+   "type": "test-host",
+   "label": "TEST cloudflare host 6",
+   "layerId": "test-cloudflare",
+   "boundaryIds": [
+    "test-cloud"
+   ],
+   "attrs": {
+    "cpu": 2,
+    "memory_gb": 12,
+    "region": "cn",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-cloudflare-h06"
+   ],
+   "style": {
+    "shape": "circle",
+    "size": "s",
+    "color": "#f38020",
+    "border": {
+     "style": "dotted",
+     "width": 1
+    },
+    "icon": "server"
+   },
+   "lifecycle": "deprecated",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-cloudflare-h06-s0",
+   "type": "test-service",
+   "label": "svc 0 on cloudflare-6",
+   "layerId": "test-cloudflare",
+   "parentId": "test-cloudflare-h06",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-cloudflare-h06-s0-p0",
+   "type": "test-port",
+   "label": "port of test-cloudflare-h06-s0",
+   "layerId": "test-cloudflare",
+   "parentId": "test-cloudflare-h06-s0",
+   "role": "subresource",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-cloudflare-h06-s1",
+   "type": "test-service",
+   "label": "svc 1 on cloudflare-6",
+   "layerId": "test-cloudflare",
+   "parentId": "test-cloudflare-h06",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-cloudflare-h07",
+   "type": "test-host",
+   "label": "TEST cloudflare host 7",
+   "layerId": "test-cloudflare",
+   "boundaryIds": [
+    "test-cloud"
+   ],
+   "attrs": {
+    "cpu": 3,
+    "memory_gb": 16,
+    "region": "home",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-cloudflare-h07"
+   ],
+   "style": {
+    "shape": "cloud",
+    "size": "m",
+    "color": "#f38020",
+    "border": {
+     "style": "double",
+     "width": 2
+    },
+    "icon": "server"
+   },
+   "lifecycle": "active",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-cloudflare-h07-s0",
+   "type": "test-service",
+   "label": "svc 0 on cloudflare-7",
+   "layerId": "test-cloudflare",
+   "parentId": "test-cloudflare-h07",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-cloudflare-h07-s1",
+   "type": "test-service",
+   "label": "svc 1 on cloudflare-7",
+   "layerId": "test-cloudflare",
+   "parentId": "test-cloudflare-h07",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-cloudflare-h08",
+   "type": "test-host",
+   "label": "TEST cloudflare host 8",
+   "layerId": "test-cloudflare",
+   "boundaryIds": [
+    "test-cloud"
+   ],
+   "attrs": {
+    "cpu": 4,
+    "memory_gb": 4,
+    "region": "jp",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-cloudflare-h08"
+   ],
+   "style": {
+    "shape": "rect",
+    "size": "l",
+    "color": "#f38020",
+    "border": {
+     "style": "solid",
+     "width": 3
+    },
+    "icon": "server"
+   },
+   "lifecycle": "active",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-cloudflare-h08-s0",
+   "type": "test-service",
+   "label": "svc 0 on cloudflare-8",
+   "layerId": "test-cloudflare",
+   "parentId": "test-cloudflare-h08",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-cloudflare-h08-s0-p0",
+   "type": "test-port",
+   "label": "port of test-cloudflare-h08-s0",
+   "layerId": "test-cloudflare",
+   "parentId": "test-cloudflare-h08-s0",
+   "role": "subresource",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-cloudflare-h08-s1",
+   "type": "test-service",
+   "label": "svc 1 on cloudflare-8",
+   "layerId": "test-cloudflare",
+   "parentId": "test-cloudflare-h08",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-cloudflare-h09",
+   "type": "test-host",
+   "label": "TEST cloudflare host 9",
+   "layerId": "test-cloudflare",
+   "boundaryIds": [
+    "test-cloud"
+   ],
+   "attrs": {
+    "cpu": 5,
+    "memory_gb": 8,
+    "region": "us",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-cloudflare-h09"
+   ],
+   "style": {
+    "shape": "rounded",
+    "size": "s",
+    "color": "#f38020",
+    "border": {
+     "style": "dashed",
+     "width": 4
+    },
+    "icon": "server"
+   },
+   "lifecycle": "planned",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-cloudflare-h09-s0",
+   "type": "test-service",
+   "label": "svc 0 on cloudflare-9",
+   "layerId": "test-cloudflare",
+   "parentId": "test-cloudflare-h09",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-cloudflare-h09-s1",
+   "type": "test-service",
+   "label": "svc 1 on cloudflare-9",
+   "layerId": "test-cloudflare",
+   "parentId": "test-cloudflare-h09",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-vps-h00",
+   "type": "test-host",
+   "label": "TEST vps host 0",
+   "layerId": "test-vps",
+   "boundaryIds": [],
+   "attrs": {
+    "cpu": 2,
+    "memory_gb": 4,
+    "region": "jp",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-vps-h00"
+   ],
+   "style": {
+    "shape": "rect",
+    "size": "s",
+    "color": "#3b82f6",
+    "border": {
+     "style": "solid",
+     "width": 0
+    },
+    "icon": "server"
+   },
+   "lifecycle": "active",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-vps-h00-s0",
+   "type": "test-service",
+   "label": "svc 0 on vps-0",
+   "layerId": "test-vps",
+   "parentId": "test-vps-h00",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-vps-h00-s0-p0",
+   "type": "test-port",
+   "label": "port of test-vps-h00-s0",
+   "layerId": "test-vps",
+   "parentId": "test-vps-h00-s0",
+   "role": "subresource",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-vps-h00-s1",
+   "type": "test-service",
+   "label": "svc 1 on vps-0",
+   "layerId": "test-vps",
+   "parentId": "test-vps-h00",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-vps-h01",
+   "type": "test-host",
+   "label": "TEST vps host 1",
+   "layerId": "test-vps",
+   "boundaryIds": [
+    "test-cloud",
+    "test-tailnet"
+   ],
+   "attrs": {
+    "cpu": 3,
+    "memory_gb": 8,
+    "region": "us",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-vps-h01"
+   ],
+   "style": {
+    "shape": "rounded",
+    "size": "m",
+    "color": "#3b82f6",
+    "border": {
+     "style": "dashed",
+     "width": 1
+    },
+    "icon": "server"
+   },
+   "lifecycle": "planned",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-vps-h01-s0",
+   "type": "test-service",
+   "label": "svc 0 on vps-1",
+   "layerId": "test-vps",
+   "parentId": "test-vps-h01",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-vps-h01-s1",
+   "type": "test-service",
+   "label": "svc 1 on vps-1",
+   "layerId": "test-vps",
+   "parentId": "test-vps-h01",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-vps-h02",
+   "type": "test-host",
+   "label": "TEST vps host 2",
+   "layerId": "test-vps",
+   "boundaryIds": [
+    "test-cloud",
+    "test-tailnet"
+   ],
+   "attrs": {
+    "cpu": 4,
+    "memory_gb": 12,
+    "region": "cn",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-vps-h02"
+   ],
+   "style": {
+    "shape": "pill",
+    "size": "l",
+    "color": "#3b82f6",
+    "border": {
+     "style": "dotted",
+     "width": 2
+    },
+    "icon": "server"
+   },
+   "lifecycle": "deprecated",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-vps-h02-s0",
+   "type": "test-service",
+   "label": "svc 0 on vps-2",
+   "layerId": "test-vps",
+   "parentId": "test-vps-h02",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-vps-h02-s0-p0",
+   "type": "test-port",
+   "label": "port of test-vps-h02-s0",
+   "layerId": "test-vps",
+   "parentId": "test-vps-h02-s0",
+   "role": "subresource",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-vps-h02-s1",
+   "type": "test-service",
+   "label": "svc 1 on vps-2",
+   "layerId": "test-vps",
+   "parentId": "test-vps-h02",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-vps-h03",
+   "type": "test-host",
+   "label": "TEST vps host 3",
+   "layerId": "test-vps",
+   "boundaryIds": [
+    "test-cloud",
+    "test-tailnet"
+   ],
+   "attrs": {
+    "cpu": 5,
+    "memory_gb": 16,
+    "region": "home",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-vps-h03"
+   ],
+   "style": {
+    "shape": "hexagon",
+    "size": "s",
+    "color": "#3b82f6",
+    "border": {
+     "style": "double",
+     "width": 3
+    },
+    "icon": "server"
+   },
+   "lifecycle": "active",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-vps-h03-s0",
+   "type": "test-service",
+   "label": "svc 0 on vps-3",
+   "layerId": "test-vps",
+   "parentId": "test-vps-h03",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-vps-h03-s1",
+   "type": "test-service",
+   "label": "svc 1 on vps-3",
+   "layerId": "test-vps",
+   "parentId": "test-vps-h03",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-vps-h04",
+   "type": "test-host",
+   "label": "TEST vps host 4",
+   "layerId": "test-vps",
+   "boundaryIds": [
+    "test-cloud",
+    "test-tailnet"
+   ],
+   "attrs": {
+    "cpu": 6,
+    "memory_gb": 4,
+    "region": "jp",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-vps-h04"
+   ],
+   "style": {
+    "shape": "cylinder",
+    "size": "m",
+    "color": "#3b82f6",
+    "border": {
+     "style": "solid",
+     "width": 4
+    },
+    "icon": "server"
+   },
+   "lifecycle": "active",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-vps-h04-s0",
+   "type": "test-service",
+   "label": "svc 0 on vps-4",
+   "layerId": "test-vps",
+   "parentId": "test-vps-h04",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-vps-h04-s0-p0",
+   "type": "test-port",
+   "label": "port of test-vps-h04-s0",
+   "layerId": "test-vps",
+   "parentId": "test-vps-h04-s0",
+   "role": "subresource",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-vps-h04-s1",
+   "type": "test-service",
+   "label": "svc 1 on vps-4",
+   "layerId": "test-vps",
+   "parentId": "test-vps-h04",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-vps-h05",
+   "type": "test-host",
+   "label": "TEST vps host 5",
+   "layerId": "test-vps",
+   "boundaryIds": [],
+   "attrs": {
+    "cpu": 7,
+    "memory_gb": 8,
+    "region": "us",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-vps-h05"
+   ],
+   "style": {
+    "shape": "diamond",
+    "size": "l",
+    "color": "#3b82f6",
+    "border": {
+     "style": "dashed",
+     "width": 0
+    },
+    "icon": "server"
+   },
+   "lifecycle": "planned",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-vps-h05-s0",
+   "type": "test-service",
+   "label": "svc 0 on vps-5",
+   "layerId": "test-vps",
+   "parentId": "test-vps-h05",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-vps-h05-s1",
+   "type": "test-service",
+   "label": "svc 1 on vps-5",
+   "layerId": "test-vps",
+   "parentId": "test-vps-h05",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-vps-h06",
+   "type": "test-host",
+   "label": "TEST vps host 6",
+   "layerId": "test-vps",
+   "boundaryIds": [
+    "test-cloud",
+    "test-tailnet"
+   ],
+   "attrs": {
+    "cpu": 2,
+    "memory_gb": 12,
+    "region": "cn",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-vps-h06"
+   ],
+   "style": {
+    "shape": "circle",
+    "size": "s",
+    "color": "#3b82f6",
+    "border": {
+     "style": "dotted",
+     "width": 1
+    },
+    "icon": "server"
+   },
+   "lifecycle": "deprecated",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-vps-h06-s0",
+   "type": "test-service",
+   "label": "svc 0 on vps-6",
+   "layerId": "test-vps",
+   "parentId": "test-vps-h06",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-vps-h06-s0-p0",
+   "type": "test-port",
+   "label": "port of test-vps-h06-s0",
+   "layerId": "test-vps",
+   "parentId": "test-vps-h06-s0",
+   "role": "subresource",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-vps-h06-s1",
+   "type": "test-service",
+   "label": "svc 1 on vps-6",
+   "layerId": "test-vps",
+   "parentId": "test-vps-h06",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-vps-h07",
+   "type": "test-host",
+   "label": "TEST vps host 7",
+   "layerId": "test-vps",
+   "boundaryIds": [
+    "test-cloud",
+    "test-tailnet"
+   ],
+   "attrs": {
+    "cpu": 3,
+    "memory_gb": 16,
+    "region": "home",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-vps-h07"
+   ],
+   "style": {
+    "shape": "cloud",
+    "size": "m",
+    "color": "#3b82f6",
+    "border": {
+     "style": "double",
+     "width": 2
+    },
+    "icon": "server"
+   },
+   "lifecycle": "active",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-vps-h07-s0",
+   "type": "test-service",
+   "label": "svc 0 on vps-7",
+   "layerId": "test-vps",
+   "parentId": "test-vps-h07",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-vps-h07-s1",
+   "type": "test-service",
+   "label": "svc 1 on vps-7",
+   "layerId": "test-vps",
+   "parentId": "test-vps-h07",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-vps-h08",
+   "type": "test-host",
+   "label": "TEST vps host 8",
+   "layerId": "test-vps",
+   "boundaryIds": [
+    "test-cloud",
+    "test-tailnet"
+   ],
+   "attrs": {
+    "cpu": 4,
+    "memory_gb": 4,
+    "region": "jp",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-vps-h08"
+   ],
+   "style": {
+    "shape": "rect",
+    "size": "l",
+    "color": "#3b82f6",
+    "border": {
+     "style": "solid",
+     "width": 3
+    },
+    "icon": "server"
+   },
+   "lifecycle": "active",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-vps-h08-s0",
+   "type": "test-service",
+   "label": "svc 0 on vps-8",
+   "layerId": "test-vps",
+   "parentId": "test-vps-h08",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-vps-h08-s0-p0",
+   "type": "test-port",
+   "label": "port of test-vps-h08-s0",
+   "layerId": "test-vps",
+   "parentId": "test-vps-h08-s0",
+   "role": "subresource",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-vps-h08-s1",
+   "type": "test-service",
+   "label": "svc 1 on vps-8",
+   "layerId": "test-vps",
+   "parentId": "test-vps-h08",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-vps-h09",
+   "type": "test-host",
+   "label": "TEST vps host 9",
+   "layerId": "test-vps",
+   "boundaryIds": [
+    "test-cloud",
+    "test-tailnet"
+   ],
+   "attrs": {
+    "cpu": 5,
+    "memory_gb": 8,
+    "region": "us",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-vps-h09"
+   ],
+   "style": {
+    "shape": "rounded",
+    "size": "s",
+    "color": "#3b82f6",
+    "border": {
+     "style": "dashed",
+     "width": 4
+    },
+    "icon": "server"
+   },
+   "lifecycle": "planned",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-vps-h09-s0",
+   "type": "test-service",
+   "label": "svc 0 on vps-9",
+   "layerId": "test-vps",
+   "parentId": "test-vps-h09",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-vps-h09-s1",
+   "type": "test-service",
+   "label": "svc 1 on vps-9",
+   "layerId": "test-vps",
+   "parentId": "test-vps-h09",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-apple-h00",
+   "type": "test-host",
+   "label": "TEST apple host 0",
+   "layerId": "test-apple",
+   "boundaryIds": [],
+   "attrs": {
+    "cpu": 2,
+    "memory_gb": 4,
+    "region": "jp",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-apple-h00"
+   ],
+   "style": {
+    "shape": "rect",
+    "size": "s",
+    "color": "#a3a3a3",
+    "border": {
+     "style": "solid",
+     "width": 0
+    },
+    "icon": "server"
+   },
+   "lifecycle": "active",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-apple-h00-s0",
+   "type": "test-service",
+   "label": "svc 0 on apple-0",
+   "layerId": "test-apple",
+   "parentId": "test-apple-h00",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-apple-h00-s0-p0",
+   "type": "test-port",
+   "label": "port of test-apple-h00-s0",
+   "layerId": "test-apple",
+   "parentId": "test-apple-h00-s0",
+   "role": "subresource",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-apple-h00-s1",
+   "type": "test-service",
+   "label": "svc 1 on apple-0",
+   "layerId": "test-apple",
+   "parentId": "test-apple-h00",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-apple-h01",
+   "type": "test-host",
+   "label": "TEST apple host 1",
+   "layerId": "test-apple",
+   "boundaryIds": [
+    "test-home-lan"
+   ],
+   "attrs": {
+    "cpu": 3,
+    "memory_gb": 8,
+    "region": "us",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-apple-h01"
+   ],
+   "style": {
+    "shape": "rounded",
+    "size": "m",
+    "color": "#a3a3a3",
+    "border": {
+     "style": "dashed",
+     "width": 1
+    },
+    "icon": "server"
+   },
+   "lifecycle": "planned",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-apple-h01-s0",
+   "type": "test-service",
+   "label": "svc 0 on apple-1",
+   "layerId": "test-apple",
+   "parentId": "test-apple-h01",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-apple-h01-s1",
+   "type": "test-service",
+   "label": "svc 1 on apple-1",
+   "layerId": "test-apple",
+   "parentId": "test-apple-h01",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-apple-h02",
+   "type": "test-host",
+   "label": "TEST apple host 2",
+   "layerId": "test-apple",
+   "boundaryIds": [
+    "test-home-lan"
+   ],
+   "attrs": {
+    "cpu": 4,
+    "memory_gb": 12,
+    "region": "cn",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-apple-h02"
+   ],
+   "style": {
+    "shape": "pill",
+    "size": "l",
+    "color": "#a3a3a3",
+    "border": {
+     "style": "dotted",
+     "width": 2
+    },
+    "icon": "server"
+   },
+   "lifecycle": "deprecated",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-apple-h02-s0",
+   "type": "test-service",
+   "label": "svc 0 on apple-2",
+   "layerId": "test-apple",
+   "parentId": "test-apple-h02",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-apple-h02-s0-p0",
+   "type": "test-port",
+   "label": "port of test-apple-h02-s0",
+   "layerId": "test-apple",
+   "parentId": "test-apple-h02-s0",
+   "role": "subresource",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-apple-h02-s1",
+   "type": "test-service",
+   "label": "svc 1 on apple-2",
+   "layerId": "test-apple",
+   "parentId": "test-apple-h02",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-apple-h03",
+   "type": "test-host",
+   "label": "TEST apple host 3",
+   "layerId": "test-apple",
+   "boundaryIds": [
+    "test-home-lan"
+   ],
+   "attrs": {
+    "cpu": 5,
+    "memory_gb": 16,
+    "region": "home",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-apple-h03"
+   ],
+   "style": {
+    "shape": "hexagon",
+    "size": "s",
+    "color": "#a3a3a3",
+    "border": {
+     "style": "double",
+     "width": 3
+    },
+    "icon": "server"
+   },
+   "lifecycle": "active",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-apple-h03-s0",
+   "type": "test-service",
+   "label": "svc 0 on apple-3",
+   "layerId": "test-apple",
+   "parentId": "test-apple-h03",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-apple-h03-s1",
+   "type": "test-service",
+   "label": "svc 1 on apple-3",
+   "layerId": "test-apple",
+   "parentId": "test-apple-h03",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-apple-h04",
+   "type": "test-host",
+   "label": "TEST apple host 4",
+   "layerId": "test-apple",
+   "boundaryIds": [
+    "test-home-lan"
+   ],
+   "attrs": {
+    "cpu": 6,
+    "memory_gb": 4,
+    "region": "jp",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-apple-h04"
+   ],
+   "style": {
+    "shape": "cylinder",
+    "size": "m",
+    "color": "#a3a3a3",
+    "border": {
+     "style": "solid",
+     "width": 4
+    },
+    "icon": "server"
+   },
+   "lifecycle": "active",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-apple-h04-s0",
+   "type": "test-service",
+   "label": "svc 0 on apple-4",
+   "layerId": "test-apple",
+   "parentId": "test-apple-h04",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-apple-h04-s0-p0",
+   "type": "test-port",
+   "label": "port of test-apple-h04-s0",
+   "layerId": "test-apple",
+   "parentId": "test-apple-h04-s0",
+   "role": "subresource",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-apple-h04-s1",
+   "type": "test-service",
+   "label": "svc 1 on apple-4",
+   "layerId": "test-apple",
+   "parentId": "test-apple-h04",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-apple-h05",
+   "type": "test-host",
+   "label": "TEST apple host 5",
+   "layerId": "test-apple",
+   "boundaryIds": [],
+   "attrs": {
+    "cpu": 7,
+    "memory_gb": 8,
+    "region": "us",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-apple-h05"
+   ],
+   "style": {
+    "shape": "diamond",
+    "size": "l",
+    "color": "#a3a3a3",
+    "border": {
+     "style": "dashed",
+     "width": 0
+    },
+    "icon": "server"
+   },
+   "lifecycle": "planned",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-apple-h05-s0",
+   "type": "test-service",
+   "label": "svc 0 on apple-5",
+   "layerId": "test-apple",
+   "parentId": "test-apple-h05",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-apple-h05-s1",
+   "type": "test-service",
+   "label": "svc 1 on apple-5",
+   "layerId": "test-apple",
+   "parentId": "test-apple-h05",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-apple-h06",
+   "type": "test-host",
+   "label": "TEST apple host 6",
+   "layerId": "test-apple",
+   "boundaryIds": [
+    "test-home-lan"
+   ],
+   "attrs": {
+    "cpu": 2,
+    "memory_gb": 12,
+    "region": "cn",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-apple-h06"
+   ],
+   "style": {
+    "shape": "circle",
+    "size": "s",
+    "color": "#a3a3a3",
+    "border": {
+     "style": "dotted",
+     "width": 1
+    },
+    "icon": "server"
+   },
+   "lifecycle": "deprecated",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-apple-h06-s0",
+   "type": "test-service",
+   "label": "svc 0 on apple-6",
+   "layerId": "test-apple",
+   "parentId": "test-apple-h06",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-apple-h06-s0-p0",
+   "type": "test-port",
+   "label": "port of test-apple-h06-s0",
+   "layerId": "test-apple",
+   "parentId": "test-apple-h06-s0",
+   "role": "subresource",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-apple-h06-s1",
+   "type": "test-service",
+   "label": "svc 1 on apple-6",
+   "layerId": "test-apple",
+   "parentId": "test-apple-h06",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-apple-h07",
+   "type": "test-host",
+   "label": "TEST apple host 7",
+   "layerId": "test-apple",
+   "boundaryIds": [
+    "test-home-lan"
+   ],
+   "attrs": {
+    "cpu": 3,
+    "memory_gb": 16,
+    "region": "home",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-apple-h07"
+   ],
+   "style": {
+    "shape": "cloud",
+    "size": "m",
+    "color": "#a3a3a3",
+    "border": {
+     "style": "double",
+     "width": 2
+    },
+    "icon": "server"
+   },
+   "lifecycle": "active",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-apple-h07-s0",
+   "type": "test-service",
+   "label": "svc 0 on apple-7",
+   "layerId": "test-apple",
+   "parentId": "test-apple-h07",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-apple-h07-s1",
+   "type": "test-service",
+   "label": "svc 1 on apple-7",
+   "layerId": "test-apple",
+   "parentId": "test-apple-h07",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-apple-h08",
+   "type": "test-host",
+   "label": "TEST apple host 8",
+   "layerId": "test-apple",
+   "boundaryIds": [
+    "test-home-lan"
+   ],
+   "attrs": {
+    "cpu": 4,
+    "memory_gb": 4,
+    "region": "jp",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-apple-h08"
+   ],
+   "style": {
+    "shape": "rect",
+    "size": "l",
+    "color": "#a3a3a3",
+    "border": {
+     "style": "solid",
+     "width": 3
+    },
+    "icon": "server"
+   },
+   "lifecycle": "active",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-apple-h08-s0",
+   "type": "test-service",
+   "label": "svc 0 on apple-8",
+   "layerId": "test-apple",
+   "parentId": "test-apple-h08",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-apple-h08-s0-p0",
+   "type": "test-port",
+   "label": "port of test-apple-h08-s0",
+   "layerId": "test-apple",
+   "parentId": "test-apple-h08-s0",
+   "role": "subresource",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-apple-h08-s1",
+   "type": "test-service",
+   "label": "svc 1 on apple-8",
+   "layerId": "test-apple",
+   "parentId": "test-apple-h08",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-apple-h09",
+   "type": "test-host",
+   "label": "TEST apple host 9",
+   "layerId": "test-apple",
+   "boundaryIds": [
+    "test-home-lan"
+   ],
+   "attrs": {
+    "cpu": 5,
+    "memory_gb": 8,
+    "region": "us",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-apple-h09"
+   ],
+   "style": {
+    "shape": "rounded",
+    "size": "s",
+    "color": "#a3a3a3",
+    "border": {
+     "style": "dashed",
+     "width": 4
+    },
+    "icon": "server"
+   },
+   "lifecycle": "planned",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-apple-h09-s0",
+   "type": "test-service",
+   "label": "svc 0 on apple-9",
+   "layerId": "test-apple",
+   "parentId": "test-apple-h09",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-apple-h09-s1",
+   "type": "test-service",
+   "label": "svc 1 on apple-9",
+   "layerId": "test-apple",
+   "parentId": "test-apple-h09",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-nas-h00",
+   "type": "test-host",
+   "label": "TEST nas host 0",
+   "layerId": "test-nas",
+   "boundaryIds": [],
+   "attrs": {
+    "cpu": 2,
+    "memory_gb": 4,
+    "region": "jp",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-nas-h00"
+   ],
+   "style": {
+    "shape": "rect",
+    "size": "s",
+    "color": "#22c55e",
+    "border": {
+     "style": "solid",
+     "width": 0
+    },
+    "icon": "server"
+   },
+   "lifecycle": "active",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-nas-h00-s0",
+   "type": "test-service",
+   "label": "svc 0 on nas-0",
+   "layerId": "test-nas",
+   "parentId": "test-nas-h00",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-nas-h00-s0-p0",
+   "type": "test-port",
+   "label": "port of test-nas-h00-s0",
+   "layerId": "test-nas",
+   "parentId": "test-nas-h00-s0",
+   "role": "subresource",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-nas-h00-s1",
+   "type": "test-service",
+   "label": "svc 1 on nas-0",
+   "layerId": "test-nas",
+   "parentId": "test-nas-h00",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-nas-h01",
+   "type": "test-host",
+   "label": "TEST nas host 1",
+   "layerId": "test-nas",
+   "boundaryIds": [
+    "test-home-lan",
+    "test-tailnet"
+   ],
+   "attrs": {
+    "cpu": 3,
+    "memory_gb": 8,
+    "region": "us",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-nas-h01"
+   ],
+   "style": {
+    "shape": "rounded",
+    "size": "m",
+    "color": "#22c55e",
+    "border": {
+     "style": "dashed",
+     "width": 1
+    },
+    "icon": "server"
+   },
+   "lifecycle": "planned",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-nas-h01-s0",
+   "type": "test-service",
+   "label": "svc 0 on nas-1",
+   "layerId": "test-nas",
+   "parentId": "test-nas-h01",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-nas-h01-s1",
+   "type": "test-service",
+   "label": "svc 1 on nas-1",
+   "layerId": "test-nas",
+   "parentId": "test-nas-h01",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-nas-h02",
+   "type": "test-host",
+   "label": "TEST nas host 2",
+   "layerId": "test-nas",
+   "boundaryIds": [
+    "test-home-lan",
+    "test-tailnet"
+   ],
+   "attrs": {
+    "cpu": 4,
+    "memory_gb": 12,
+    "region": "cn",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-nas-h02"
+   ],
+   "style": {
+    "shape": "pill",
+    "size": "l",
+    "color": "#22c55e",
+    "border": {
+     "style": "dotted",
+     "width": 2
+    },
+    "icon": "server"
+   },
+   "lifecycle": "deprecated",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-nas-h02-s0",
+   "type": "test-service",
+   "label": "svc 0 on nas-2",
+   "layerId": "test-nas",
+   "parentId": "test-nas-h02",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-nas-h02-s0-p0",
+   "type": "test-port",
+   "label": "port of test-nas-h02-s0",
+   "layerId": "test-nas",
+   "parentId": "test-nas-h02-s0",
+   "role": "subresource",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-nas-h02-s1",
+   "type": "test-service",
+   "label": "svc 1 on nas-2",
+   "layerId": "test-nas",
+   "parentId": "test-nas-h02",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-nas-h03",
+   "type": "test-host",
+   "label": "TEST nas host 3",
+   "layerId": "test-nas",
+   "boundaryIds": [
+    "test-home-lan",
+    "test-tailnet"
+   ],
+   "attrs": {
+    "cpu": 5,
+    "memory_gb": 16,
+    "region": "home",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-nas-h03"
+   ],
+   "style": {
+    "shape": "hexagon",
+    "size": "s",
+    "color": "#22c55e",
+    "border": {
+     "style": "double",
+     "width": 3
+    },
+    "icon": "server"
+   },
+   "lifecycle": "active",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-nas-h03-s0",
+   "type": "test-service",
+   "label": "svc 0 on nas-3",
+   "layerId": "test-nas",
+   "parentId": "test-nas-h03",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-nas-h03-s1",
+   "type": "test-service",
+   "label": "svc 1 on nas-3",
+   "layerId": "test-nas",
+   "parentId": "test-nas-h03",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-nas-h04",
+   "type": "test-host",
+   "label": "TEST nas host 4",
+   "layerId": "test-nas",
+   "boundaryIds": [
+    "test-home-lan",
+    "test-tailnet"
+   ],
+   "attrs": {
+    "cpu": 6,
+    "memory_gb": 4,
+    "region": "jp",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-nas-h04"
+   ],
+   "style": {
+    "shape": "cylinder",
+    "size": "m",
+    "color": "#22c55e",
+    "border": {
+     "style": "solid",
+     "width": 4
+    },
+    "icon": "server"
+   },
+   "lifecycle": "active",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-nas-h04-s0",
+   "type": "test-service",
+   "label": "svc 0 on nas-4",
+   "layerId": "test-nas",
+   "parentId": "test-nas-h04",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-nas-h04-s0-p0",
+   "type": "test-port",
+   "label": "port of test-nas-h04-s0",
+   "layerId": "test-nas",
+   "parentId": "test-nas-h04-s0",
+   "role": "subresource",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-nas-h04-s1",
+   "type": "test-service",
+   "label": "svc 1 on nas-4",
+   "layerId": "test-nas",
+   "parentId": "test-nas-h04",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-nas-h05",
+   "type": "test-host",
+   "label": "TEST nas host 5",
+   "layerId": "test-nas",
+   "boundaryIds": [],
+   "attrs": {
+    "cpu": 7,
+    "memory_gb": 8,
+    "region": "us",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-nas-h05"
+   ],
+   "style": {
+    "shape": "diamond",
+    "size": "l",
+    "color": "#22c55e",
+    "border": {
+     "style": "dashed",
+     "width": 0
+    },
+    "icon": "server"
+   },
+   "lifecycle": "planned",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-nas-h05-s0",
+   "type": "test-service",
+   "label": "svc 0 on nas-5",
+   "layerId": "test-nas",
+   "parentId": "test-nas-h05",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-nas-h05-s1",
+   "type": "test-service",
+   "label": "svc 1 on nas-5",
+   "layerId": "test-nas",
+   "parentId": "test-nas-h05",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-nas-h06",
+   "type": "test-host",
+   "label": "TEST nas host 6",
+   "layerId": "test-nas",
+   "boundaryIds": [
+    "test-home-lan",
+    "test-tailnet"
+   ],
+   "attrs": {
+    "cpu": 2,
+    "memory_gb": 12,
+    "region": "cn",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-nas-h06"
+   ],
+   "style": {
+    "shape": "circle",
+    "size": "s",
+    "color": "#22c55e",
+    "border": {
+     "style": "dotted",
+     "width": 1
+    },
+    "icon": "server"
+   },
+   "lifecycle": "deprecated",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-nas-h06-s0",
+   "type": "test-service",
+   "label": "svc 0 on nas-6",
+   "layerId": "test-nas",
+   "parentId": "test-nas-h06",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-nas-h06-s0-p0",
+   "type": "test-port",
+   "label": "port of test-nas-h06-s0",
+   "layerId": "test-nas",
+   "parentId": "test-nas-h06-s0",
+   "role": "subresource",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-nas-h06-s1",
+   "type": "test-service",
+   "label": "svc 1 on nas-6",
+   "layerId": "test-nas",
+   "parentId": "test-nas-h06",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-nas-h07",
+   "type": "test-host",
+   "label": "TEST nas host 7",
+   "layerId": "test-nas",
+   "boundaryIds": [
+    "test-home-lan",
+    "test-tailnet"
+   ],
+   "attrs": {
+    "cpu": 3,
+    "memory_gb": 16,
+    "region": "home",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-nas-h07"
+   ],
+   "style": {
+    "shape": "cloud",
+    "size": "m",
+    "color": "#22c55e",
+    "border": {
+     "style": "double",
+     "width": 2
+    },
+    "icon": "server"
+   },
+   "lifecycle": "active",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-nas-h07-s0",
+   "type": "test-service",
+   "label": "svc 0 on nas-7",
+   "layerId": "test-nas",
+   "parentId": "test-nas-h07",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-nas-h07-s1",
+   "type": "test-service",
+   "label": "svc 1 on nas-7",
+   "layerId": "test-nas",
+   "parentId": "test-nas-h07",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-nas-h08",
+   "type": "test-host",
+   "label": "TEST nas host 8",
+   "layerId": "test-nas",
+   "boundaryIds": [
+    "test-home-lan",
+    "test-tailnet"
+   ],
+   "attrs": {
+    "cpu": 4,
+    "memory_gb": 4,
+    "region": "jp",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-nas-h08"
+   ],
+   "style": {
+    "shape": "rect",
+    "size": "l",
+    "color": "#22c55e",
+    "border": {
+     "style": "solid",
+     "width": 3
+    },
+    "icon": "server"
+   },
+   "lifecycle": "active",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-nas-h08-s0",
+   "type": "test-service",
+   "label": "svc 0 on nas-8",
+   "layerId": "test-nas",
+   "parentId": "test-nas-h08",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-nas-h08-s0-p0",
+   "type": "test-port",
+   "label": "port of test-nas-h08-s0",
+   "layerId": "test-nas",
+   "parentId": "test-nas-h08-s0",
+   "role": "subresource",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-nas-h08-s1",
+   "type": "test-service",
+   "label": "svc 1 on nas-8",
+   "layerId": "test-nas",
+   "parentId": "test-nas-h08",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-nas-h09",
+   "type": "test-host",
+   "label": "TEST nas host 9",
+   "layerId": "test-nas",
+   "boundaryIds": [
+    "test-home-lan",
+    "test-tailnet"
+   ],
+   "attrs": {
+    "cpu": 5,
+    "memory_gb": 8,
+    "region": "us",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-nas-h09"
+   ],
+   "style": {
+    "shape": "rounded",
+    "size": "s",
+    "color": "#22c55e",
+    "border": {
+     "style": "dashed",
+     "width": 4
+    },
+    "icon": "server"
+   },
+   "lifecycle": "planned",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-nas-h09-s0",
+   "type": "test-service",
+   "label": "svc 0 on nas-9",
+   "layerId": "test-nas",
+   "parentId": "test-nas-h09",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-nas-h09-s1",
+   "type": "test-service",
+   "label": "svc 1 on nas-9",
+   "layerId": "test-nas",
+   "parentId": "test-nas-h09",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-microsoft-h00",
+   "type": "test-host",
+   "label": "TEST microsoft host 0",
+   "layerId": "test-microsoft",
+   "boundaryIds": [],
+   "attrs": {
+    "cpu": 2,
+    "memory_gb": 4,
+    "region": "jp",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-microsoft-h00"
+   ],
+   "style": {
+    "shape": "rect",
+    "size": "s",
+    "color": "#0ea5e9",
+    "border": {
+     "style": "solid",
+     "width": 0
+    },
+    "icon": "server"
+   },
+   "lifecycle": "active",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-microsoft-h00-s0",
+   "type": "test-service",
+   "label": "svc 0 on microsoft-0",
+   "layerId": "test-microsoft",
+   "parentId": "test-microsoft-h00",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-microsoft-h00-s0-p0",
+   "type": "test-port",
+   "label": "port of test-microsoft-h00-s0",
+   "layerId": "test-microsoft",
+   "parentId": "test-microsoft-h00-s0",
+   "role": "subresource",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-microsoft-h00-s1",
+   "type": "test-service",
+   "label": "svc 1 on microsoft-0",
+   "layerId": "test-microsoft",
+   "parentId": "test-microsoft-h00",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-microsoft-h01",
+   "type": "test-host",
+   "label": "TEST microsoft host 1",
+   "layerId": "test-microsoft",
+   "boundaryIds": [
+    "test-office-domain"
+   ],
+   "attrs": {
+    "cpu": 3,
+    "memory_gb": 8,
+    "region": "us",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-microsoft-h01"
+   ],
+   "style": {
+    "shape": "rounded",
+    "size": "m",
+    "color": "#0ea5e9",
+    "border": {
+     "style": "dashed",
+     "width": 1
+    },
+    "icon": "server"
+   },
+   "lifecycle": "planned",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-microsoft-h01-s0",
+   "type": "test-service",
+   "label": "svc 0 on microsoft-1",
+   "layerId": "test-microsoft",
+   "parentId": "test-microsoft-h01",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-microsoft-h01-s1",
+   "type": "test-service",
+   "label": "svc 1 on microsoft-1",
+   "layerId": "test-microsoft",
+   "parentId": "test-microsoft-h01",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-microsoft-h02",
+   "type": "test-host",
+   "label": "TEST microsoft host 2",
+   "layerId": "test-microsoft",
+   "boundaryIds": [
+    "test-office-domain"
+   ],
+   "attrs": {
+    "cpu": 4,
+    "memory_gb": 12,
+    "region": "cn",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-microsoft-h02"
+   ],
+   "style": {
+    "shape": "pill",
+    "size": "l",
+    "color": "#0ea5e9",
+    "border": {
+     "style": "dotted",
+     "width": 2
+    },
+    "icon": "server"
+   },
+   "lifecycle": "deprecated",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-microsoft-h02-s0",
+   "type": "test-service",
+   "label": "svc 0 on microsoft-2",
+   "layerId": "test-microsoft",
+   "parentId": "test-microsoft-h02",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-microsoft-h02-s0-p0",
+   "type": "test-port",
+   "label": "port of test-microsoft-h02-s0",
+   "layerId": "test-microsoft",
+   "parentId": "test-microsoft-h02-s0",
+   "role": "subresource",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-microsoft-h02-s1",
+   "type": "test-service",
+   "label": "svc 1 on microsoft-2",
+   "layerId": "test-microsoft",
+   "parentId": "test-microsoft-h02",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-microsoft-h03",
+   "type": "test-host",
+   "label": "TEST microsoft host 3",
+   "layerId": "test-microsoft",
+   "boundaryIds": [
+    "test-office-domain"
+   ],
+   "attrs": {
+    "cpu": 5,
+    "memory_gb": 16,
+    "region": "home",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-microsoft-h03"
+   ],
+   "style": {
+    "shape": "hexagon",
+    "size": "s",
+    "color": "#0ea5e9",
+    "border": {
+     "style": "double",
+     "width": 3
+    },
+    "icon": "server"
+   },
+   "lifecycle": "active",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-microsoft-h03-s0",
+   "type": "test-service",
+   "label": "svc 0 on microsoft-3",
+   "layerId": "test-microsoft",
+   "parentId": "test-microsoft-h03",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-microsoft-h03-s1",
+   "type": "test-service",
+   "label": "svc 1 on microsoft-3",
+   "layerId": "test-microsoft",
+   "parentId": "test-microsoft-h03",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-microsoft-h04",
+   "type": "test-host",
+   "label": "TEST microsoft host 4",
+   "layerId": "test-microsoft",
+   "boundaryIds": [
+    "test-office-domain"
+   ],
+   "attrs": {
+    "cpu": 6,
+    "memory_gb": 4,
+    "region": "jp",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-microsoft-h04"
+   ],
+   "style": {
+    "shape": "cylinder",
+    "size": "m",
+    "color": "#0ea5e9",
+    "border": {
+     "style": "solid",
+     "width": 4
+    },
+    "icon": "server"
+   },
+   "lifecycle": "active",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-microsoft-h04-s0",
+   "type": "test-service",
+   "label": "svc 0 on microsoft-4",
+   "layerId": "test-microsoft",
+   "parentId": "test-microsoft-h04",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-microsoft-h04-s0-p0",
+   "type": "test-port",
+   "label": "port of test-microsoft-h04-s0",
+   "layerId": "test-microsoft",
+   "parentId": "test-microsoft-h04-s0",
+   "role": "subresource",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-microsoft-h04-s1",
+   "type": "test-service",
+   "label": "svc 1 on microsoft-4",
+   "layerId": "test-microsoft",
+   "parentId": "test-microsoft-h04",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-microsoft-h05",
+   "type": "test-host",
+   "label": "TEST microsoft host 5",
+   "layerId": "test-microsoft",
+   "boundaryIds": [],
+   "attrs": {
+    "cpu": 7,
+    "memory_gb": 8,
+    "region": "us",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-microsoft-h05"
+   ],
+   "style": {
+    "shape": "diamond",
+    "size": "l",
+    "color": "#0ea5e9",
+    "border": {
+     "style": "dashed",
+     "width": 0
+    },
+    "icon": "server"
+   },
+   "lifecycle": "planned",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-microsoft-h05-s0",
+   "type": "test-service",
+   "label": "svc 0 on microsoft-5",
+   "layerId": "test-microsoft",
+   "parentId": "test-microsoft-h05",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-microsoft-h05-s1",
+   "type": "test-service",
+   "label": "svc 1 on microsoft-5",
+   "layerId": "test-microsoft",
+   "parentId": "test-microsoft-h05",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-microsoft-h06",
+   "type": "test-host",
+   "label": "TEST microsoft host 6",
+   "layerId": "test-microsoft",
+   "boundaryIds": [
+    "test-office-domain"
+   ],
+   "attrs": {
+    "cpu": 2,
+    "memory_gb": 12,
+    "region": "cn",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-microsoft-h06"
+   ],
+   "style": {
+    "shape": "circle",
+    "size": "s",
+    "color": "#0ea5e9",
+    "border": {
+     "style": "dotted",
+     "width": 1
+    },
+    "icon": "server"
+   },
+   "lifecycle": "deprecated",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-microsoft-h06-s0",
+   "type": "test-service",
+   "label": "svc 0 on microsoft-6",
+   "layerId": "test-microsoft",
+   "parentId": "test-microsoft-h06",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-microsoft-h06-s0-p0",
+   "type": "test-port",
+   "label": "port of test-microsoft-h06-s0",
+   "layerId": "test-microsoft",
+   "parentId": "test-microsoft-h06-s0",
+   "role": "subresource",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-microsoft-h06-s1",
+   "type": "test-service",
+   "label": "svc 1 on microsoft-6",
+   "layerId": "test-microsoft",
+   "parentId": "test-microsoft-h06",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-microsoft-h07",
+   "type": "test-host",
+   "label": "TEST microsoft host 7",
+   "layerId": "test-microsoft",
+   "boundaryIds": [
+    "test-office-domain"
+   ],
+   "attrs": {
+    "cpu": 3,
+    "memory_gb": 16,
+    "region": "home",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-microsoft-h07"
+   ],
+   "style": {
+    "shape": "cloud",
+    "size": "m",
+    "color": "#0ea5e9",
+    "border": {
+     "style": "double",
+     "width": 2
+    },
+    "icon": "server"
+   },
+   "lifecycle": "active",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-microsoft-h07-s0",
+   "type": "test-service",
+   "label": "svc 0 on microsoft-7",
+   "layerId": "test-microsoft",
+   "parentId": "test-microsoft-h07",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-microsoft-h07-s1",
+   "type": "test-service",
+   "label": "svc 1 on microsoft-7",
+   "layerId": "test-microsoft",
+   "parentId": "test-microsoft-h07",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-microsoft-h08",
+   "type": "test-host",
+   "label": "TEST microsoft host 8",
+   "layerId": "test-microsoft",
+   "boundaryIds": [
+    "test-office-domain"
+   ],
+   "attrs": {
+    "cpu": 4,
+    "memory_gb": 4,
+    "region": "jp",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-microsoft-h08"
+   ],
+   "style": {
+    "shape": "rect",
+    "size": "l",
+    "color": "#0ea5e9",
+    "border": {
+     "style": "solid",
+     "width": 3
+    },
+    "icon": "server"
+   },
+   "lifecycle": "active",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-microsoft-h08-s0",
+   "type": "test-service",
+   "label": "svc 0 on microsoft-8",
+   "layerId": "test-microsoft",
+   "parentId": "test-microsoft-h08",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-microsoft-h08-s0-p0",
+   "type": "test-port",
+   "label": "port of test-microsoft-h08-s0",
+   "layerId": "test-microsoft",
+   "parentId": "test-microsoft-h08-s0",
+   "role": "subresource",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-microsoft-h08-s1",
+   "type": "test-service",
+   "label": "svc 1 on microsoft-8",
+   "layerId": "test-microsoft",
+   "parentId": "test-microsoft-h08",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-microsoft-h09",
+   "type": "test-host",
+   "label": "TEST microsoft host 9",
+   "layerId": "test-microsoft",
+   "boundaryIds": [
+    "test-office-domain"
+   ],
+   "attrs": {
+    "cpu": 5,
+    "memory_gb": 8,
+    "region": "us",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-microsoft-h09"
+   ],
+   "style": {
+    "shape": "rounded",
+    "size": "s",
+    "color": "#0ea5e9",
+    "border": {
+     "style": "dashed",
+     "width": 4
+    },
+    "icon": "server"
+   },
+   "lifecycle": "planned",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-microsoft-h09-s0",
+   "type": "test-service",
+   "label": "svc 0 on microsoft-9",
+   "layerId": "test-microsoft",
+   "parentId": "test-microsoft-h09",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-microsoft-h09-s1",
+   "type": "test-service",
+   "label": "svc 1 on microsoft-9",
+   "layerId": "test-microsoft",
+   "parentId": "test-microsoft-h09",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-tailscale-h00",
+   "type": "test-host",
+   "label": "TEST tailscale host 0",
+   "layerId": "test-tailscale",
+   "boundaryIds": [],
+   "attrs": {
+    "cpu": 2,
+    "memory_gb": 4,
+    "region": "jp",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-tailscale-h00"
+   ],
+   "style": {
+    "shape": "rect",
+    "size": "s",
+    "color": "#6366f1",
+    "border": {
+     "style": "solid",
+     "width": 0
+    },
+    "icon": "server"
+   },
+   "lifecycle": "active",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-tailscale-h00-s0",
+   "type": "test-service",
+   "label": "svc 0 on tailscale-0",
+   "layerId": "test-tailscale",
+   "parentId": "test-tailscale-h00",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-tailscale-h00-s0-p0",
+   "type": "test-port",
+   "label": "port of test-tailscale-h00-s0",
+   "layerId": "test-tailscale",
+   "parentId": "test-tailscale-h00-s0",
+   "role": "subresource",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-tailscale-h00-s1",
+   "type": "test-service",
+   "label": "svc 1 on tailscale-0",
+   "layerId": "test-tailscale",
+   "parentId": "test-tailscale-h00",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-tailscale-h01",
+   "type": "test-host",
+   "label": "TEST tailscale host 1",
+   "layerId": "test-tailscale",
+   "boundaryIds": [
+    "test-tailnet"
+   ],
+   "attrs": {
+    "cpu": 3,
+    "memory_gb": 8,
+    "region": "us",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-tailscale-h01"
+   ],
+   "style": {
+    "shape": "rounded",
+    "size": "m",
+    "color": "#6366f1",
+    "border": {
+     "style": "dashed",
+     "width": 1
+    },
+    "icon": "server"
+   },
+   "lifecycle": "planned",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-tailscale-h01-s0",
+   "type": "test-service",
+   "label": "svc 0 on tailscale-1",
+   "layerId": "test-tailscale",
+   "parentId": "test-tailscale-h01",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-tailscale-h01-s1",
+   "type": "test-service",
+   "label": "svc 1 on tailscale-1",
+   "layerId": "test-tailscale",
+   "parentId": "test-tailscale-h01",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-tailscale-h02",
+   "type": "test-host",
+   "label": "TEST tailscale host 2",
+   "layerId": "test-tailscale",
+   "boundaryIds": [
+    "test-tailnet"
+   ],
+   "attrs": {
+    "cpu": 4,
+    "memory_gb": 12,
+    "region": "cn",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-tailscale-h02"
+   ],
+   "style": {
+    "shape": "pill",
+    "size": "l",
+    "color": "#6366f1",
+    "border": {
+     "style": "dotted",
+     "width": 2
+    },
+    "icon": "server"
+   },
+   "lifecycle": "deprecated",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-tailscale-h02-s0",
+   "type": "test-service",
+   "label": "svc 0 on tailscale-2",
+   "layerId": "test-tailscale",
+   "parentId": "test-tailscale-h02",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-tailscale-h02-s0-p0",
+   "type": "test-port",
+   "label": "port of test-tailscale-h02-s0",
+   "layerId": "test-tailscale",
+   "parentId": "test-tailscale-h02-s0",
+   "role": "subresource",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-tailscale-h02-s1",
+   "type": "test-service",
+   "label": "svc 1 on tailscale-2",
+   "layerId": "test-tailscale",
+   "parentId": "test-tailscale-h02",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-tailscale-h03",
+   "type": "test-host",
+   "label": "TEST tailscale host 3",
+   "layerId": "test-tailscale",
+   "boundaryIds": [
+    "test-tailnet"
+   ],
+   "attrs": {
+    "cpu": 5,
+    "memory_gb": 16,
+    "region": "home",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-tailscale-h03"
+   ],
+   "style": {
+    "shape": "hexagon",
+    "size": "s",
+    "color": "#6366f1",
+    "border": {
+     "style": "double",
+     "width": 3
+    },
+    "icon": "server"
+   },
+   "lifecycle": "active",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-tailscale-h03-s0",
+   "type": "test-service",
+   "label": "svc 0 on tailscale-3",
+   "layerId": "test-tailscale",
+   "parentId": "test-tailscale-h03",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-tailscale-h03-s1",
+   "type": "test-service",
+   "label": "svc 1 on tailscale-3",
+   "layerId": "test-tailscale",
+   "parentId": "test-tailscale-h03",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-tailscale-h04",
+   "type": "test-host",
+   "label": "TEST tailscale host 4",
+   "layerId": "test-tailscale",
+   "boundaryIds": [
+    "test-tailnet"
+   ],
+   "attrs": {
+    "cpu": 6,
+    "memory_gb": 4,
+    "region": "jp",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-tailscale-h04"
+   ],
+   "style": {
+    "shape": "cylinder",
+    "size": "m",
+    "color": "#6366f1",
+    "border": {
+     "style": "solid",
+     "width": 4
+    },
+    "icon": "server"
+   },
+   "lifecycle": "active",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-tailscale-h04-s0",
+   "type": "test-service",
+   "label": "svc 0 on tailscale-4",
+   "layerId": "test-tailscale",
+   "parentId": "test-tailscale-h04",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-tailscale-h04-s0-p0",
+   "type": "test-port",
+   "label": "port of test-tailscale-h04-s0",
+   "layerId": "test-tailscale",
+   "parentId": "test-tailscale-h04-s0",
+   "role": "subresource",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-tailscale-h04-s1",
+   "type": "test-service",
+   "label": "svc 1 on tailscale-4",
+   "layerId": "test-tailscale",
+   "parentId": "test-tailscale-h04",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-tailscale-h05",
+   "type": "test-host",
+   "label": "TEST tailscale host 5",
+   "layerId": "test-tailscale",
+   "boundaryIds": [],
+   "attrs": {
+    "cpu": 7,
+    "memory_gb": 8,
+    "region": "us",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-tailscale-h05"
+   ],
+   "style": {
+    "shape": "diamond",
+    "size": "l",
+    "color": "#6366f1",
+    "border": {
+     "style": "dashed",
+     "width": 0
+    },
+    "icon": "server"
+   },
+   "lifecycle": "planned",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-tailscale-h05-s0",
+   "type": "test-service",
+   "label": "svc 0 on tailscale-5",
+   "layerId": "test-tailscale",
+   "parentId": "test-tailscale-h05",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-tailscale-h05-s1",
+   "type": "test-service",
+   "label": "svc 1 on tailscale-5",
+   "layerId": "test-tailscale",
+   "parentId": "test-tailscale-h05",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-tailscale-h06",
+   "type": "test-host",
+   "label": "TEST tailscale host 6",
+   "layerId": "test-tailscale",
+   "boundaryIds": [
+    "test-tailnet"
+   ],
+   "attrs": {
+    "cpu": 2,
+    "memory_gb": 12,
+    "region": "cn",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-tailscale-h06"
+   ],
+   "style": {
+    "shape": "circle",
+    "size": "s",
+    "color": "#6366f1",
+    "border": {
+     "style": "dotted",
+     "width": 1
+    },
+    "icon": "server"
+   },
+   "lifecycle": "deprecated",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-tailscale-h06-s0",
+   "type": "test-service",
+   "label": "svc 0 on tailscale-6",
+   "layerId": "test-tailscale",
+   "parentId": "test-tailscale-h06",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-tailscale-h06-s0-p0",
+   "type": "test-port",
+   "label": "port of test-tailscale-h06-s0",
+   "layerId": "test-tailscale",
+   "parentId": "test-tailscale-h06-s0",
+   "role": "subresource",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-tailscale-h06-s1",
+   "type": "test-service",
+   "label": "svc 1 on tailscale-6",
+   "layerId": "test-tailscale",
+   "parentId": "test-tailscale-h06",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-tailscale-h07",
+   "type": "test-host",
+   "label": "TEST tailscale host 7",
+   "layerId": "test-tailscale",
+   "boundaryIds": [
+    "test-tailnet"
+   ],
+   "attrs": {
+    "cpu": 3,
+    "memory_gb": 16,
+    "region": "home",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-tailscale-h07"
+   ],
+   "style": {
+    "shape": "cloud",
+    "size": "m",
+    "color": "#6366f1",
+    "border": {
+     "style": "double",
+     "width": 2
+    },
+    "icon": "server"
+   },
+   "lifecycle": "active",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-tailscale-h07-s0",
+   "type": "test-service",
+   "label": "svc 0 on tailscale-7",
+   "layerId": "test-tailscale",
+   "parentId": "test-tailscale-h07",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-tailscale-h07-s1",
+   "type": "test-service",
+   "label": "svc 1 on tailscale-7",
+   "layerId": "test-tailscale",
+   "parentId": "test-tailscale-h07",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-tailscale-h08",
+   "type": "test-host",
+   "label": "TEST tailscale host 8",
+   "layerId": "test-tailscale",
+   "boundaryIds": [
+    "test-tailnet"
+   ],
+   "attrs": {
+    "cpu": 4,
+    "memory_gb": 4,
+    "region": "jp",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-tailscale-h08"
+   ],
+   "style": {
+    "shape": "rect",
+    "size": "l",
+    "color": "#6366f1",
+    "border": {
+     "style": "solid",
+     "width": 3
+    },
+    "icon": "server"
+   },
+   "lifecycle": "active",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-tailscale-h08-s0",
+   "type": "test-service",
+   "label": "svc 0 on tailscale-8",
+   "layerId": "test-tailscale",
+   "parentId": "test-tailscale-h08",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-tailscale-h08-s0-p0",
+   "type": "test-port",
+   "label": "port of test-tailscale-h08-s0",
+   "layerId": "test-tailscale",
+   "parentId": "test-tailscale-h08-s0",
+   "role": "subresource",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-tailscale-h08-s1",
+   "type": "test-service",
+   "label": "svc 1 on tailscale-8",
+   "layerId": "test-tailscale",
+   "parentId": "test-tailscale-h08",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-tailscale-h09",
+   "type": "test-host",
+   "label": "TEST tailscale host 9",
+   "layerId": "test-tailscale",
+   "boundaryIds": [
+    "test-tailnet"
+   ],
+   "attrs": {
+    "cpu": 5,
+    "memory_gb": 8,
+    "region": "us",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-tailscale-h09"
+   ],
+   "style": {
+    "shape": "rounded",
+    "size": "s",
+    "color": "#6366f1",
+    "border": {
+     "style": "dashed",
+     "width": 4
+    },
+    "icon": "server"
+   },
+   "lifecycle": "planned",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-tailscale-h09-s0",
+   "type": "test-service",
+   "label": "svc 0 on tailscale-9",
+   "layerId": "test-tailscale",
+   "parentId": "test-tailscale-h09",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-tailscale-h09-s1",
+   "type": "test-service",
+   "label": "svc 1 on tailscale-9",
+   "layerId": "test-tailscale",
+   "parentId": "test-tailscale-h09",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-github-h00",
+   "type": "test-host",
+   "label": "TEST github host 0",
+   "layerId": "test-github",
+   "boundaryIds": [],
+   "attrs": {
+    "cpu": 2,
+    "memory_gb": 4,
+    "region": "jp",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-github-h00"
+   ],
+   "style": {
+    "shape": "rect",
+    "size": "s",
+    "color": "#e5e7eb",
+    "border": {
+     "style": "solid",
+     "width": 0
+    },
+    "icon": "server"
+   },
+   "lifecycle": "active",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-github-h00-s0",
+   "type": "test-service",
+   "label": "svc 0 on github-0",
+   "layerId": "test-github",
+   "parentId": "test-github-h00",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-github-h00-s0-p0",
+   "type": "test-port",
+   "label": "port of test-github-h00-s0",
+   "layerId": "test-github",
+   "parentId": "test-github-h00-s0",
+   "role": "subresource",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-github-h00-s1",
+   "type": "test-service",
+   "label": "svc 1 on github-0",
+   "layerId": "test-github",
+   "parentId": "test-github-h00",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-github-h01",
+   "type": "test-host",
+   "label": "TEST github host 1",
+   "layerId": "test-github",
+   "boundaryIds": [
+    "test-cloud"
+   ],
+   "attrs": {
+    "cpu": 3,
+    "memory_gb": 8,
+    "region": "us",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-github-h01"
+   ],
+   "style": {
+    "shape": "rounded",
+    "size": "m",
+    "color": "#e5e7eb",
+    "border": {
+     "style": "dashed",
+     "width": 1
+    },
+    "icon": "server"
+   },
+   "lifecycle": "planned",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-github-h01-s0",
+   "type": "test-service",
+   "label": "svc 0 on github-1",
+   "layerId": "test-github",
+   "parentId": "test-github-h01",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-github-h01-s1",
+   "type": "test-service",
+   "label": "svc 1 on github-1",
+   "layerId": "test-github",
+   "parentId": "test-github-h01",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-github-h02",
+   "type": "test-host",
+   "label": "TEST github host 2",
+   "layerId": "test-github",
+   "boundaryIds": [
+    "test-cloud"
+   ],
+   "attrs": {
+    "cpu": 4,
+    "memory_gb": 12,
+    "region": "cn",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-github-h02"
+   ],
+   "style": {
+    "shape": "pill",
+    "size": "l",
+    "color": "#e5e7eb",
+    "border": {
+     "style": "dotted",
+     "width": 2
+    },
+    "icon": "server"
+   },
+   "lifecycle": "deprecated",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-github-h02-s0",
+   "type": "test-service",
+   "label": "svc 0 on github-2",
+   "layerId": "test-github",
+   "parentId": "test-github-h02",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-github-h02-s0-p0",
+   "type": "test-port",
+   "label": "port of test-github-h02-s0",
+   "layerId": "test-github",
+   "parentId": "test-github-h02-s0",
+   "role": "subresource",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-github-h02-s1",
+   "type": "test-service",
+   "label": "svc 1 on github-2",
+   "layerId": "test-github",
+   "parentId": "test-github-h02",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-github-h03",
+   "type": "test-host",
+   "label": "TEST github host 3",
+   "layerId": "test-github",
+   "boundaryIds": [
+    "test-cloud"
+   ],
+   "attrs": {
+    "cpu": 5,
+    "memory_gb": 16,
+    "region": "home",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-github-h03"
+   ],
+   "style": {
+    "shape": "hexagon",
+    "size": "s",
+    "color": "#e5e7eb",
+    "border": {
+     "style": "double",
+     "width": 3
+    },
+    "icon": "server"
+   },
+   "lifecycle": "active",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-github-h03-s0",
+   "type": "test-service",
+   "label": "svc 0 on github-3",
+   "layerId": "test-github",
+   "parentId": "test-github-h03",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-github-h03-s1",
+   "type": "test-service",
+   "label": "svc 1 on github-3",
+   "layerId": "test-github",
+   "parentId": "test-github-h03",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-github-h04",
+   "type": "test-host",
+   "label": "TEST github host 4",
+   "layerId": "test-github",
+   "boundaryIds": [
+    "test-cloud"
+   ],
+   "attrs": {
+    "cpu": 6,
+    "memory_gb": 4,
+    "region": "jp",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-github-h04"
+   ],
+   "style": {
+    "shape": "cylinder",
+    "size": "m",
+    "color": "#e5e7eb",
+    "border": {
+     "style": "solid",
+     "width": 4
+    },
+    "icon": "server"
+   },
+   "lifecycle": "active",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-github-h04-s0",
+   "type": "test-service",
+   "label": "svc 0 on github-4",
+   "layerId": "test-github",
+   "parentId": "test-github-h04",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-github-h04-s0-p0",
+   "type": "test-port",
+   "label": "port of test-github-h04-s0",
+   "layerId": "test-github",
+   "parentId": "test-github-h04-s0",
+   "role": "subresource",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-github-h04-s1",
+   "type": "test-service",
+   "label": "svc 1 on github-4",
+   "layerId": "test-github",
+   "parentId": "test-github-h04",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-github-h05",
+   "type": "test-host",
+   "label": "TEST github host 5",
+   "layerId": "test-github",
+   "boundaryIds": [],
+   "attrs": {
+    "cpu": 7,
+    "memory_gb": 8,
+    "region": "us",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-github-h05"
+   ],
+   "style": {
+    "shape": "diamond",
+    "size": "l",
+    "color": "#e5e7eb",
+    "border": {
+     "style": "dashed",
+     "width": 0
+    },
+    "icon": "server"
+   },
+   "lifecycle": "planned",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-github-h05-s0",
+   "type": "test-service",
+   "label": "svc 0 on github-5",
+   "layerId": "test-github",
+   "parentId": "test-github-h05",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-github-h05-s1",
+   "type": "test-service",
+   "label": "svc 1 on github-5",
+   "layerId": "test-github",
+   "parentId": "test-github-h05",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-github-h06",
+   "type": "test-host",
+   "label": "TEST github host 6",
+   "layerId": "test-github",
+   "boundaryIds": [
+    "test-cloud"
+   ],
+   "attrs": {
+    "cpu": 2,
+    "memory_gb": 12,
+    "region": "cn",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-github-h06"
+   ],
+   "style": {
+    "shape": "circle",
+    "size": "s",
+    "color": "#e5e7eb",
+    "border": {
+     "style": "dotted",
+     "width": 1
+    },
+    "icon": "server"
+   },
+   "lifecycle": "deprecated",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-github-h06-s0",
+   "type": "test-service",
+   "label": "svc 0 on github-6",
+   "layerId": "test-github",
+   "parentId": "test-github-h06",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-github-h06-s0-p0",
+   "type": "test-port",
+   "label": "port of test-github-h06-s0",
+   "layerId": "test-github",
+   "parentId": "test-github-h06-s0",
+   "role": "subresource",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-github-h06-s1",
+   "type": "test-service",
+   "label": "svc 1 on github-6",
+   "layerId": "test-github",
+   "parentId": "test-github-h06",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-github-h07",
+   "type": "test-host",
+   "label": "TEST github host 7",
+   "layerId": "test-github",
+   "boundaryIds": [
+    "test-cloud"
+   ],
+   "attrs": {
+    "cpu": 3,
+    "memory_gb": 16,
+    "region": "home",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-github-h07"
+   ],
+   "style": {
+    "shape": "cloud",
+    "size": "m",
+    "color": "#e5e7eb",
+    "border": {
+     "style": "double",
+     "width": 2
+    },
+    "icon": "server"
+   },
+   "lifecycle": "active",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-github-h07-s0",
+   "type": "test-service",
+   "label": "svc 0 on github-7",
+   "layerId": "test-github",
+   "parentId": "test-github-h07",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-github-h07-s1",
+   "type": "test-service",
+   "label": "svc 1 on github-7",
+   "layerId": "test-github",
+   "parentId": "test-github-h07",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-github-h08",
+   "type": "test-host",
+   "label": "TEST github host 8",
+   "layerId": "test-github",
+   "boundaryIds": [
+    "test-cloud"
+   ],
+   "attrs": {
+    "cpu": 4,
+    "memory_gb": 4,
+    "region": "jp",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-github-h08"
+   ],
+   "style": {
+    "shape": "rect",
+    "size": "l",
+    "color": "#e5e7eb",
+    "border": {
+     "style": "solid",
+     "width": 3
+    },
+    "icon": "server"
+   },
+   "lifecycle": "active",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-github-h08-s0",
+   "type": "test-service",
+   "label": "svc 0 on github-8",
+   "layerId": "test-github",
+   "parentId": "test-github-h08",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-github-h08-s0-p0",
+   "type": "test-port",
+   "label": "port of test-github-h08-s0",
+   "layerId": "test-github",
+   "parentId": "test-github-h08-s0",
+   "role": "subresource",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-github-h08-s1",
+   "type": "test-service",
+   "label": "svc 1 on github-8",
+   "layerId": "test-github",
+   "parentId": "test-github-h08",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-github-h09",
+   "type": "test-host",
+   "label": "TEST github host 9",
+   "layerId": "test-github",
+   "boundaryIds": [
+    "test-cloud"
+   ],
+   "attrs": {
+    "cpu": 5,
+    "memory_gb": 8,
+    "region": "us",
+    "extra_list": [
+     "a",
+     "b"
+    ]
+   },
+   "tags": [
+    "topic:acceptance",
+    "host:test-github-h09"
+   ],
+   "style": {
+    "shape": "rounded",
+    "size": "s",
+    "color": "#e5e7eb",
+    "border": {
+     "style": "dashed",
+     "width": 4
+    },
+    "icon": "server"
+   },
+   "lifecycle": "planned",
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-github-h09-s0",
+   "type": "test-service",
+   "label": "svc 0 on github-9",
+   "layerId": "test-github",
+   "parentId": "test-github-h09",
+   "role": "service",
+   "attrs": {
+    "port": 8000
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-github-h09-s1",
+   "type": "test-service",
+   "label": "svc 1 on github-9",
+   "layerId": "test-github",
+   "parentId": "test-github-h09",
+   "role": "service",
+   "attrs": {
+    "port": 8001
+   },
+   "tags": [
+    "topic:acceptance"
+   ],
+   "description": "acceptance test data",
+   "provenance": "acceptance-test"
+  }
+ ],
+ "edges": [
+  {
+   "id": "test-e0001",
+   "source": "test-cloudflare-h00",
+   "target": "test-cloudflare-h01",
+   "kind": "traffic",
+   "label": "cloudflare chain 1",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dashed",
+    "width": 2
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0002",
+   "source": "test-cloudflare-h01",
+   "target": "test-cloudflare-h02",
+   "kind": "traffic",
+   "label": "cloudflare chain 2",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dotted",
+    "width": 3
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0003",
+   "source": "test-cloudflare-h02",
+   "target": "test-cloudflare-h03",
+   "kind": "traffic",
+   "label": "cloudflare chain 3",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "solid",
+    "width": 4
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0004",
+   "source": "test-cloudflare-h03",
+   "target": "test-cloudflare-h04",
+   "kind": "traffic",
+   "label": "cloudflare chain 4",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dashed",
+    "width": 1
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0005",
+   "source": "test-cloudflare-h04",
+   "target": "test-cloudflare-h05",
+   "kind": "traffic",
+   "label": "cloudflare chain 5",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dotted",
+    "width": 2
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0006",
+   "source": "test-cloudflare-h05",
+   "target": "test-cloudflare-h06",
+   "kind": "traffic",
+   "label": "cloudflare chain 6",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "solid",
+    "width": 3
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0007",
+   "source": "test-cloudflare-h06",
+   "target": "test-cloudflare-h07",
+   "kind": "traffic",
+   "label": "cloudflare chain 7",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dashed",
+    "width": 4
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0008",
+   "source": "test-cloudflare-h07",
+   "target": "test-cloudflare-h08",
+   "kind": "traffic",
+   "label": "cloudflare chain 8",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dotted",
+    "width": 1
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0009",
+   "source": "test-cloudflare-h08",
+   "target": "test-cloudflare-h09",
+   "kind": "traffic",
+   "label": "cloudflare chain 9",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "solid",
+    "width": 2
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0010",
+   "source": "test-vps-h00",
+   "target": "test-vps-h01",
+   "kind": "traffic",
+   "label": "vps chain 1",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dashed",
+    "width": 3
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0011",
+   "source": "test-vps-h01",
+   "target": "test-vps-h02",
+   "kind": "traffic",
+   "label": "vps chain 2",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dotted",
+    "width": 4
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0012",
+   "source": "test-vps-h02",
+   "target": "test-vps-h03",
+   "kind": "traffic",
+   "label": "vps chain 3",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "solid",
+    "width": 1
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0013",
+   "source": "test-vps-h03",
+   "target": "test-vps-h04",
+   "kind": "traffic",
+   "label": "vps chain 4",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dashed",
+    "width": 2
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0014",
+   "source": "test-vps-h04",
+   "target": "test-vps-h05",
+   "kind": "traffic",
+   "label": "vps chain 5",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dotted",
+    "width": 3
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0015",
+   "source": "test-vps-h05",
+   "target": "test-vps-h06",
+   "kind": "traffic",
+   "label": "vps chain 6",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "solid",
+    "width": 4
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0016",
+   "source": "test-vps-h06",
+   "target": "test-vps-h07",
+   "kind": "traffic",
+   "label": "vps chain 7",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dashed",
+    "width": 1
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0017",
+   "source": "test-vps-h07",
+   "target": "test-vps-h08",
+   "kind": "traffic",
+   "label": "vps chain 8",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dotted",
+    "width": 2
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0018",
+   "source": "test-vps-h08",
+   "target": "test-vps-h09",
+   "kind": "traffic",
+   "label": "vps chain 9",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "solid",
+    "width": 3
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0019",
+   "source": "test-apple-h00",
+   "target": "test-apple-h01",
+   "kind": "traffic",
+   "label": "apple chain 1",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dashed",
+    "width": 4
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0020",
+   "source": "test-apple-h01",
+   "target": "test-apple-h02",
+   "kind": "traffic",
+   "label": "apple chain 2",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dotted",
+    "width": 1
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0021",
+   "source": "test-apple-h02",
+   "target": "test-apple-h03",
+   "kind": "traffic",
+   "label": "apple chain 3",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "solid",
+    "width": 2
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0022",
+   "source": "test-apple-h03",
+   "target": "test-apple-h04",
+   "kind": "traffic",
+   "label": "apple chain 4",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dashed",
+    "width": 3
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0023",
+   "source": "test-apple-h04",
+   "target": "test-apple-h05",
+   "kind": "traffic",
+   "label": "apple chain 5",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dotted",
+    "width": 4
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0024",
+   "source": "test-apple-h05",
+   "target": "test-apple-h06",
+   "kind": "traffic",
+   "label": "apple chain 6",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "solid",
+    "width": 1
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0025",
+   "source": "test-apple-h06",
+   "target": "test-apple-h07",
+   "kind": "traffic",
+   "label": "apple chain 7",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dashed",
+    "width": 2
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0026",
+   "source": "test-apple-h07",
+   "target": "test-apple-h08",
+   "kind": "traffic",
+   "label": "apple chain 8",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dotted",
+    "width": 3
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0027",
+   "source": "test-apple-h08",
+   "target": "test-apple-h09",
+   "kind": "traffic",
+   "label": "apple chain 9",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "solid",
+    "width": 4
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0028",
+   "source": "test-nas-h00",
+   "target": "test-nas-h01",
+   "kind": "traffic",
+   "label": "nas chain 1",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dashed",
+    "width": 1
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0029",
+   "source": "test-nas-h01",
+   "target": "test-nas-h02",
+   "kind": "traffic",
+   "label": "nas chain 2",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dotted",
+    "width": 2
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0030",
+   "source": "test-nas-h02",
+   "target": "test-nas-h03",
+   "kind": "traffic",
+   "label": "nas chain 3",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "solid",
+    "width": 3
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0031",
+   "source": "test-nas-h03",
+   "target": "test-nas-h04",
+   "kind": "traffic",
+   "label": "nas chain 4",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dashed",
+    "width": 4
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0032",
+   "source": "test-nas-h04",
+   "target": "test-nas-h05",
+   "kind": "traffic",
+   "label": "nas chain 5",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dotted",
+    "width": 1
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0033",
+   "source": "test-nas-h05",
+   "target": "test-nas-h06",
+   "kind": "traffic",
+   "label": "nas chain 6",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "solid",
+    "width": 2
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0034",
+   "source": "test-nas-h06",
+   "target": "test-nas-h07",
+   "kind": "traffic",
+   "label": "nas chain 7",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dashed",
+    "width": 3
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0035",
+   "source": "test-nas-h07",
+   "target": "test-nas-h08",
+   "kind": "traffic",
+   "label": "nas chain 8",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dotted",
+    "width": 4
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0036",
+   "source": "test-nas-h08",
+   "target": "test-nas-h09",
+   "kind": "traffic",
+   "label": "nas chain 9",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "solid",
+    "width": 1
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0037",
+   "source": "test-microsoft-h00",
+   "target": "test-microsoft-h01",
+   "kind": "traffic",
+   "label": "microsoft chain 1",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dashed",
+    "width": 2
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0038",
+   "source": "test-microsoft-h01",
+   "target": "test-microsoft-h02",
+   "kind": "traffic",
+   "label": "microsoft chain 2",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dotted",
+    "width": 3
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0039",
+   "source": "test-microsoft-h02",
+   "target": "test-microsoft-h03",
+   "kind": "traffic",
+   "label": "microsoft chain 3",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "solid",
+    "width": 4
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0040",
+   "source": "test-microsoft-h03",
+   "target": "test-microsoft-h04",
+   "kind": "traffic",
+   "label": "microsoft chain 4",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dashed",
+    "width": 1
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0041",
+   "source": "test-microsoft-h04",
+   "target": "test-microsoft-h05",
+   "kind": "traffic",
+   "label": "microsoft chain 5",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dotted",
+    "width": 2
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0042",
+   "source": "test-microsoft-h05",
+   "target": "test-microsoft-h06",
+   "kind": "traffic",
+   "label": "microsoft chain 6",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "solid",
+    "width": 3
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0043",
+   "source": "test-microsoft-h06",
+   "target": "test-microsoft-h07",
+   "kind": "traffic",
+   "label": "microsoft chain 7",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dashed",
+    "width": 4
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0044",
+   "source": "test-microsoft-h07",
+   "target": "test-microsoft-h08",
+   "kind": "traffic",
+   "label": "microsoft chain 8",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dotted",
+    "width": 1
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0045",
+   "source": "test-microsoft-h08",
+   "target": "test-microsoft-h09",
+   "kind": "traffic",
+   "label": "microsoft chain 9",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "solid",
+    "width": 2
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0046",
+   "source": "test-tailscale-h00",
+   "target": "test-tailscale-h01",
+   "kind": "traffic",
+   "label": "tailscale chain 1",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dashed",
+    "width": 3
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0047",
+   "source": "test-tailscale-h01",
+   "target": "test-tailscale-h02",
+   "kind": "traffic",
+   "label": "tailscale chain 2",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dotted",
+    "width": 4
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0048",
+   "source": "test-tailscale-h02",
+   "target": "test-tailscale-h03",
+   "kind": "traffic",
+   "label": "tailscale chain 3",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "solid",
+    "width": 1
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0049",
+   "source": "test-tailscale-h03",
+   "target": "test-tailscale-h04",
+   "kind": "traffic",
+   "label": "tailscale chain 4",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dashed",
+    "width": 2
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0050",
+   "source": "test-tailscale-h04",
+   "target": "test-tailscale-h05",
+   "kind": "traffic",
+   "label": "tailscale chain 5",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dotted",
+    "width": 3
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0051",
+   "source": "test-tailscale-h05",
+   "target": "test-tailscale-h06",
+   "kind": "traffic",
+   "label": "tailscale chain 6",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "solid",
+    "width": 4
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0052",
+   "source": "test-tailscale-h06",
+   "target": "test-tailscale-h07",
+   "kind": "traffic",
+   "label": "tailscale chain 7",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dashed",
+    "width": 1
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0053",
+   "source": "test-tailscale-h07",
+   "target": "test-tailscale-h08",
+   "kind": "traffic",
+   "label": "tailscale chain 8",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dotted",
+    "width": 2
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0054",
+   "source": "test-tailscale-h08",
+   "target": "test-tailscale-h09",
+   "kind": "traffic",
+   "label": "tailscale chain 9",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "solid",
+    "width": 3
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0055",
+   "source": "test-github-h00",
+   "target": "test-github-h01",
+   "kind": "traffic",
+   "label": "github chain 1",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dashed",
+    "width": 4
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0056",
+   "source": "test-github-h01",
+   "target": "test-github-h02",
+   "kind": "traffic",
+   "label": "github chain 2",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dotted",
+    "width": 1
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0057",
+   "source": "test-github-h02",
+   "target": "test-github-h03",
+   "kind": "traffic",
+   "label": "github chain 3",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "solid",
+    "width": 2
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0058",
+   "source": "test-github-h03",
+   "target": "test-github-h04",
+   "kind": "traffic",
+   "label": "github chain 4",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dashed",
+    "width": 3
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0059",
+   "source": "test-github-h04",
+   "target": "test-github-h05",
+   "kind": "traffic",
+   "label": "github chain 5",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dotted",
+    "width": 4
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0060",
+   "source": "test-github-h05",
+   "target": "test-github-h06",
+   "kind": "traffic",
+   "label": "github chain 6",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "solid",
+    "width": 1
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0061",
+   "source": "test-github-h06",
+   "target": "test-github-h07",
+   "kind": "traffic",
+   "label": "github chain 7",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dashed",
+    "width": 2
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0062",
+   "source": "test-github-h07",
+   "target": "test-github-h08",
+   "kind": "traffic",
+   "label": "github chain 8",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dotted",
+    "width": 3
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0063",
+   "source": "test-github-h08",
+   "target": "test-github-h09",
+   "kind": "traffic",
+   "label": "github chain 9",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "solid",
+    "width": 4
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0064",
+   "source": "test-cloudflare-h00",
+   "target": "test-vps-h01",
+   "kind": "uses",
+   "label": "x-layer 0.0",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "solid",
+    "width": 1
+   },
+   "provenance": "acceptance-test",
+   "protocol": "https",
+   "port": 443
+  },
+  {
+   "id": "test-e0065",
+   "source": "test-cloudflare-h02",
+   "target": "test-vps-h03",
+   "kind": "uses",
+   "label": "x-layer 0.2",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "cross-layer, may cross trust boundary",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dotted",
+    "width": 2
+   },
+   "provenance": "acceptance-test",
+   "protocol": "https",
+   "port": 443
+  },
+  {
+   "id": "test-e0066",
+   "source": "test-cloudflare-h04",
+   "target": "test-vps-h05",
+   "kind": "uses",
+   "label": "x-layer 0.4",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dashed",
+    "width": 3
+   },
+   "provenance": "acceptance-test",
+   "protocol": "https",
+   "port": 443
+  },
+  {
+   "id": "test-e0067",
+   "source": "test-cloudflare-h06",
+   "target": "test-vps-h07",
+   "kind": "uses",
+   "label": "x-layer 0.6",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "cross-layer, may cross trust boundary",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "solid",
+    "width": 4
+   },
+   "provenance": "acceptance-test",
+   "protocol": "https",
+   "port": 443
+  },
+  {
+   "id": "test-e0068",
+   "source": "test-cloudflare-h08",
+   "target": "test-vps-h09",
+   "kind": "uses",
+   "label": "x-layer 0.8",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dotted",
+    "width": 1
+   },
+   "provenance": "acceptance-test",
+   "protocol": "https",
+   "port": 443
+  },
+  {
+   "id": "test-e0069",
+   "source": "test-cloudflare-h01-s1",
+   "target": "test-nas-h02-s0-p0",
+   "kind": "traffic",
+   "label": "sat link 0",
+   "direction": "bi",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "solid",
+    "width": 2
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0070",
+   "source": "test-vps-h00",
+   "target": "test-apple-h01",
+   "kind": "deploy",
+   "label": "x-layer 1.0",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dashed",
+    "width": 3
+   },
+   "provenance": "acceptance-test",
+   "protocol": "https",
+   "port": 443
+  },
+  {
+   "id": "test-e0071",
+   "source": "test-vps-h02",
+   "target": "test-apple-h03",
+   "kind": "deploy",
+   "label": "x-layer 1.2",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "cross-layer, may cross trust boundary",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "solid",
+    "width": 4
+   },
+   "provenance": "acceptance-test",
+   "protocol": "https",
+   "port": 443
+  },
+  {
+   "id": "test-e0072",
+   "source": "test-vps-h04",
+   "target": "test-apple-h05",
+   "kind": "deploy",
+   "label": "x-layer 1.4",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dotted",
+    "width": 1
+   },
+   "provenance": "acceptance-test",
+   "protocol": "https",
+   "port": 443
+  },
+  {
+   "id": "test-e0073",
+   "source": "test-vps-h06",
+   "target": "test-apple-h07",
+   "kind": "deploy",
+   "label": "x-layer 1.6",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "cross-layer, may cross trust boundary",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dashed",
+    "width": 2
+   },
+   "provenance": "acceptance-test",
+   "protocol": "https",
+   "port": 443
+  },
+  {
+   "id": "test-e0074",
+   "source": "test-vps-h08",
+   "target": "test-apple-h09",
+   "kind": "deploy",
+   "label": "x-layer 1.8",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "solid",
+    "width": 3
+   },
+   "provenance": "acceptance-test",
+   "protocol": "https",
+   "port": 443
+  },
+  {
+   "id": "test-e0075",
+   "source": "test-vps-h01-s1",
+   "target": "test-microsoft-h02-s0-p0",
+   "kind": "traffic",
+   "label": "sat link 1",
+   "direction": "bi",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dashed",
+    "width": 4
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0076",
+   "source": "test-apple-h00",
+   "target": "test-nas-h01",
+   "kind": "auth",
+   "label": "x-layer 2.0",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dotted",
+    "width": 1
+   },
+   "provenance": "acceptance-test",
+   "protocol": "https",
+   "port": 443
+  },
+  {
+   "id": "test-e0077",
+   "source": "test-apple-h02",
+   "target": "test-nas-h03",
+   "kind": "auth",
+   "label": "x-layer 2.2",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "cross-layer, may cross trust boundary",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dashed",
+    "width": 2
+   },
+   "provenance": "acceptance-test",
+   "protocol": "https",
+   "port": 443
+  },
+  {
+   "id": "test-e0078",
+   "source": "test-apple-h04",
+   "target": "test-nas-h05",
+   "kind": "auth",
+   "label": "x-layer 2.4",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "solid",
+    "width": 3
+   },
+   "provenance": "acceptance-test",
+   "protocol": "https",
+   "port": 443
+  },
+  {
+   "id": "test-e0079",
+   "source": "test-apple-h06",
+   "target": "test-nas-h07",
+   "kind": "auth",
+   "label": "x-layer 2.6",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "cross-layer, may cross trust boundary",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dotted",
+    "width": 4
+   },
+   "provenance": "acceptance-test",
+   "protocol": "https",
+   "port": 443
+  },
+  {
+   "id": "test-e0080",
+   "source": "test-apple-h08",
+   "target": "test-nas-h09",
+   "kind": "auth",
+   "label": "x-layer 2.8",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dashed",
+    "width": 1
+   },
+   "provenance": "acceptance-test",
+   "protocol": "https",
+   "port": 443
+  },
+  {
+   "id": "test-e0081",
+   "source": "test-apple-h01-s1",
+   "target": "test-tailscale-h02-s0-p0",
+   "kind": "traffic",
+   "label": "sat link 2",
+   "direction": "bi",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dotted",
+    "width": 2
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0082",
+   "source": "test-nas-h00",
+   "target": "test-microsoft-h01",
+   "kind": "monitor",
+   "label": "x-layer 3.0",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "solid",
+    "width": 3
+   },
+   "provenance": "acceptance-test",
+   "protocol": "https",
+   "port": 443
+  },
+  {
+   "id": "test-e0083",
+   "source": "test-nas-h02",
+   "target": "test-microsoft-h03",
+   "kind": "monitor",
+   "label": "x-layer 3.2",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "cross-layer, may cross trust boundary",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dotted",
+    "width": 4
+   },
+   "provenance": "acceptance-test",
+   "protocol": "https",
+   "port": 443
+  },
+  {
+   "id": "test-e0084",
+   "source": "test-nas-h04",
+   "target": "test-microsoft-h05",
+   "kind": "monitor",
+   "label": "x-layer 3.4",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dashed",
+    "width": 1
+   },
+   "provenance": "acceptance-test",
+   "protocol": "https",
+   "port": 443
+  },
+  {
+   "id": "test-e0085",
+   "source": "test-nas-h06",
+   "target": "test-microsoft-h07",
+   "kind": "monitor",
+   "label": "x-layer 3.6",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "cross-layer, may cross trust boundary",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "solid",
+    "width": 2
+   },
+   "provenance": "acceptance-test",
+   "protocol": "https",
+   "port": 443
+  },
+  {
+   "id": "test-e0086",
+   "source": "test-nas-h08",
+   "target": "test-microsoft-h09",
+   "kind": "monitor",
+   "label": "x-layer 3.8",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dotted",
+    "width": 3
+   },
+   "provenance": "acceptance-test",
+   "protocol": "https",
+   "port": 443
+  },
+  {
+   "id": "test-e0087",
+   "source": "test-nas-h01-s1",
+   "target": "test-github-h02-s0-p0",
+   "kind": "traffic",
+   "label": "sat link 3",
+   "direction": "bi",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "solid",
+    "width": 4
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0088",
+   "source": "test-microsoft-h00",
+   "target": "test-tailscale-h01",
+   "kind": "tunnel",
+   "label": "x-layer 4.0",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dashed",
+    "width": 1
+   },
+   "provenance": "acceptance-test",
+   "protocol": "https",
+   "port": 443
+  },
+  {
+   "id": "test-e0089",
+   "source": "test-microsoft-h02",
+   "target": "test-tailscale-h03",
+   "kind": "tunnel",
+   "label": "x-layer 4.2",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "cross-layer, may cross trust boundary",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "solid",
+    "width": 2
+   },
+   "provenance": "acceptance-test",
+   "protocol": "https",
+   "port": 443
+  },
+  {
+   "id": "test-e0090",
+   "source": "test-microsoft-h04",
+   "target": "test-tailscale-h05",
+   "kind": "tunnel",
+   "label": "x-layer 4.4",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dotted",
+    "width": 3
+   },
+   "provenance": "acceptance-test",
+   "protocol": "https",
+   "port": 443
+  },
+  {
+   "id": "test-e0091",
+   "source": "test-microsoft-h06",
+   "target": "test-tailscale-h07",
+   "kind": "tunnel",
+   "label": "x-layer 4.6",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "cross-layer, may cross trust boundary",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dashed",
+    "width": 4
+   },
+   "provenance": "acceptance-test",
+   "protocol": "https",
+   "port": 443
+  },
+  {
+   "id": "test-e0092",
+   "source": "test-microsoft-h08",
+   "target": "test-tailscale-h09",
+   "kind": "tunnel",
+   "label": "x-layer 4.8",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "solid",
+    "width": 1
+   },
+   "provenance": "acceptance-test",
+   "protocol": "https",
+   "port": 443
+  },
+  {
+   "id": "test-e0093",
+   "source": "test-microsoft-h01-s1",
+   "target": "test-cloudflare-h02-s0-p0",
+   "kind": "traffic",
+   "label": "sat link 4",
+   "direction": "bi",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dashed",
+    "width": 2
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0094",
+   "source": "test-tailscale-h00",
+   "target": "test-github-h01",
+   "kind": "dns",
+   "label": "x-layer 5.0",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dotted",
+    "width": 3
+   },
+   "provenance": "acceptance-test",
+   "protocol": "https",
+   "port": 443
+  },
+  {
+   "id": "test-e0095",
+   "source": "test-tailscale-h02",
+   "target": "test-github-h03",
+   "kind": "dns",
+   "label": "x-layer 5.2",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "cross-layer, may cross trust boundary",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dashed",
+    "width": 4
+   },
+   "provenance": "acceptance-test",
+   "protocol": "https",
+   "port": 443
+  },
+  {
+   "id": "test-e0096",
+   "source": "test-tailscale-h04",
+   "target": "test-github-h05",
+   "kind": "dns",
+   "label": "x-layer 5.4",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "solid",
+    "width": 1
+   },
+   "provenance": "acceptance-test",
+   "protocol": "https",
+   "port": 443
+  },
+  {
+   "id": "test-e0097",
+   "source": "test-tailscale-h06",
+   "target": "test-github-h07",
+   "kind": "dns",
+   "label": "x-layer 5.6",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "cross-layer, may cross trust boundary",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dotted",
+    "width": 2
+   },
+   "provenance": "acceptance-test",
+   "protocol": "https",
+   "port": 443
+  },
+  {
+   "id": "test-e0098",
+   "source": "test-tailscale-h08",
+   "target": "test-github-h09",
+   "kind": "dns",
+   "label": "x-layer 5.8",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dashed",
+    "width": 3
+   },
+   "provenance": "acceptance-test",
+   "protocol": "https",
+   "port": 443
+  },
+  {
+   "id": "test-e0099",
+   "source": "test-tailscale-h01-s1",
+   "target": "test-vps-h02-s0-p0",
+   "kind": "traffic",
+   "label": "sat link 5",
+   "direction": "bi",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dotted",
+    "width": 4
+   },
+   "provenance": "acceptance-test"
+  },
+  {
+   "id": "test-e0100",
+   "source": "test-github-h00",
+   "target": "test-cloudflare-h01",
+   "kind": "binding",
+   "label": "x-layer 6.0",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "solid",
+    "width": 1
+   },
+   "provenance": "acceptance-test",
+   "protocol": "https",
+   "port": 443
+  },
+  {
+   "id": "test-e0101",
+   "source": "test-github-h02",
+   "target": "test-cloudflare-h03",
+   "kind": "binding",
+   "label": "x-layer 6.2",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "cross-layer, may cross trust boundary",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dotted",
+    "width": 2
+   },
+   "provenance": "acceptance-test",
+   "protocol": "https",
+   "port": 443
+  },
+  {
+   "id": "test-e0102",
+   "source": "test-github-h04",
+   "target": "test-cloudflare-h05",
+   "kind": "binding",
+   "label": "x-layer 6.4",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dashed",
+    "width": 3
+   },
+   "provenance": "acceptance-test",
+   "protocol": "https",
+   "port": 443
+  },
+  {
+   "id": "test-e0103",
+   "source": "test-github-h06",
+   "target": "test-cloudflare-h07",
+   "kind": "binding",
+   "label": "x-layer 6.6",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "cross-layer, may cross trust boundary",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "solid",
+    "width": 4
+   },
+   "provenance": "acceptance-test",
+   "protocol": "https",
+   "port": 443
+  },
+  {
+   "id": "test-e0104",
+   "source": "test-github-h08",
+   "target": "test-cloudflare-h09",
+   "kind": "binding",
+   "label": "x-layer 6.8",
+   "direction": "uni",
+   "evidence": "documented",
+   "description": "",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "dotted",
+    "width": 1
+   },
+   "provenance": "acceptance-test",
+   "protocol": "https",
+   "port": 443
+  },
+  {
+   "id": "test-e0105",
+   "source": "test-github-h01-s1",
+   "target": "test-apple-h02-s0-p0",
+   "kind": "traffic",
+   "label": "sat link 6",
+   "direction": "bi",
+   "evidence": "documented",
+   "description": "acceptance edge",
+   "tags": [
+    "topic:acceptance"
+   ],
+   "style": {
+    "dash": "solid",
+    "width": 2
+   },
+   "provenance": "acceptance-test"
+  }
+ ],
+ "views": [
+  {
+   "id": "test-view-vps",
+   "label": "TEST focus VPS",
+   "description": "acceptance",
+   "filter": {
+    "layerIds": [
+     "test-vps"
+    ],
+    "typeIds": [],
+    "boundaryIds": [],
+    "tags": [
+     "topic:acceptance"
+    ]
+   },
+   "focusLayerId": "test-vps",
+   "pins": {
+    "test-vps-h00": {
+     "x": 0,
+     "y": 0
+    }
+   },
+   "provenance": "acceptance-test"
+  }
+ ]
+}

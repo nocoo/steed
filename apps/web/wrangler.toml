@@ -18,8 +18,9 @@ not_found_handling = "single-page-application"
 run_worker_first = ["/api/*"]
 
 # Secrets (set via `wrangler secret put --env <env>`):
-#   DASHBOARD_SERVICE_TOKEN — internal Bearer token for dashboard → API path
-#   CONNECT_MANAGERS — explicitly authorized Access principals
+#   CONNECT_MANAGERS — explicitly authorized Access principals, comma-separated;
+#     each entry is `email:<lowercase address>` or `subject:<Access sub>`, e.g.
+#     `email:owner@example.com`. Matching is exact; a bare email never matches.
 #   CONNECT_TOKEN_KEYS — versioned AES keyring for recoverable credentials
 
 # ── Production: steed.hexly.ai ────────────────────────────────────────
@@ -35,13 +36,23 @@ CF_ACCESS_AUD = "29357a96bddbff5c8063138868e4d55cca100df0e1c3856bf9a86fa3ec8319d
 CONNECT_DEPLOYMENT_ID = "steed-production"
 
 [env.production.secrets]
-required = ["DASHBOARD_SERVICE_TOKEN", "CONNECT_MANAGERS", "CONNECT_TOKEN_KEYS"]
+required = ["CONNECT_MANAGERS", "CONNECT_TOKEN_KEYS"]
+
+# Every /api request makes serial D1 round trips, and the D1 primary is in APAC
+# (`wrangler d1 execute` reports served_by_colo NRT). Run the Worker next to it so
+# each round trip is local; only the client hop crosses regions. Smart Placement
+# is not used because it only picks colos the Worker already receives traffic in
+# and needs sustained multi-location traffic before it moves anything. Static
+# assets are unaffected: run_worker_first covers only /api/*.
+[env.production.placement]
+mode = "targeted"
+region = "aws:ap-northeast-1"
 
 [[env.production.d1_databases]]
 binding = "DB"
 database_name = "steed"
 database_id = "8c69f63f-38a5-4ad4-9832-ee04e0b2237d"
-migrations_dir = "../../packages/worker/migrations"
+migrations_dir = "migrations"
 
 # ── Local development: Caddy HTTPS with explicit local auth bypass ────
 # Always run with: wrangler dev --env dev --local --persist-to .wrangler/state/web
@@ -53,7 +64,6 @@ name = "steed-dev"
 CF_ACCESS_TEAM = "nocoo"
 CF_ACCESS_AUD = "29357a96bddbff5c8063138868e4d55cca100df0e1c3856bf9a86fa3ec8319da"
 CF_ACCESS_DEV_BYPASS = "true"
-DASHBOARD_SERVICE_TOKEN = "dev-token"
 CONNECT_DEPLOYMENT_ID = "steed-development"
 
 [env.dev.secrets]
@@ -63,4 +73,4 @@ required = ["CONNECT_MANAGERS", "CONNECT_TOKEN_KEYS"]
 binding = "DB"
 database_name = "steed"
 database_id = "8c69f63f-38a5-4ad4-9832-ee04e0b2237d"
-migrations_dir = "../../packages/worker/migrations"
+migrations_dir = "migrations"

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CONNECT_LIMITS, tokenInputSchema, type ConnectAudit, type ConnectScope, type ConnectSensitiveAction, type ConnectToken, type ConnectTarget } from "@steed/api/shared";
-import { connectRequest, tokenStatus } from "@/lib/connect-client";
+import { CONNECT_LIMITS, topologyTokenInputSchema, type TopologyConnectAudit, type TopologyConnectScope, type ConnectSensitiveAction, type TopologyConnectToken } from "@steed/api/shared";
+import { topologyConnectRequest as connectRequest, topologyTokenStatus as tokenStatus } from "@/lib/topology-connect-client";
 
-interface TokenAction { token: ConnectToken; kind: ConnectSensitiveAction | "rename" }
+interface TokenAction { token: TopologyConnectToken; kind: ConnectSensitiveAction | "rename" }
 interface Page<T> { data: T[]; nextCursor: string | null }
 async function allPages<T>(path: string, signal: AbortSignal): Promise<T[]> {
   const data: T[] = [];
@@ -15,10 +15,8 @@ async function allPages<T>(path: string, signal: AbortSignal): Promise<T[]> {
 }
 
 export function useConnectViewModel() {
-  const [target, setTarget] = useState("");
-  const [diagrams, setDiagrams] = useState<ConnectTarget[]>([]);
-  const [tokens, setTokens] = useState<ConnectToken[]>([]);
-  const [audit, setAudit] = useState<ConnectAudit[]>([]);
+  const [tokens, setTokens] = useState<TopologyConnectToken[]>([]);
+  const [audit, setAudit] = useState<TopologyConnectAudit[]>([]);
   const [baseUrl, setBaseUrl] = useState(`${window.location.origin}/api/v1`);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -28,13 +26,12 @@ export function useConnectViewModel() {
   const [refresh, setRefresh] = useState(0);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
-  const [scope, setScope] = useState<ConnectScope>("read");
+  const [scope, setScope] = useState<TopologyConnectScope>("topology:read");
   const [expiry, setExpiry] = useState("");
   const [action, setAction] = useState<TokenAction | null>(null);
   const [confirmation, setConfirmation] = useState("");
   const [secret, setSecret] = useState<{ id: string; version: number; value: string } | null>(null);
   const generation = useRef(0);
-  const targetGeneration = useRef(0);
   const mounted = useRef(true);
   const hide = useCallback(() => { generation.current++; setSecret(null); }, []);
   const reload = useCallback(() => setRefresh((value) => value + 1), []);
@@ -59,37 +56,31 @@ export function useConnectViewModel() {
     setLoading(true); setLoadError("");
     void (async () => {
       try {
-        const [info, diagrams, tokens, audit] = await Promise.all([
+        const [info, tokens, audit] = await Promise.all([
           connectRequest<{ data: { apiBaseUrl: string } }>("/api/connect", { signal }),
-          allPages<ConnectTarget>("/api/connect/diagrams", signal),
-          allPages<ConnectToken>(`/api/connect/tokens?diagramId=${encodeURIComponent(target)}`, signal),
-          connectRequest<{ data: ConnectAudit[] }>(`/api/connect/audit?diagramId=${encodeURIComponent(target)}&limit=20`, { signal }),
+          allPages<TopologyConnectToken>("/api/connect/tokens", signal),
+          connectRequest<{ data: TopologyConnectAudit[] }>("/api/connect/audit?limit=20", { signal }),
         ]);
         if (signal.aborted) return;
-        setBaseUrl(info.data.apiBaseUrl); setDiagrams(diagrams); setTokens(tokens); setAudit(audit.data);
+        setBaseUrl(info.data.apiBaseUrl); setTokens(tokens); setAudit(audit.data);
       } catch (cause) { if (!signal.aborted) setLoadError(cause instanceof Error ? cause.message : "Connect is unavailable."); }
       finally { if (!signal.aborted) setLoading(false); }
     })();
     return () => controller.abort();
-  }, [target, refresh]);
-  const changeTarget = (value: string) => {
-    targetGeneration.current++;
-    hide(); setTarget(value); setTokens([]); setAudit([]); setAction(null); setCreating(false); setConfirmation(""); setError(""); setNotice("");
-  };
-  const openAction = (token: ConnectToken, kind: TokenAction["kind"]) => {
+  }, [refresh]);
+  const openAction = (token: TopologyConnectToken, kind: TokenAction["kind"]) => {
     hide(); setCreating(false); setAction({ token, kind }); setConfirmation(kind === "rename" ? token.name : ""); setError(""); setNotice("");
   };
   const closeAction = () => { hide(); setAction(null); setConfirmation(""); };
   const openCreate = () => { hide(); setAction(null); setCreating(true); setError(""); setNotice(""); };
   const create = async () => {
-    const current = targetGeneration.current;
     setBusy(true); setError("");
     try {
-      const input = tokenInputSchema.parse({ name, scope, diagramId: target || null, expiresAt: expiry ? new Date(expiry).toISOString() : null });
+      const input = topologyTokenInputSchema.parse({ name, scope, expiresAt: expiry ? new Date(expiry).toISOString() : null });
       await connectRequest("/api/connect/tokens", { method: "POST", body: input });
-      if (current !== targetGeneration.current || !mounted.current) return;
-      setCreating(false); setName(""); setScope("read"); setExpiry(""); setNotice("Token created. Reveal its key when you are ready to connect your agent.");
-    } catch (cause) { if (current === targetGeneration.current && mounted.current) setError(cause instanceof Error ? cause.message : "Token creation failed."); }
+      if (!mounted.current) return;
+      setCreating(false); setName(""); setScope("topology:read"); setExpiry(""); setNotice("Token created. Reveal its key when you are ready to connect your agent.");
+    } catch (cause) { if (mounted.current) setError(cause instanceof Error ? cause.message : "Token creation failed."); }
     finally { if (mounted.current) { setBusy(false); reload(); } }
   };
   const confirmAction = async () => {
@@ -98,12 +89,12 @@ export function useConnectViewModel() {
     const path = `/api/connect/tokens/${action.token.id}`;
     setBusy(true); setError("");
     try {
-      let updated: ConnectToken | undefined;
-      if (action.kind === "rename") updated = (await connectRequest<{ data: ConnectToken }>(path, { method: "PATCH", body: { name: confirmation }, token: action.token })).data;
+      let updated: TopologyConnectToken | undefined;
+      if (action.kind === "rename") updated = (await connectRequest<{ data: TopologyConnectToken }>(path, { method: "PATCH", body: { name: confirmation }, token: action.token })).data;
       else {
         const challenge = await connectRequest<{ data: { challenge: string } }>(`${path}/challenge`, { method: "POST", body: { action: action.kind }, token: action.token });
         if (current !== generation.current || !mounted.current || document.hidden) return;
-        const result = await connectRequest<{ data: ConnectToken | { token: string } }>(`${path}/${action.kind}`, { method: "POST", body: { challenge: challenge.data.challenge, confirmation }, token: action.token });
+        const result = await connectRequest<{ data: TopologyConnectToken | { token: string } }>(`${path}/${action.kind}`, { method: "POST", body: { challenge: challenge.data.challenge, confirmation }, token: action.token });
         if (current !== generation.current || !mounted.current || document.hidden) return;
         if (action.kind === "reveal" && "token" in result.data) setSecret({ id: action.token.id, version: action.token.version, value: result.data.token });
         else if ("id" in result.data) updated = result.data;
@@ -121,6 +112,6 @@ export function useConnectViewModel() {
     try { await navigator.clipboard.writeText(value); if (current === generation.current && mounted.current) setNotice(`${label} copied.`); }
     catch { if (current === generation.current && mounted.current) setError("Clipboard access was denied. Select and copy the visible text manually."); }
   };
-  return { target, changeTarget, diagrams, tokens, audit, baseUrl, loading, error: error || loadError, notice, busy, reload,
+  return { tokens, audit, baseUrl, loading, error: error || loadError, notice, busy, reload,
     creating, setCreating, openCreate, name, setName, scope, setScope, expiry, setExpiry, create, action, confirmation, setConfirmation, openAction, closeAction, confirmAction, secret, hide, copy };
 }

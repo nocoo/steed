@@ -1,14 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import type { ConnectToken } from "@steed/api/shared";
+import type { TopologyConnectToken } from "@steed/api/shared";
 import { ConnectPage } from "../connect";
 
 const request = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/connect-client", async (original) => ({ ...await original<object>(), connectRequest: request }));
-const token: ConnectToken = { id: "agent", name: "Assistant", diagramId: null, scope: "read", prefix: "prefix…", version: 1,
+vi.mock("@/lib/topology-connect-client", async (original) => ({ ...await original<object>(), topologyConnectRequest: request }));
+const token: TopologyConnectToken = { id: "agent", name: "Assistant", scope: "topology:read", prefix: "prefix…", version: 1,
   createdAt: "2026-09-12T00:00:00Z", expiresAt: null, lastUsedAt: null, revokedAt: null };
-let tokens: ConnectToken[];
-let diagrams: { id: string; title: string; deleted?: boolean }[];
+let tokens: TopologyConnectToken[];
 const clipboard = vi.fn();
 type Options = { method?: string; body?: Record<string, unknown> };
 async function respond(path: string, options: Options = {}) {
@@ -16,13 +15,12 @@ async function respond(path: string, options: Options = {}) {
   if (options.method) {
     if (path.endsWith("/challenge")) return { data: { challenge: "proof" } };
     if (path.endsWith("/reveal")) return { data: { token: "test-only-secret" } };
-    if (path === "/api/connect/tokens") tokens = [{ ...token, name: String(options.body?.name), scope: options.body?.scope === "write" ? "write" : "read", expiresAt: options.body?.expiresAt as string | null }];
+    if (path === "/api/connect/tokens") tokens = [{ ...token, name: String(options.body?.name), scope: options.body?.scope === "topology:write" ? "topology:write" : "topology:read", expiresAt: options.body?.expiresAt as string | null }];
     if (options.method === "PATCH") tokens = tokens.map((value) => ({ ...value, name: String(options.body?.name), version: value.version + 1 }));
     if (path.endsWith("/rotate")) tokens = tokens.map((value) => ({ ...value, version: value.version + 1 }));
     if (path.endsWith("/revoke")) tokens = tokens.map((value) => ({ ...value, revokedAt: value.createdAt, version: value.version + 1 }));
     return { data: tokens[0] };
   }
-  if (path.startsWith("/api/connect/diagrams")) return { data: diagrams, nextCursor: null };
   if (path.startsWith("/api/connect/tokens")) return { data: tokens, nextCursor: null };
   return { data: [{ id: 1, operation: "diagrams.put", status: 200, code: null, requestId: "request-one", createdAt: token.createdAt },
     { id: 2, operation: "diagrams.delete", status: 412, code: "version_conflict", requestId: "request-two", createdAt: token.createdAt }], nextCursor: null };
@@ -57,7 +55,7 @@ async function confirm(label: string, name: string) {
   await waitFor(() => expect(screen.queryByText("Refreshing connections…")).not.toBeInTheDocument());
 }
 beforeEach(() => {
-  vi.resetAllMocks(); tokens = [token]; diagrams = [{ id: "network", title: "Network" }];
+  vi.resetAllMocks(); tokens = [token];
   request.mockImplementation(respond); clipboard.mockResolvedValue(undefined);
   vi.spyOn(document, "hidden", "get").mockReturnValue(false);
   Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: clipboard } });
@@ -67,8 +65,7 @@ afterEach(() => vi.restoreAllMocks());
 describe("Connect page", () => {
   it("creates a scoped token with expiry and presents metadata without revealing a credential", async () => {
     tokens = []; await setup();
-    expect(screen.getByText("No tokens for this target")).toBeInTheDocument();
-    change("Target", "network");
+    expect(screen.getByText("No topology tokens")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole("button", { name: "Create token" })).toBeEnabled());
     click("Create token"); expect(dialogButton("Create token")).toBeDisabled();
     change("Name", "Architecture agent"); change("Permission", "write"); change("Expiry (optional)", "2099-01-01T12:00");
@@ -77,7 +74,7 @@ describe("Connect page", () => {
     expect(screen.getByText("Read + write")).toBeInTheDocument();
     expect(screen.queryByLabelText("Revealed key")).not.toBeInTheDocument(); expect(clipboard).not.toHaveBeenCalled();
     expect(screen.getByRole("status")).toHaveTextContent("Token created.");
-    expect(screen.getByText("Network · 1 / 50 slots used")).toBeInTheDocument();
+    expect(screen.getByText("Topology · 1 / 50 slots used")).toBeInTheDocument();
     click("Create token"); fireEvent.click(dialogButton("Cancel"));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(screen.getByRole("button", { name: "Create token" })).toHaveFocus();
@@ -102,8 +99,7 @@ describe("Connect page", () => {
     expect(screen.getByText("Revoked")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Reveal key for Renamed agent" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Revoke Renamed agent" })).toBeDisabled();
-    expect(screen.getByLabelText("Target")).toHaveFocus();
-    expect(screen.getByText("All diagrams · 0 / 50 slots used")).toBeInTheDocument();
+    expect(screen.getByText("Topology · 0 / 50 slots used")).toBeInTheDocument();
   });
 
   it("shows errors inside the active dialog, keeps its input, and allows recovery", async () => {
@@ -126,7 +122,7 @@ describe("Connect page", () => {
     const instructions = screen.getByLabelText("Agent connection instructions");
     expect(instructions).toHaveTextContent("$STEED_TOKEN");
     expect(screen.getByRole("link", { name: "Download OpenAPI" })).toHaveAttribute("href", "/api/connect/openapi.json");
-    change("Instructions format", "agent"); expect(instructions).toHaveTextContent("Read GET /capabilities");
+    change("Instructions format", "agent"); expect(instructions).toHaveTextContent("Read /capabilities");
     click("Copy instructions"); await waitFor(() => expect(clipboard).toHaveBeenCalledWith(expect.stringContaining("Idempotency-Key")));
     change("Instructions format", "curl"); expect(instructions).toHaveTextContent("--fail-with-body");
     fireEvent.click(screen.getByText("Recent activity"));
@@ -144,24 +140,10 @@ describe("Connect page", () => {
     expect(screen.getByRole("button", { name: "Rename Agent 0" })).toBeEnabled();
   });
 
-  it("preserves a removed target selection so its credentials can still be revoked", async () => {
-    await setup(); change("Target", "network");
-    await waitFor(() => expect(screen.queryByText("Refreshing connections…")).not.toBeInTheDocument());
-    diagrams = []; tokens = [];
-    request.mockImplementation(async (path: string, options?: Options) => path.startsWith("/api/connect/audit") ? { data: [] } : respond(path, options));
-    click("Refresh");
-    await waitFor(() => expect(screen.getByLabelText("Target")).toHaveTextContent("Unavailable diagram"));
-    expect(screen.getByText("No recorded activity for this target.")).toBeInTheDocument();
-  });
-
-  it("discovers previously deleted targets after a reload while disabling new credentials", async () => {
-    diagrams = [{ id: "network", title: "Network", deleted: true }]; await setup();
-    change("Target", "network");
-    await waitFor(() => expect(screen.queryByText("Refreshing connections…")).not.toBeInTheDocument());
-    expect(screen.getByLabelText("Target")).toHaveTextContent("Network (deleted)");
-    expect(screen.getByRole("button", { name: "Create token" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Revoke Assistant" })).toBeEnabled();
-    expect(screen.getByText("This diagram is unavailable. You can still revoke its existing tokens.")).toBeInTheDocument();
+  it("shows no target picker for the canonical topology", async () => {
+    await setup();
+    expect(screen.queryByLabelText("Target")).not.toBeInTheDocument();
+    expect(screen.getByText("One canonical topology")).toBeInTheDocument();
   });
 
   it("clears a visible secret on window blur and does not copy it automatically", async () => {

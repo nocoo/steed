@@ -4,7 +4,7 @@
 
 <h1 align="center">Steed</h1>
 
-<p align="center">See the agents, tools and relationships across your hosts in one place.</p>
+<p align="center">A personal system topology platform: hosts, services, agents and providers in one graph.</p>
 
 <p align="center">
   <a href="https://steed.hexly.ai">Website</a> ·
@@ -13,50 +13,19 @@
 
 ## What it does
 
-Steed is an asset inventory for autonomous agents. A CLI and Host Service report resource snapshots from each machine. The web dashboard brings hosts, agents, data sources and their bindings together so you can review status, ownership and business categories.
+Steed is a personal system topology platform. Hosts, services, agents, data sources and external providers sit in one graph, layered by vendor or provider and marked with trust domains. The web UI is for browsing; the graph structure is written through the token-scoped Connect API.
 
-The current scope is inventory, status display and manually managed relationships. Agents are registered explicitly, then checked using configured detection methods. Users establish agent–data source bindings. Status comes from periodic snapshots, with a default interval of ten minutes.
+Version 0.4.0 removed the earlier agent asset inventory and cleared the old diagrams and Connect state. The new canonical model is described in the [Phase 1 and Phase 2 design](19-phase1-topology-model.md).
 
 ## Features
 
-- View host availability, last heartbeat, agent runtime status and versions.
-- Scan configured CLI tools for versions and authentication observations. Default scanners cover Wrangler, Railway, GitHub CLI and Vercel CLI.
-- Edit agent nicknames, roles and business categories, and maintain data-source notes, tags and categories. The preset categories are Work, Life and Learning.
-- Bind agents to data sources on the same host. Filter the relationship map by host, business category or unbound resources.
-- Scan, report snapshots and inspect status through the CLI, or run the Host Service in the foreground for periodic reporting.
-
-Automatic data-source discovery currently covers CLI tools; MCP scanning is not implemented. Some authentication observations only check whether a configuration path exists, so they do not establish whether a remote credential is still valid.
+- Topology page: browse layers, nodes, satellites, boundaries and relationships on a read-only React Flow canvas, filter by view or attributes, and inspect details.
+- Connect page: issue, reveal, rotate and revoke tokens with `topology:read` or `topology:write` scope.
+- Connect API (`/api/v1/topology*`): machines use Bearer tokens to read, validate, replace or incrementally change topology, read history and revert conflict-free changes; writes use revisions, idempotency keys and audit records.
 
 ## Usage
 
-### Web dashboard
-
-The [website](https://steed.hexly.ai) uses Cloudflare Access and requires an authorized identity. It provides Overview, Hosts, Agents, Data Sources and Map pages. A separate deployment needs its own Access application, D1 database and service credentials; see the [current entry-point notes](08-readme-refresh.md).
-
-### Host CLI
-
-Run the CLI from source. Install dependencies as described below, then inspect its commands:
-
-```bash
-bun run packages/cli/src/bin/steed.ts --help
-```
-
-An administrator registers the host through the Worker's `POST /api/v1/hosts/register` endpoint and obtains a Host API key. Initialize with `init --url <deployment-url> --key <host-api-key>`. Configuration is stored in `~/.steed/config.json`; local scan and service state are stored in `~/.steed/state.json`.
-
-Common commands after initialization:
-
-```bash
-# Register an agent with its actual runtime and path
-bun run packages/cli/src/bin/steed.ts register --match-key "openclaw:/path/to/agent"
-
-bun run packages/cli/src/bin/steed.ts scan          # Save a local scan
-bun run packages/cli/src/bin/steed.ts scan --json   # Print JSON
-bun run packages/cli/src/bin/steed.ts report        # Scan and report
-bun run packages/cli/src/bin/steed.ts status        # Inspect locally recorded state
-bun run packages/cli/src/bin/steed.ts service start # Run in foreground; Ctrl+C stops
-```
-
-Registration supports process, configuration-file and custom-command detection; see `register --help`. The source still includes `login`, which depends on the legacy Dashboard's `/api/auth/cli` route. The current web entry does not implement that flow, so this guide uses Host API key initialization.
+The [website](https://steed.hexly.ai) pages and browser API sit behind Cloudflare Access and require an authorized identity. `/api/live` bypasses Access; `/api/v1/*` also bypasses Access and the Worker verifies Connect tokens instead. The browser `/api/topology` is read-only; structural writes use the Connect API. A separate deployment needs its own Access application, D1 database and Connect keyring. See the [design](19-phase1-topology-model.md#api-shape) for routes and preconditions.
 
 ## Development
 
@@ -69,41 +38,37 @@ bun install --frozen-lockfile
 bun run build
 ```
 
-Initialize the local database used by the web Worker. Migrations live in the API package; the state directory must match the web Worker's directory:
+Initialize the local database used by the web Worker. Migrations live in `apps/web/migrations`:
 
 ```bash
-cd packages/worker
-bunx wrangler d1 migrations apply DB --local \
-  --persist-to ../../apps/web/.wrangler/state/web
+cd apps/web
+bunx wrangler d1 migrations apply DB --env dev --local --persist-to .wrangler/state/web
 cd ../..
 ```
 
 Start these processes in separate terminals:
 
 ```bash
-# Terminal one: complete web Worker, default port 8787
+# Terminal one: complete web Worker on loopback port 37035
 bun run --cwd apps/web dev:worker
 ```
 
 ```bash
-# Terminal two: Vite frontend, default http://localhost:5173
+# Terminal two: Vite on port 7035, through https://steed.dev.hexly.ai
 bun run dev
 ```
 
-Vite proxies `/api` to the local web Worker. The `dev` environment includes localhost-only Access development handling and a local service token. The root `bun run dev:worker` command starts only the lower-level API Worker; use the `apps/web` command above for the complete dashboard.
+Vite proxies `/api` to the local web Worker. Use `https://steed.dev.hexly.ai` through the existing Caddy proxy. Query nmem for port reservations and check the Caddy mapping and listeners before starting; the Worker inspector uses 38035. The Access development bypass permits loopback and this exact HTTPS origin. For local Connect configuration see [architecture diagrams and Connect](13-architecture-diagrams-and-connect.md#local-configuration-and-future-enablement).
 
-`bun run build` builds the web assets; `bun run --cwd packages/cli build` builds the CLI. Use `bun run typecheck` and `bun run lint` for types and code style.
+`bun run build` builds the web assets. Use `bun run typecheck` and `bun run lint` for types and code style.
 
 ```text
-apps/web/           Current React pages, web Worker and Access verification
-packages/api/       Browser API client and server handlers
-packages/worker/    Hono API, D1 data access and migrations
-packages/cli/       CLI, resource scanners and Host Service
-packages/shared/    Shared types and utilities
-apps/web_legacy/    Preserved Next.js implementation
+apps/web/              React pages, web Worker, Access verification, Connect API
+apps/web/migrations/   D1 migrations
+packages/api/          Shared topology, Connect and profile contracts (zod)
 ```
 
-The current production workflow builds `apps/web` and deploys its `production` environment to Cloudflare Workers. The Next.js / Railway architecture in earlier documents describes the previous implementation.
+The production workflow builds `apps/web` and deploys its `production` environment to Cloudflare Workers.
 
 ## Tests
 
@@ -113,11 +78,12 @@ Run from the repository root:
 | --- | --- |
 | All unit and component tests | `bun run test` |
 | Web component and view-model tests | `bun run --cwd apps/web test` |
-| API HTTP integration tests | `bun run test:e2e` |
+| Topology and Connect HTTP integration tests | `bun run test:e2e` |
+| Local topology capacity and latency benchmark | `bun run bench:topology` |
 
-`bun run test` also writes a coverage report; `bun run test:watch` runs in watch mode. Web tests use jsdom and React Testing Library. HTTP tests start local Wrangler, apply migrations in a separate D1 state directory and use port 8787. Stop the development server on that port before running them.
+`bun run test` writes a coverage report including the Worker, and `bun run check-coverage` checks its thresholds; `bun run test:watch` runs in watch mode. Web tests use jsdom and React Testing Library. `test:e2e` runs the topology and Connect HTTP runners in turn; each starts local Wrangler, applies migrations in a temporary D1 state directory and uses an ephemeral loopback port. The benchmark measures operation p95 over local HTTP and D1 using a synthetic 1000-node, 5000-edge topology.
 
-There is no configured browser end-to-end test command. `test:e2e` covers real HTTP requests to the lower-level API; complete browser journeys still need manual verification.
+There is no configured browser end-to-end test command; complete browser journeys still need manual verification.
 
 ## Stack
 
@@ -125,7 +91,6 @@ There is no configured browser end-to-end test command. `test:e2e` covers real H
 ![Bun](https://img.shields.io/badge/Bun-14151A?logo=bun&logoColor=white)
 ![React](https://img.shields.io/badge/React-20232A?logo=react&logoColor=61DAFB)
 ![Vite](https://img.shields.io/badge/Vite-646CFF?logo=vite&logoColor=white)
-![Hono](https://img.shields.io/badge/Hono-E36002?logo=hono&logoColor=white)
 ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare_Workers-F38020?logo=cloudflareworkers&logoColor=white)
 ![D1](https://img.shields.io/badge/D1-F38020)
 ![React Flow](https://img.shields.io/badge/React_Flow-1A192B)
@@ -134,9 +99,8 @@ There is no configured browser end-to-end test command. `test:e2e` covers real H
 | Area | Implementation |
 | --- | --- |
 | Web interface | React, React Router, Vite, Tailwind CSS, Radix UI |
-| Relationship map | React Flow |
-| Services and storage | Cloudflare Workers, Hono, D1; Cloudflare Access for the browser entry |
-| CLI and Host Service | TypeScript, Bun, Commander |
+| Topology graph | React Flow |
+| Services and storage | Cloudflare Workers, D1; Cloudflare Access for the browser entry |
 | Verification | Vitest, React Testing Library, jsdom, TypeScript, ESLint |
 
 Dependency versions are recorded in the [workspace package manifests](../package.json) and [bun.lock](../bun.lock).
@@ -144,11 +108,10 @@ Dependency versions are recorded in the [workspace package manifests](../package
 ## Documentation
 
 - [Documentation index](README.md)
-- [Current entry points, implementation boundaries and README evidence](08-readme-refresh.md)
-- [Vite Web and Cloudflare Access migration](features/07-phase-f-vite-web-cf-access.md)
-- [Host Service design](features/03-phase-c1-host-service.md)
-- [CLI design](features/04-phase-c2-cli.md)
-- [Relationship map design](features/06-phase-e-lane-map.md)
+- [Phase 0: topology platform cleanup](18-phase0-topology-cleanup.md)
+- [Phase 1 and Phase 2: topology model and Connect](19-phase1-topology-model.md)
+- [Architecture diagrams and Connect](13-architecture-diagrams-and-connect.md)
+- [Local development domain](15-local-dev-domain.md)
 
 ## License
 

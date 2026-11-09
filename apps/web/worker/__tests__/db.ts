@@ -3,13 +3,16 @@ import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-export function testDatabase() {
+export function testDatabase(maxMigration = Infinity) {
   const sqlite = new DatabaseSync(":memory:");
-  const directory = join(dirname(fileURLToPath(import.meta.url)), "../../../../packages/worker/migrations");
-  for (const name of readdirSync(directory).filter((name) => name.endsWith(".sql")).sort()) {
+  const directory = join(dirname(fileURLToPath(import.meta.url)), "../../migrations");
+  for (const name of readdirSync(directory).filter((name) => name.endsWith(".sql") && Number(name.split("_")[0]) <= maxMigration).sort()) {
     sqlite.exec(readFileSync(join(directory, name), "utf8"));
   }
   const executors = new WeakMap<object, () => D1Result<Record<string, unknown>>>();
+  // Each awaited statement call or batch is one D1 network round trip in production.
+  let roundTrips = 0;
+  const trip = () => { roundTrips += 1; };
   const db = {
     prepare(sql: string) {
       let params: SQLInputValue[] = [];
@@ -22,17 +25,19 @@ export function testDatabase() {
       const statement = {
         bind(...values: SQLInputValue[]) { params = values; return statement; },
         async first(column?: string) {
+          trip();
           const row = execute().results[0];
           return row ? column ? row[column] : row : null;
         },
-        async all() { return execute(); },
-        async run() { return execute(); },
-        async raw() { return execute().results.map((row) => Object.values(row)); },
+        async all() { trip(); return execute(); },
+        async run() { trip(); return execute(); },
+        async raw() { trip(); return execute().results.map((row) => Object.values(row)); },
       };
       executors.set(statement, execute);
       return statement;
     },
     async batch(statements: object[]) {
+      trip();
       sqlite.exec("BEGIN");
       try {
         const result = statements.map((statement) => {
@@ -45,5 +50,5 @@ export function testDatabase() {
       } catch (error) { sqlite.exec("ROLLBACK"); throw error; }
     },
   } as D1Database;
-  return { db, sqlite, close: () => sqlite.close() };
+  return { db, sqlite, close: () => sqlite.close(), roundTrips: () => roundTrips };
 }

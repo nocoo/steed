@@ -1,22 +1,19 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ConnectToken, DiagramSummary } from "@steed/api/shared";
+import type { TopologyConnectToken } from "@steed/api/shared";
 import { useConnectViewModel } from "../use-connect-viewmodel";
 
 const request = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/connect-client", async (original) => ({ ...await original<object>(), connectRequest: request }));
-const token: ConnectToken = { id: "agent", name: "Assistant", diagramId: null, scope: "read", prefix: "prefix…", version: 1,
+vi.mock("@/lib/topology-connect-client", async (original) => ({ ...await original<object>(), topologyConnectRequest: request }));
+const token: TopologyConnectToken = { id: "agent", name: "Assistant", scope: "topology:read", prefix: "prefix…", version: 1,
   createdAt: "2026-09-12T00:00:00Z", expiresAt: null, lastUsedAt: null, revokedAt: null };
-const diagram: DiagramSummary = { id: "network", title: "Network", description: "", revision: 1, nodeCount: 3, edgeCount: 2,
-  createdAt: token.createdAt, updatedAt: token.createdAt };
-let tokens: ConnectToken[];
+let tokens: TopologyConnectToken[];
 let hidden = false;
 const clipboard = vi.fn();
-type Options = { method?: string; body?: unknown; signal?: AbortSignal; token?: ConnectToken };
+type Options = { method?: string; body?: unknown; signal?: AbortSignal; token?: TopologyConnectToken };
 function respond(path: string, options: Options = {}) {
   if (path === "/api/connect") return { data: { apiBaseUrl: "https://steed.example/api/v1" } };
   if (options.method) return { data: path.endsWith("/challenge") ? { challenge: "proof" } : path.endsWith("/reveal") ? { token: "test-only-secret" } : {} };
-  if (path.startsWith("/api/connect/diagrams")) return { data: [diagram], nextCursor: null };
   if (path.startsWith("/api/connect/tokens")) return { data: tokens, nextCursor: null };
   return { data: [], nextCursor: null };
 }
@@ -46,22 +43,14 @@ beforeEach(() => {
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
 
 describe("Connect view model", () => {
-  it("loads every diagram/token page and isolates state when the target changes", async () => {
-    request.mockImplementation(async (path: string, options?: Options) => {
-      if (path.startsWith("/api/connect/diagrams")) return path.includes("cursor=network")
-        ? { data: [{ ...diagram, id: "other" }], nextCursor: null } : { data: [diagram], nextCursor: "network" };
-      if (path.startsWith("/api/connect/tokens")) return path.includes("cursor=agent")
-        ? { data: [{ ...token, id: "second" }], nextCursor: null } : { data: [token], nextCursor: "agent" };
-      return respond(path, options);
-    });
+  it("loads every topology token page", async () => {
+    request.mockImplementation(async (path: string, options?: Options) => path.startsWith("/api/connect/tokens")
+      ? path.includes("cursor=agent") ? { data: [{ ...token, id: "second" }], nextCursor: null } : { data: [token], nextCursor: "agent" }
+      : respond(path, options));
     const { result } = await setup();
-    expect(result.current.diagrams).toHaveLength(2); expect(result.current.tokens).toHaveLength(2);
+    expect(result.current.tokens).toHaveLength(2);
     expect(result.current.baseUrl).toBe("https://steed.example/api/v1");
-    act(() => result.current.openAction(token, "rename"));
-    act(() => result.current.changeTarget("network"));
-    expect(result.current.action).toBeNull(); expect(result.current.tokens).toEqual([]);
-    await waitFor(() => expect(result.current.loading).toBe(false));
-    expect(request.mock.calls.some(([path]) => path.includes("tokens?diagramId=network&limit=100"))).toBe(true);
+    expect(request.mock.calls.some(([path]) => path.includes("diagrams"))).toBe(false);
   });
 
   it.each([new Error("Denied"), "not-an-error"])("reports load errors and recovers on refresh", async (cause) => {
@@ -73,12 +62,12 @@ describe("Connect view model", () => {
     expect(result.current.error).toBe("");
   });
 
-  it.each([false, true])("ignores an aborted target load, including delayed rejection (%s)", async (fail) => {
+  it.each([false, true])("ignores an aborted refresh load, including delayed rejection (%s)", async (fail) => {
     const pending = deferred();
     request.mockImplementationOnce(() => pending.promise);
     const view = renderHook(useConnectViewModel);
     const signal = request.mock.calls[0]?.[1].signal as AbortSignal;
-    act(() => view.result.current.changeTarget("network"));
+    act(() => view.result.current.reload());
     await waitFor(() => expect(view.result.current.loading).toBe(false));
     expect(signal.aborted).toBe(true);
     await act(async () => { if (fail) pending.reject(new Error("Old failure")); else pending.resolve({ data: { apiBaseUrl: "https://stale.example" } }); });
@@ -89,10 +78,10 @@ describe("Connect view model", () => {
   it("creates metadata with the chosen scope and expiry, without revealing or writing browser storage", async () => {
     const store = vi.spyOn(Storage.prototype, "setItem");
     const { result } = await setup();
-    act(() => { result.current.changeTarget("network"); result.current.openCreate(); result.current.setName(" Agent "); result.current.setScope("write"); result.current.setExpiry("2099-01-01T12:00"); });
+    act(() => { result.current.openCreate(); result.current.setName(" Agent "); result.current.setScope("topology:write"); result.current.setExpiry("2099-01-01T12:00"); });
     await act(() => result.current.create());
-    expect(request).toHaveBeenCalledWith("/api/connect/tokens", { method: "POST", body: { name: "Agent", scope: "write", diagramId: "network", expiresAt: new Date("2099-01-01T12:00").toISOString() } });
-    expect(result.current.creating).toBe(false); expect(result.current.name).toBe(""); expect(result.current.expiry).toBe(""); expect(result.current.scope).toBe("read");
+    expect(request).toHaveBeenCalledWith("/api/connect/tokens", { method: "POST", body: { name: "Agent", scope: "topology:write", expiresAt: new Date("2099-01-01T12:00").toISOString() } });
+    expect(result.current.creating).toBe(false); expect(result.current.name).toBe(""); expect(result.current.expiry).toBe(""); expect(result.current.scope).toBe("topology:read");
     expect(result.current.secret).toBeNull(); expect(result.current.notice).toContain("Token created.");
     expect(clipboard).not.toHaveBeenCalled(); expect(store).not.toHaveBeenCalled();
   });
@@ -110,12 +99,12 @@ describe("Connect view model", () => {
     expect(view.result.current.busy).toBe(false);
   });
 
-  it.each(["target", "unmount"])("does not apply a delayed creation result after %s", async (boundary) => {
+  it("does not apply a delayed creation result after unmount", async () => {
     const view = await setup(); const pending = deferred();
     request.mockImplementation(async (path: string, options?: Options) => options?.method === "POST" ? pending.promise : respond(path, options));
     act(() => view.result.current.setName("Agent"));
     let creating!: Promise<void>; act(() => { creating = view.result.current.create(); });
-    act(() => { if (boundary === "target") view.result.current.changeTarget("network"); else view.unmount(); });
+    act(() => view.unmount());
     await act(async () => { pending.resolve({ data: token }); await creating; });
     expect(view.result.current.notice).toBe("");
   });
@@ -165,7 +154,7 @@ describe("Connect view model", () => {
     expect(result.current.error).toBe(cause instanceof Error ? cause.message : "The action failed. Refresh before retrying.");
   });
 
-  it.each(["blur", "hidden", "target", "cancel", "create", "action", "unmount"])("discards a delayed reveal after %s", async (boundary) => {
+  it.each(["blur", "hidden", "cancel", "create", "action", "unmount"])("discards a delayed reveal after %s", async (boundary) => {
     const view = await setup(); const pending = deferred();
     request.mockImplementation(async (path: string, options?: Options) => path.endsWith("/reveal") ? pending.promise : respond(path, options));
     act(() => view.result.current.openAction(token, "reveal"));
@@ -174,7 +163,6 @@ describe("Connect view model", () => {
     act(() => {
       if (boundary === "blur") window.dispatchEvent(new Event("blur"));
       if (boundary === "hidden") { hidden = true; document.dispatchEvent(new Event("visibilitychange")); }
-      if (boundary === "target") view.result.current.changeTarget("network");
       if (boundary === "cancel") view.result.current.closeAction();
       if (boundary === "create") view.result.current.openCreate();
       if (boundary === "action") view.result.current.openAction(token, "rename");
@@ -233,10 +221,10 @@ describe("Connect view model", () => {
     expect(view.result.current.error).toContain("Clipboard access was denied."); expect(view.result.current.error).not.toContain("test-only-secret");
   });
 
-  it.each([false, true])("ignores a stale clipboard result after target change (%s)", async (fail) => {
+  it.each([false, true])("ignores a stale clipboard result after hide (%s)", async (fail) => {
     const view = await setup(); const pending = deferred<void>(); clipboard.mockReturnValueOnce(pending.promise);
     let copying!: Promise<void>; act(() => { copying = view.result.current.copy("instructions", "Instructions"); });
-    act(() => view.result.current.changeTarget("network"));
+    act(() => view.result.current.hide());
     await act(async () => { if (fail) pending.reject(new Error("denied")); else pending.resolve(); await copying; });
     expect(view.result.current.notice).toBe(""); expect(view.result.current.error).toBe("");
   });

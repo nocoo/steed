@@ -2,6 +2,43 @@
 @import "@nocoo/basalt/styles/tailwind";
 @import "tailwindcss";
 
+:root {
+  --topology-palette-primary: hsl(var(--basalt-primary));
+  --topology-palette-secondary: hsl(var(--basalt-secondary));
+  --topology-palette-accent: hsl(var(--basalt-primary));
+  --topology-palette-muted: hsl(var(--basalt-muted));
+  --topology-palette-muted-foreground: hsl(var(--basalt-muted-foreground));
+  --topology-palette-border: hsl(var(--basalt-border));
+  --topology-palette-background: hsl(var(--basalt-background));
+  --topology-palette-foreground: hsl(var(--basalt-foreground));
+  --topology-palette-card: hsl(var(--basalt-card));
+  --topology-palette-green: oklch(72.3% 0.219 149.579);
+  --topology-palette-emerald: oklch(69.6% 0.17 162.48);
+  --topology-palette-lime: oklch(76.8% 0.233 130.85);
+  --topology-palette-amber: oklch(76.9% 0.188 70.08);
+  --topology-palette-yellow: oklch(79.5% 0.184 86.047);
+  --topology-palette-orange: oklch(70.5% 0.213 47.604);
+  --topology-palette-red: oklch(63.7% 0.237 25.331);
+  --topology-palette-rose: oklch(64.5% 0.246 16.439);
+  --topology-palette-blue: oklch(62.3% 0.214 259.815);
+  --topology-palette-cyan: oklch(71.5% 0.143 215.221);
+  --topology-palette-sky: oklch(68.5% 0.169 237.323);
+  --topology-palette-indigo: oklch(58.5% 0.233 277.117);
+  --topology-palette-violet: oklch(60.6% 0.25 292.717);
+  --topology-palette-purple: oklch(62.7% 0.265 303.9);
+  --topology-palette-fuchsia: oklch(66.7% 0.295 322.15);
+  --topology-palette-pink: oklch(65.6% 0.241 354.308);
+  --topology-palette-teal: oklch(70.4% 0.14 182.503);
+  --topology-palette-slate: oklch(55.4% 0.046 257.417);
+  --topology-palette-gray: oklch(55.1% 0.027 264.364);
+  --topology-palette-zinc: oklch(55.2% 0.016 285.938);
+  --topology-palette-neutral: oklch(55.6% 0 0);
+  --topology-palette-stone: oklch(55.3% 0.013 58.071);
+  --topology-palette-white: #fff;
+  --topology-palette-black: #000;
+}
+
+
 @layer base {
   html,
   body,
@@ -13,36 +50,73 @@
   }
 }
 
-.diagram-canvas {
-  --diagram-paper: #fbfcfe;
-  --diagram-ink: #243247;
-  --diagram-dot: #dbe2ed;
-  background: var(--diagram-paper);
-  color: var(--diagram-ink);
+/* Topology semantic zoom: far shows sections, frames and hosts; mid adds satellites; near adds edge labels.
+   Unlayered so it wins over @xyflow/react/dist/style.css. */
+.topology-canvas {
+  --topology-edge-cross: #94a3b8;
 }
-.dark .diagram-canvas {
-  --diagram-paper: #111827;
-  --diagram-ink: #e2e8f0;
-  --diagram-dot: #293548;
+.topology-card-far {
+  display: none;
 }
-.architecture-component {
-  padding: 12px 16px;
-  border: 1px solid var(--diagram-dot);
-  border-left: 3px solid #64748b;
-  border-radius: 10px;
-  background: var(--diagram-paper);
-  box-shadow: 0 2px 6px rgb(15 23 42 / 5%);
+.topology-zoom-far .topology-card-far {
+  display: flex;
 }
-.architecture-component[data-kind="worker"], .architecture-component[data-kind="gateway"] { border-left-color: #f59e0b; }
-.architecture-component[data-kind="database"], .architecture-component[data-kind="cache"], .architecture-component[data-kind="storage"] { border-left-color: #8b5cf6; }
-.architecture-component[data-kind="monitor"] { border-left-color: #059669; }
-.architecture-component.is-selected { outline: 2px solid #0891b2; outline-offset: 2px; }
-.architecture-component.is-compact { display: flex; align-items: center; }
-.architecture-boundary { height: 100%; border: 1px dashed #94a3b866; border-radius: 16px; background: #94a3b80a; }
-.architecture-boundary > span { display: flex; align-items: center; gap: 8px; padding: 12px 16px; font-size: 12px; font-weight: 600; color: var(--diagram-ink); }
-.diagram-canvas .react-flow__handle { width: 5px; height: 5px; border: none; background: #94a3b8; opacity: 0; }
-.diagram-canvas .architecture-component:hover .react-flow__handle, .diagram-canvas .is-selected .react-flow__handle { opacity: 1; }
-.diagram-canvas .react-flow__controls-button { background: var(--diagram-paper); color: var(--diagram-ink); border-color: var(--diagram-dot); }
-.diagram-canvas .react-flow__controls-button svg { fill: currentColor; }
-.diagram-canvas .react-flow__minimap { background: var(--diagram-paper); border: 1px solid var(--diagram-dot); border-radius: 8px; }
-.diagram-canvas .react-flow__attribution { display: none; }
+.topology-zoom-far .react-flow__node.topology-rf-satellite,
+.topology-zoom-far .react-flow__edge.topology-edge-satellite {
+  display: none;
+}
+/* Layer focus shows every in-section edge and card, even at overview zoom. */
+.topology-canvas[data-focused-layer]:not([data-focused-layer=""]) .react-flow__node.topology-rf-satellite,
+.topology-canvas[data-focused-layer]:not([data-focused-layer=""]) .react-flow__edge.topology-edge-satellite {
+  display: block;
+}
+.topology-canvas[data-focused-layer]:not([data-focused-layer=""]) .react-flow__edge.topology-edge-satellite path {
+  display: block;
+}
+.topology-zoom-far .react-flow__edge-textwrapper,
+.topology-zoom-mid .react-flow__edge-textwrapper {
+  display: none;
+}
+.topology-zoom-far .topology-route-edge-label,
+.topology-zoom-mid .topology-route-edge-label {
+  visibility: hidden !important;
+}
+.topology-zoom-far .react-flow__handle {
+  opacity: 0;
+}
+.topology-zoom-far .react-flow__edge.topology-edge-cross path {
+  stroke-opacity: 0.3;
+}
+.topology-canvas .react-flow__node-topologyLane,
+.topology-canvas .react-flow__node-topologyFrame {
+  pointer-events: none;
+}
+.topology-canvas .react-flow__node-topologyLane button {
+  pointer-events: all;
+}
+.topology-canvas .react-flow__edge-text {
+  font-size: 11px;
+}
+.topology-canvas .react-flow__edge.topology-edge-highlighted .react-flow__edge-path {
+  stroke-opacity: 1 !important;
+}
+.topology-canvas .react-flow__node.topology-edge-highlighted {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-basalt-primary) 35%, transparent);
+}
+:is(.dark, [data-mode="dark"]) .topology-canvas .react-flow__edge-textbg {
+  fill: var(--color-basalt-card);
+}
+:is(.dark, [data-mode="dark"]) .topology-canvas .react-flow__edge-text {
+  fill: var(--color-basalt-card-foreground);
+}
+:is(.dark, [data-mode="dark"]) .topology-canvas .react-flow__controls {
+  box-shadow: none;
+}
+:is(.dark, [data-mode="dark"]) .topology-canvas .react-flow__controls-button {
+  background: var(--color-basalt-card);
+  color: var(--color-basalt-card-foreground);
+  border-bottom-color: var(--color-basalt-border);
+}
+:is(.dark, [data-mode="dark"]) .topology-canvas .react-flow__controls-button svg {
+  fill: currentColor;
+}

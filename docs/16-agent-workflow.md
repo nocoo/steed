@@ -1,6 +1,6 @@
 # Agent workflow and inventory constraints
 
-Detailed project constraints and procedures. The root [CLAUDE.md](../CLAUDE.md) defines the quality contract and records current enforcement gaps.
+Detailed project constraints and procedures. The root [AGENTS.md](../AGENTS.md) defines the quality contract and records current enforcement gaps.
 
 ## Workflow
 
@@ -46,4 +46,4 @@ This is a personal tool in development without external users. Keep authorized W
 
 Host Service heartbeats provide a full snapshot every ten minutes for idempotent upsert, not an event stream/history. Auto-scan known runtime types and config/PATH/version observations; the managed Agent is user-confirmed. Detection never creates bindings automatically. Agents have one manually assigned Lane; Data Sources may have several, and bindings are independent. Interactive IDE/development tools are not autonomous Agent entities in v1.
 
-`packages/worker` accepts dashboard service credentials and Host API keys; the current `apps/web` Worker supplies verified Cloudflare Access before internal API access. The old Next.js Google-whitelist/Railway layout remains historical in `apps/web_legacy`, not the current production entry.
+`packages/worker` accepts dashboard service credentials and Host API keys; the current `apps/web` Worker supplies verified Cloudflare Access before internal API access. The old Next.js Google-whitelist/Railway application and its CLI browser-login flow have been removed. Historical architecture documents are not production instructions; initialize hosts with an administrator-issued Host API key.
