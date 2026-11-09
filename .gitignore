@@ -27,3 +27,5 @@ coverage/
 
 # Logs
 *.log
+
+/apps/web_legacy/next-env.d.ts

@@ -7,7 +7,7 @@
     "dev": "next dev --port 7035",
     "build": "next build",
     "start": "HOSTNAME=0.0.0.0 node .next/standalone/server.js",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "next typegen && tsc --noEmit",
     "lint": "eslint --max-warnings=0 .",
     "test": "vitest run",
     "test:watch": "vitest",
