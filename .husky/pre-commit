@@ -1,13 +1,67 @@
 #!/bin/sh
-# Pre-commit hook: G1 + L1 in parallel (<30s target)
+# Pre-commit: unified L1 on Git index snapshot (<30s target)
 
 set -e
 
-echo "🔍 Running pre-commit checks..."
+command -v git >/dev/null 2>&1 || {
+  echo "pre-commit: git is required" >&2
+  exit 1
+}
+command -v bun >/dev/null 2>&1 || {
+  echo "pre-commit: bun is required" >&2
+  exit 1
+}
 
-ROOT_DIR=$(pwd)
+echo "🔍 Running pre-commit checks (index snapshot)..."
 
-# Run G1 (typecheck + lint) and L1 (test + coverage) in parallel
+snapshot=
+cleanup() {
+  status=$?
+  trap - EXIT INT TERM HUP
+  if [ -n "$snapshot" ]; then
+    rm -rf "$snapshot" || :
+    snapshot=
+  fi
+  exit "$status"
+}
+trap cleanup EXIT
+trap "exit 130" INT
+trap "exit 143" TERM
+trap "exit 129" HUP
+
+snapshot=$(mktemp -d "${TMPDIR:-/tmp}/steed-index-XXXXXX")
+git checkout-index --all --prefix="$snapshot/"
+repo=$(git rev-parse --show-toplevel)
+
+if [ ! -d "$repo/node_modules" ]; then
+  echo "pre-commit: node_modules is required" >&2
+  exit 1
+fi
+if [ ! -f "$snapshot/package.json" ] || [ ! -f "$snapshot/bun.lock" ]; then
+  echo "pre-commit: staged package.json and bun.lock are required" >&2
+  exit 1
+fi
+if ! cmp -s "$snapshot/package.json" "$repo/package.json" || ! cmp -s "$snapshot/bun.lock" "$repo/bun.lock"; then
+  echo "pre-commit: staged package.json/bun.lock must match the installed worktree copies" >&2
+  exit 1
+fi
+
+ln -snf "$repo/node_modules" "$snapshot/node_modules"
+for nm in "$repo"/apps/*/node_modules "$repo"/packages/*/node_modules; do
+  [ -d "$nm" ] || continue
+  rel="${nm#$repo/}"
+  parent=$(dirname "$rel")
+  mkdir -p "$snapshot/$parent"
+  ln -snf "$nm" "$snapshot/$rel"
+done
+mkdir -p "$snapshot/.cache"
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX
+unset GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES
+export XDG_CACHE_HOME="$snapshot/.cache"
+export XDG_STATE_HOME="$snapshot/.cache"
+PATH="$snapshot/node_modules/.bin:$PATH"
+cd "$snapshot"
+
 bun run typecheck &
 pid_typecheck=$!
 
@@ -17,7 +71,7 @@ pid_lint=$!
 bun run test &
 pid_test=$!
 
-# Wait for all and collect exit codes
+set +e
 wait $pid_typecheck
 exit_typecheck=$?
 
@@ -26,25 +80,30 @@ exit_lint=$?
 
 wait $pid_test
 exit_test=$?
+set -e
 
-# Check coverage after tests complete
 if [ $exit_test -eq 0 ]; then
+  set +e
   bun run check-coverage
   exit_coverage=$?
+  set -e
 else
   exit_coverage=1
 fi
 
-# Report results
+hook_status=0
+if [ $exit_typecheck -ne 0 ] || [ $exit_lint -ne 0 ] || [ $exit_test -ne 0 ] || [ $exit_coverage -ne 0 ]; then
+  hook_status=1
+fi
+
 echo ""
-if [ $exit_typecheck -eq 0 ] && [ $exit_lint -eq 0 ] && [ $exit_test -eq 0 ] && [ $exit_coverage -eq 0 ]; then
+if [ $hook_status -eq 0 ]; then
   echo "✅ All pre-commit checks passed"
-  exit 0
 else
   echo "❌ Pre-commit checks failed:"
   [ $exit_typecheck -ne 0 ] && echo "   - typecheck failed"
   [ $exit_lint -ne 0 ] && echo "   - lint failed"
   [ $exit_test -ne 0 ] && echo "   - test failed"
   [ $exit_coverage -ne 0 ] && echo "   - coverage below threshold"
-  exit 1
 fi
+exit $hook_status

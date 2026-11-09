@@ -28,9 +28,9 @@ interface CoverageSummary {
 }
 
 if (!existsSync(coveragePath)) {
-  console.log("⏭️  No coverage data found (skipped)");
-  console.log("   Run 'bun run test' first to generate coverage");
-  process.exit(0);
+  console.error("❌ Coverage report missing");
+  console.error("   Run 'bun run test' first to generate coverage");
+  process.exit(1);
 }
 
 const content = readFileSync(coveragePath, "utf-8");

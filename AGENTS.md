@@ -41,15 +41,15 @@ G2 requires dependency and secret scans, with missing required scanners failing.
 
 | Dimension | Status | Required proof and current evidence/gap |
 |---|---|---|
-| L1 TypeScript | planned | Hooks/CI count Worker code and gate statements/functions/lines 95%, branches 90%. Missing-report success in `check-coverage` and the 90% branch floor leave all-four 95% incomplete. Hooks/CI run root strict types and ESLint `--max-warnings=0`; formatting and full index-snapshot checks remain incomplete. |
+| L1 TypeScript | enforced (hooks) | Pre-commit gates a `git checkout-index` snapshot: parallel strict `tsc --noEmit`, ESLint `--max-warnings=0`, Vitest with v8 coverage, then `check-coverage` (95/95/95 statements/functions/lines, branches 90%). CI still counts Worker code separately; the 90% branch floor and any CI-only gaps leave unified all-four 95% incomplete outside hooks. Format check-only gate remains unenforced in hooks. |
 | L2 API | planned | Two local real-HTTP runners cover topology and Connect, each with an isolated temporary D1 and process-group cleanup; Connect exercises all registered operations. Audited 100% endpoint/auth/error coverage remains required. |
 | L3 browser | enforced (CI) | `scripts/run-browser-e2e.ts` builds, seeds `apps/web/e2e/acceptance-topology.json` into an isolated local D1, then clicks every topology node in headless Chromium and fails on any crash or console error. `--screens <dir>` writes light/dark screenshots; `STEED_BROWSER_CHANNEL=chrome` uses installed Chrome. Not in pre-push. |
 | G2 | enforced | Pre-push and shared CI run OSV on Bun lock plus gitleaks; missing scanners must fail. |
 | D1 | planned | Topology/Connect runners use marked mkdtemp local persist directories and canonical-path cleanup checks. Full fail-closed initialization remains incomplete. |
 
-Pre-commit runs types/lint/coverage in parallel, then the coverage-summary check. Pre-push runs local HTTP E2E and security in parallel; build happens inside newer E2E runners and in CI. Existing gates operate on the working tree rather than index/pushed refs.
+Pre-commit runs on the Git index snapshot (`git checkout-index` into a temp tree with worktree `node_modules` symlinks): types, lint, and coverage in parallel, then `check-coverage`; the temp tree is removed on exit or interrupt. Pre-push runs local HTTP E2E and security in parallel against the working tree; build happens inside newer E2E runners and in CI.
 
-Target hooks: pre-commit checks unified L1 against the index snapshot (`git checkout-index`) in <30s; pre-push checks L2 and G2 in parallel against every stdin push ref/commit in <3min, plus build where applicable. L3 runs in CI or an explicit manual lane.
+Target hooks: pre-commit L1 on the index snapshot in <30s; pre-push checks L2 and G2 in parallel against every stdin push ref/commit in <3min, plus build where applicable. L3 runs in CI or an explicit manual lane.
 Never bypass commit/push hooks, force-push, or use autofix in checks. Documentation changes do not authorize deploying or implementing new gates.
 
 ## Resources and isolation
