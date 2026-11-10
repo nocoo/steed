@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.2] - 2026-11-10
+
+### Changed
+
+- Routine dependency maintenance: minor and patch updates across the monorepo,
+  including `jsdom` 31 for the web test environment.
+
 ## [0.6.1] - 2026-11-03
 
 ### Changed
