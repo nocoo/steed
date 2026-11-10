@@ -119,7 +119,6 @@ export function AppSidebar({
             ref={expandButtonRef}
             variant="ghost"
             size="icon"
-            className="mb-basalt-space-sm self-center"
             onClick={onToggle}
             aria-label="Expand sidebar"
           >
