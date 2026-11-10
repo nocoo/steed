@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { Badge, Button, Input, Label, LayerCard } from "@nocoo/basalt";
+import { PageHeader } from "@nocoo/basalt/components/page-header";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@nocoo/basalt/components/select";
 import { ArrowDownLeft, ArrowUpRight, Download, Maximize2, Minimize2, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, RefreshCw, Search, X } from "lucide-react";
 import type { Topology, TopologyNode } from "@steed/api/shared";
@@ -110,6 +111,103 @@ export function TopologyPage() {
   const selectedEdges = selected && topology ? topology.edges.filter((edge) => edge.source === selected.id || edge.target === selected.id) : [];
   const trace = (direction: TopologyReach) => { if (selected) vm.traceNode(selected.id, direction); };
   const filtered = Boolean(vm.viewId || vm.layerId || vm.typeId || vm.boundaryId || vm.tag || vm.search);
+  const pageTitle = topology?.title ?? "Topology";
+  const pageDescription = topology?.description || "Canonical topology map.";
+  const topologyActions = (
+    <>
+      {topology?.revision !== undefined && (
+        <Badge variant="outline" className="font-mono text-[10px]" title={vm.updatedAt ? `Updated ${vm.updatedAt}` : undefined}>
+          Rev {topology.revision}
+        </Badge>
+      )}
+      {!isMobile && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className={iconButton}
+          onClick={() => navigation.toggleHidden(false)}
+          disabled={navigation.fullscreenActive}
+          aria-label={navigation.fullscreenActive ? "Hide navigation" : navigation.state === "hidden" ? "Show navigation" : "Hide navigation"}
+          aria-pressed={navigation.state === "hidden"}
+          title={navigation.fullscreenActive ? "Navigation hidden in fullscreen" : navigation.state === "hidden" ? "Show navigation" : "Hide navigation"}
+        >
+          {navigation.fullscreenActive || navigation.state !== "hidden"
+            ? <PanelLeftClose className="h-4 w-4" />
+            : <PanelLeftOpen className="h-4 w-4" />}
+        </Button>
+      )}
+      <Button variant="ghost" size="icon" className={iconButton} onClick={() => vm.reload()} disabled={vm.busy || vm.loading} aria-label="Refresh topology" title="Refresh">
+        <RefreshCw className={`h-4 w-4${vm.busy ? " animate-spin" : ""}`} />
+      </Button>
+      <Button variant="ghost" size="icon" className={iconButton} disabled={!topology} onClick={() => { if (topology) downloadTopology(topology); }} aria-label="Export JSON" title="Export JSON">
+        <Download className="h-4 w-4" />
+      </Button>
+      {topology && topology.nodes.length > 0 && (
+        <Button variant="ghost" size="icon" className={iconButton} onClick={() => setInspectorOpen((value) => !value)} aria-label={inspectorOpen ? "Hide inspector" : "Show inspector"} aria-pressed={inspectorOpen} title={inspectorOpen ? "Hide inspector" : "Find / inspect"}>
+          {inspectorOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
+        </Button>
+      )}
+      {fullscreen.supported && (
+        <Button variant="ghost" size="icon" className={iconButton} onClick={fullscreen.toggle} aria-label={fullscreen.active ? "Exit fullscreen" : "Enter fullscreen"} title={fullscreen.active ? "Exit fullscreen" : "Fullscreen"}>
+          {fullscreen.active ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+        </Button>
+      )}
+    </>
+  );
+  const topologyFilters = topology && topology.nodes.length > 0 ? (
+    <>
+      <Label htmlFor="topology-view" className="sr-only">Topology view</Label>
+      <Select value={selectValue(vm.viewId)} onValueChange={(value) => vm.setViewId(actualValue(value))}>
+        <SelectTrigger id="topology-view" size="sm" className="h-8 w-auto max-w-56"><SelectValue /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value={sentinel}>All nodes · {topology.nodes.length}</SelectItem>
+          {topology.views.map((view) => <SelectItem key={view.id} value={view.id}>{view.label}</SelectItem>)}
+        </SelectContent>
+      </Select>
+      <Select value={selectValue(vm.layerId)} onValueChange={(value) => vm.setLayerId(actualValue(value))}>
+        <SelectTrigger aria-label="Layer filter" size="sm" className="h-8 w-auto max-w-44"><SelectValue /></SelectTrigger>
+        <SelectContent><SelectItem value={sentinel}>All layers</SelectItem>{layerOptions.map((layer) => <SelectItem key={layer.id} value={layer.id}>{layer.label}</SelectItem>)}</SelectContent>
+      </Select>
+      <Select value={selectValue(vm.typeId)} onValueChange={(value) => vm.setTypeId(actualValue(value))}>
+        <SelectTrigger aria-label="Type filter" size="sm" className="h-8 w-auto max-w-44"><SelectValue /></SelectTrigger>
+        <SelectContent><SelectItem value={sentinel}>All types</SelectItem>{typeOptions.map((type) => <SelectItem key={type.id} value={type.id}>{type.label}</SelectItem>)}</SelectContent>
+      </Select>
+      <Select value={selectValue(vm.boundaryId)} onValueChange={(value) => vm.setBoundaryId(actualValue(value))}>
+        <SelectTrigger aria-label="Boundary filter" size="sm" className="h-8 w-auto max-w-44"><SelectValue /></SelectTrigger>
+        <SelectContent><SelectItem value={sentinel}>All boundaries</SelectItem>{boundaryOptions.map((boundary) => <SelectItem key={boundary.id} value={boundary.id}>{boundary.label}</SelectItem>)}</SelectContent>
+      </Select>
+      <Select value={selectValue(vm.tag)} onValueChange={(value) => vm.setTag(actualValue(value))}>
+        <SelectTrigger aria-label="Tag filter" size="sm" className="h-8 w-auto max-w-44"><SelectValue /></SelectTrigger>
+        <SelectContent><SelectItem value={sentinel}>All tags</SelectItem>{tags.map((tag) => <SelectItem key={tag} value={tag}>{tag}</SelectItem>)}</SelectContent>
+      </Select>
+      {filtered && <Button variant="ghost" size="sm" className="h-8" onClick={() => vm.clearFilters()} aria-label="Clear filters"><X className="h-3 w-3" />Clear</Button>}
+      <nav className="flex max-w-full items-center gap-1 overflow-x-auto" aria-label="Layer navigator" data-testid="topology-layer-navigator">
+        <Button
+          variant={focusedLayerId ? "ghost" : "secondary"}
+          size="sm"
+          className="h-8 shrink-0"
+          aria-current={focusedLayerId ? undefined : "true"}
+          onClick={() => setFocusedLayerId("")}
+        >
+          All layers · {totalVisibleNodes}
+        </Button>
+        {layerOptions.map((layer) => (
+          <Button
+            key={layer.id}
+            variant={focusedLayerId === layer.id ? "secondary" : "ghost"}
+            size="sm"
+            className="h-8 shrink-0"
+            aria-current={focusedLayerId === layer.id ? "true" : undefined}
+            aria-label={`Focus layer ${layer.label}`}
+            onClick={() => { setFocusedLayerId(layer.id); focusOn("layer", layer.id); }}
+          >
+            {layer.label} · {layerCounts.get(layer.id) ?? 0}
+          </Button>
+        ))}
+      </nav>
+      <span className="font-mono text-xs text-basalt-muted-foreground" aria-live="polite">{vm.visibleNodes.length} nodes · {vm.visibleEdges.length} edges</span>
+    </>
+  ) : undefined;
 
   return (
     <div
@@ -140,91 +238,13 @@ export function TopologyPage() {
         }
       }}
     >
-      <div className={`flex flex-wrap items-center gap-2${fullscreen.active ? " px-3 pt-3" : ""}`} role="toolbar" aria-label="Topology toolbar">
-        <Network className="h-4 w-4 shrink-0 text-basalt-primary" aria-hidden="true" />
-        <h1 className="max-w-64 truncate text-sm font-semibold" title={topology?.description || "Canonical topology map."}>{topology?.title ?? "Topology"}</h1>
-        {topology?.revision !== undefined && <Badge variant="outline" className="font-mono text-[10px]" title={vm.updatedAt ? `Updated ${vm.updatedAt}` : undefined}>Rev {topology.revision}</Badge>}
-        {topology && topology.nodes.length > 0 && <>
-          <span className="mx-1 hidden h-5 w-px bg-basalt-border md:block" aria-hidden="true" />
-          <Label htmlFor="topology-view" className="sr-only">Topology view</Label>
-          <Select value={selectValue(vm.viewId)} onValueChange={(value) => vm.setViewId(actualValue(value))}>
-            <SelectTrigger id="topology-view" size="sm" className="h-8 w-auto max-w-56"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value={sentinel}>All nodes · {topology.nodes.length}</SelectItem>
-              {topology.views.map((view) => <SelectItem key={view.id} value={view.id}>{view.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={selectValue(vm.layerId)} onValueChange={(value) => vm.setLayerId(actualValue(value))}>
-            <SelectTrigger aria-label="Layer filter" size="sm" className="h-8 w-auto max-w-44"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value={sentinel}>All layers</SelectItem>{layerOptions.map((layer) => <SelectItem key={layer.id} value={layer.id}>{layer.label}</SelectItem>)}</SelectContent>
-          </Select>
-          <Select value={selectValue(vm.typeId)} onValueChange={(value) => vm.setTypeId(actualValue(value))}>
-            <SelectTrigger aria-label="Type filter" size="sm" className="h-8 w-auto max-w-44"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value={sentinel}>All types</SelectItem>{typeOptions.map((type) => <SelectItem key={type.id} value={type.id}>{type.label}</SelectItem>)}</SelectContent>
-          </Select>
-          <Select value={selectValue(vm.boundaryId)} onValueChange={(value) => vm.setBoundaryId(actualValue(value))}>
-            <SelectTrigger aria-label="Boundary filter" size="sm" className="h-8 w-auto max-w-44"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value={sentinel}>All boundaries</SelectItem>{boundaryOptions.map((boundary) => <SelectItem key={boundary.id} value={boundary.id}>{boundary.label}</SelectItem>)}</SelectContent>
-          </Select>
-          <Select value={selectValue(vm.tag)} onValueChange={(value) => vm.setTag(actualValue(value))}>
-            <SelectTrigger aria-label="Tag filter" size="sm" className="h-8 w-auto max-w-44"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value={sentinel}>All tags</SelectItem>{tags.map((tag) => <SelectItem key={tag} value={tag}>{tag}</SelectItem>)}</SelectContent>
-          </Select>
-          {filtered && <Button variant="ghost" size="sm" className="h-8" onClick={() => vm.clearFilters()} aria-label="Clear filters"><X className="h-3 w-3" />Clear</Button>}
-          <nav className="flex max-w-full items-center gap-1 overflow-x-auto" aria-label="Layer navigator" data-testid="topology-layer-navigator">
-            <Button
-              variant={focusedLayerId ? "ghost" : "secondary"}
-              size="sm"
-              className="h-8 shrink-0"
-              aria-current={focusedLayerId ? undefined : "true"}
-              onClick={() => setFocusedLayerId("")}
-            >
-              All layers · {totalVisibleNodes}
-            </Button>
-            {layerOptions.map((layer) => (
-              <Button
-                key={layer.id}
-                variant={focusedLayerId === layer.id ? "secondary" : "ghost"}
-                size="sm"
-                className="h-8 shrink-0"
-                aria-current={focusedLayerId === layer.id ? "true" : undefined}
-                aria-label={`Focus layer ${layer.label}`}
-                onClick={() => { setFocusedLayerId(layer.id); focusOn("layer", layer.id); }}
-              >
-                {layer.label} · {layerCounts.get(layer.id) ?? 0}
-              </Button>
-            ))}
-          </nav>
-          <span className="font-mono text-xs text-basalt-muted-foreground" aria-live="polite">{vm.visibleNodes.length} nodes · {vm.visibleEdges.length} edges</span>
-        </>}
-        <div className="ml-auto flex items-center gap-1">
-          {!isMobile && <Button
-            variant="ghost"
-            size="icon"
-            className={iconButton}
-            onClick={() => navigation.toggleHidden(false)}
-            disabled={navigation.fullscreenActive}
-            aria-label={navigation.fullscreenActive ? "Hide navigation" : navigation.state === "hidden" ? "Show navigation" : "Hide navigation"}
-            aria-pressed={navigation.state === "hidden"}
-            title={navigation.fullscreenActive ? "Navigation hidden in fullscreen" : navigation.state === "hidden" ? "Show navigation" : "Hide navigation"}
-          >
-            {navigation.fullscreenActive || navigation.state !== "hidden"
-              ? <PanelLeftClose className="h-4 w-4" />
-              : <PanelLeftOpen className="h-4 w-4" />}
-          </Button>}
-          <Button variant="ghost" size="icon" className={iconButton} onClick={() => vm.reload()} disabled={vm.busy || vm.loading} aria-label="Refresh topology" title="Refresh">
-            <RefreshCw className={`h-4 w-4${vm.busy ? " animate-spin" : ""}`} />
-          </Button>
-          <Button variant="ghost" size="icon" className={iconButton} disabled={!topology} onClick={() => { if (topology) downloadTopology(topology); }} aria-label="Export JSON" title="Export JSON">
-            <Download className="h-4 w-4" />
-          </Button>
-          {topology && topology.nodes.length > 0 && <Button variant="ghost" size="icon" className={iconButton} onClick={() => setInspectorOpen((value) => !value)} aria-label={inspectorOpen ? "Hide inspector" : "Show inspector"} aria-pressed={inspectorOpen} title={inspectorOpen ? "Hide inspector" : "Find / inspect"}>
-            {inspectorOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
-          </Button>}
-          {fullscreen.supported && <Button variant="ghost" size="icon" className={iconButton} onClick={fullscreen.toggle} aria-label={fullscreen.active ? "Exit fullscreen" : "Enter fullscreen"} title={fullscreen.active ? "Exit fullscreen" : "Fullscreen"}>
-            {fullscreen.active ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-          </Button>}
-        </div>
+      <div className={fullscreen.active ? "px-3 pt-3" : undefined}>
+        <PageHeader
+          title={pageTitle}
+          description={pageDescription}
+          actions={topologyActions}
+          filters={topologyFilters}
+        />
       </div>
 
       {vm.error && <div role="alert" className="whitespace-pre-wrap rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950/30">{vm.error}</div>}
