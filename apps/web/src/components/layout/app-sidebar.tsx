@@ -159,7 +159,7 @@ export function AppSidebar({
         <>
           <SidebarNav>
             {NAV_GROUPS.map((group) => (
-              <SidebarGroup key={group.title} label={group.title} defaultOpen>
+              <SidebarGroup key={group.title} label={group.title}>
                 {group.items.map((item) => {
                   const Icon = item.icon;
                   return (
