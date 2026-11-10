@@ -21,6 +21,9 @@ import {
 import { APP_VERSION } from "@/lib/version";
 import { NAV_GROUPS, getAllNavItems } from "@/lib/navigation";
 import { useProfile } from "@/hooks/use-profile";
+import { cn } from "@/lib/utils";
+
+const SIDEBAR_MARK_SLOT_CLASS = "flex w-full items-center";
 
 function BrandMark({ className }: { className?: string }) {
   return (
@@ -76,33 +79,38 @@ export function AppSidebar({
   return (
     <Sidebar collapsed={collapsed}>
       <SidebarHeader>
-        {collapsed ? (
-          <BrandMark className="h-6 w-6 shrink-0" />
-        ) : (
-          <div className="flex w-full min-w-0 items-center justify-between">
-            <div className="flex min-w-0 items-center gap-basalt-space-lg">
-              <BrandMark className="shrink-0" />
-              <span className="truncate text-lg font-semibold text-basalt-foreground md:text-xl">
-                Steed
-              </span>
-              <span className="shrink-0 rounded-md bg-basalt-secondary px-basalt-space-md py-basalt-space-xs font-mono text-[10px] leading-none font-medium text-basalt-muted-foreground">
-                v{APP_VERSION}
-              </span>
-            </div>
-            {hideCollapse ? null : (
-              <Button
-                ref={collapseButtonRef}
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 shrink-0"
-                onClick={onToggle}
-                aria-label="Collapse sidebar"
-              >
-                <PanelLeft aria-hidden="true" />
-              </Button>
+        <div
+          className={cn(
+            SIDEBAR_MARK_SLOT_CLASS,
+            collapsed ? "justify-center" : "justify-between pl-basalt-layout-sm",
+          )}
+        >
+          <div className="flex min-w-0 items-center gap-basalt-space-lg">
+            <BrandMark className="h-7 w-7 shrink-0 object-contain" />
+            {collapsed ? null : (
+              <>
+                <span className="truncate text-basalt-xl font-semibold text-basalt-foreground">
+                  Steed
+                </span>
+                <span className="shrink-0 rounded-basalt-md bg-basalt-secondary px-basalt-space-md py-basalt-space-xs text-basalt-sm leading-basalt-tight font-medium text-basalt-muted-foreground">
+                  v{APP_VERSION}
+                </span>
+              </>
             )}
           </div>
-        )}
+          {collapsed || hideCollapse ? null : (
+            <Button
+              ref={collapseButtonRef}
+              variant="ghost"
+              size="icon"
+              className="w-7 shrink-0"
+              onClick={onToggle}
+              aria-label="Collapse sidebar"
+            >
+              <PanelLeft aria-hidden="true" />
+            </Button>
+          )}
+        </div>
       </SidebarHeader>
 
       {collapsed ? (
