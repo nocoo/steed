@@ -65,7 +65,7 @@ export function AppSidebar({
       {profile?.avatar ? (
         <AvatarImage src={profile.avatar} alt={name} referrerPolicy="no-referrer" />
       ) : null}
-      <AvatarFallback className="bg-basalt-primary/10 text-xs text-basalt-primary">
+      <AvatarFallback className="text-basalt-sm">
         {name.slice(0, 1).toUpperCase()}
       </AvatarFallback>
     </Avatar>
@@ -148,9 +148,7 @@ export function AppSidebar({
           </SidebarNav>
           <SidebarFooter>
             <Tooltip delayDuration={0}>
-              <TooltipTrigger asChild>
-                <span className="inline-flex">{avatar}</span>
-              </TooltipTrigger>
+              <TooltipTrigger asChild>{avatar}</TooltipTrigger>
               <TooltipContent side="right" sideOffset={8}>
                 {name}
               </TooltipContent>
