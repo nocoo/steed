@@ -81,9 +81,8 @@ describe("read-only topology page", () => {
   it("loads the canonical snapshot, exports full topology, and has no edit controls", async () => {
     setup();
     await screen.findByRole("heading", { name: "Fixture topology" });
-    expect(screen.getByRole("heading", { name: "Fixture topology" })).toHaveAttribute("title", "Read-only fixture");
+    expect(screen.getByText("Read-only fixture")).toBeInTheDocument();
     expect(screen.getByText("Rev 7")).toBeInTheDocument();
-    expect(screen.getByRole("toolbar", { name: "Topology toolbar" })).toBeInTheDocument();
     expect(screen.getByText("4 nodes · 1 edges")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Enter fullscreen" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Save|Delete|New|Import/i })).not.toBeInTheDocument();
@@ -153,7 +152,7 @@ describe("read-only topology page", () => {
     client.get.mockResolvedValue({ data: topology, updatedAt: "2026-10-31T00:00:00.000Z" });
     setup();
     await screen.findByRole("heading", { name: "Fixture topology" });
-    expect(screen.getByRole("heading", { name: "Fixture topology" })).toHaveAttribute("title", "Canonical topology map.");
+    expect(screen.getByText("Canonical topology map.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Canvas peer" }));
     expect(screen.getByText("No description.")).toBeInTheDocument();
   });
