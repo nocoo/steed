@@ -1,22 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Outlet, useLocation } from "react-router";
-import { Menu, PanelLeftOpen } from "lucide-react";
+import { PanelLeftOpen } from "lucide-react";
 import {
   Button,
   ContentIsland,
   Sheet,
   SheetContent,
+  SheetDescription,
+  SheetHeader,
   SheetTitle,
-  SheetTrigger,
+  SidebarProvider,
 } from "@nocoo/basalt";
-import { LinkButton } from "@nocoo/basalt/components/button";
-import { AppHeader } from "@nocoo/basalt/components/app-header";
+import { AppHeader, AppHeaderMenuButton, ProjectLinks } from "@nocoo/basalt/components/app-header";
 import { AppMain, AppShell, AppSkipLink } from "@nocoo/basalt/components/app-shell";
-import { useTheme } from "@nocoo/basalt/providers/theme";
+import { ThemeToggle } from "@nocoo/basalt/components/theme-toggle";
 import { useMobile } from "@/hooks/use-mobile";
-import { getHeaderTrail } from "@/lib/navigation";
-import { HeaderTooltip, HexlyLink } from "./header-links";
-import { ThemeToggle } from "./theme-toggle";
+import { getAppHeaderBreadcrumbs } from "@/lib/navigation";
 import { AppSidebar } from "./app-sidebar";
 import {
   TopologyNavigationProvider,
@@ -25,6 +24,7 @@ import {
 
 const STORAGE_KEY = "sidebar-expanded";
 const TOPOLOGY_NAV_STORAGE_KEY = "steed-topology-nav";
+const MOBILE_SHEET_ID = "steed-mobile-navigation-sheet";
 
 function readTopologyNavigation(): TopologyNavigationState {
   try {
@@ -56,22 +56,21 @@ export function AppFrame() {
   const hiddenPrevious = useRef<TopologyNavigationState>("rail");
   const revealFocusRequested = useRef(false);
   const hiddenFocusRequested = useRef(false);
-  const railExpandRef = useRef<HTMLButtonElement>(null);
-  const expandedCollapseRef = useRef<HTMLButtonElement>(null);
   const hiddenRevealRef = useRef<HTMLButtonElement>(null);
   const suppressRevealRailFocus = useRef(false);
   const isMobile = useMobile();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const menuButton = useRef<HTMLButtonElement>(null);
   const location = useLocation();
-  const { theme } = useTheme();
-  const { breadcrumbs, title } = getHeaderTrail(location.pathname);
-  const topologyPage = location.pathname === "/topology";
+  const pathname = location.pathname;
+  const headerBreadcrumbs = getAppHeaderBreadcrumbs(pathname, isMobile);
+  const topologyPage = pathname === "/topology";
   const effectiveTopologyNavigation = fullscreenActive ? "hidden" : topologyNavigation;
   const workspace = topologyPage;
 
   useEffect(() => {
     setMobileOpen(false);
-  }, [location.pathname]);
+  }, [pathname]);
 
   useEffect(() => {
     if (!isMobile) setMobileOpen(false);
@@ -85,20 +84,26 @@ export function AppFrame() {
     if (fullscreenActive) setMobileOpen(false);
   }, [fullscreenActive]);
 
-  const onToggleCollapsed = useCallback(() => {
-    const next = !collapsed;
-    setCollapsed(next);
+  const onGlobalCollapsedChange = useCallback((nextCollapsed: boolean) => {
+    setCollapsed(nextCollapsed);
     try {
-      localStorage.setItem(STORAGE_KEY, String(!next));
+      localStorage.setItem(STORAGE_KEY, String(!nextCollapsed));
     } catch {
       // Navigation remains usable when browser storage is unavailable.
     }
-  }, [collapsed]);
+  }, []);
 
   const setTopologyState = useCallback((next: TopologyNavigationState) => {
     setTopologyNavigation(next);
     writeTopologyNavigation(next);
   }, []);
+
+  const onTopologyCollapsedChange = useCallback(
+    (nextCollapsed: boolean) => {
+      setTopologyState(nextCollapsed ? "rail" : "expanded");
+    },
+    [setTopologyState],
+  );
 
   const toggleHidden = useCallback((moveFocus = false) => {
     if (fullscreenActive) return;
@@ -142,12 +147,12 @@ export function AppFrame() {
       return;
     }
     if (!revealFocusRequested.current) return;
-    if (effectiveTopologyNavigation === "rail") {
+    if (effectiveTopologyNavigation === "rail" || effectiveTopologyNavigation === "expanded") {
       revealFocusRequested.current = false;
-      railExpandRef.current?.focus();
-    } else if (effectiveTopologyNavigation === "expanded") {
-      revealFocusRequested.current = false;
-      expandedCollapseRef.current?.focus();
+      const toggle = document.querySelector<HTMLButtonElement>(
+        'button[aria-label="Expand sidebar"], button[aria-label="Collapse sidebar"]',
+      );
+      toggle?.focus();
     }
   }, [effectiveTopologyNavigation]);
 
@@ -172,6 +177,9 @@ export function AppFrame() {
     revealRail,
     setFullscreenActive,
   }), [effectiveTopologyNavigation, fullscreenActive, toggleHidden, toggleExpanded, revealRail]);
+
+  const showDesktopSidebar = !isMobile && !(topologyPage && effectiveTopologyNavigation === "hidden");
+  const topologySidebarCollapsed = effectiveTopologyNavigation === "rail";
 
   return (
     <TopologyNavigationProvider value={navigation}>
@@ -198,79 +206,89 @@ export function AppFrame() {
             <PanelLeftOpen className="h-3 w-3" aria-hidden="true" />
           </Button>
         ) : null}
-        {isMobile ? null : topologyPage ? (
-          effectiveTopologyNavigation === "hidden" ? null : (
-            <AppSidebar
-              collapsed={effectiveTopologyNavigation === "rail"}
-              onToggle={toggleExpanded}
-              expandButtonRef={railExpandRef}
-              collapseButtonRef={expandedCollapseRef}
-            />
-          )
-        ) : (
-          <AppSidebar collapsed={collapsed} onToggle={onToggleCollapsed} />
-        )}
-        <Sheet open={isMobile ? mobileOpen : false} onOpenChange={setMobileOpen}>
-          {isMobile ? (
-            <SheetContent
-              side="left"
-              className="w-[260px] max-w-[260px] border-0 bg-basalt-background p-0"
+        {showDesktopSidebar ? (
+          topologyPage ? (
+            <SidebarProvider
+              collapsed={topologySidebarCollapsed}
+              onCollapsedChange={onTopologyCollapsedChange}
+              defaultWidth={260}
             >
-              <SheetTitle className="sr-only">Navigation</SheetTitle>
-              <AppSidebar
-                collapsed={false}
-                onToggle={() => setMobileOpen(false)}
-                hideCollapse
-              />
+              <AppSidebar ariaLabel="Main navigation" />
+            </SidebarProvider>
+          ) : (
+            <SidebarProvider
+              collapsed={collapsed}
+              onCollapsedChange={onGlobalCollapsedChange}
+              defaultWidth={260}
+            >
+              <AppSidebar ariaLabel="Main navigation" />
+            </SidebarProvider>
+          )
+        ) : null}
+
+        {isMobile ? (
+          <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+            <SheetContent
+              id={MOBILE_SHEET_ID}
+              side="left"
+              className="w-[260px] max-w-[260px] border-0 bg-basalt-background p-0 sm:max-w-[260px] sm:p-0"
+              onCloseAutoFocus={(event) => {
+                event.preventDefault();
+                menuButton.current?.focus();
+              }}
+            >
+              <SheetHeader className="sr-only">
+                <SheetTitle>Navigation</SheetTitle>
+                <SheetDescription>Browse Steed workspace pages</SheetDescription>
+              </SheetHeader>
+              <SidebarProvider collapsed={false} defaultWidth={260}>
+                <AppSidebar
+                  ariaLabel="Navigation"
+                  variant="mobile"
+                  onNavigate={() => setMobileOpen(false)}
+                  onDismiss={() => setMobileOpen(false)}
+                />
+              </SidebarProvider>
             </SheetContent>
-          ) : null}
-          <AppMain tabIndex={-1}>
-            <AppHeader
-              density={workspace ? "compact" : "comfortable"}
-              leading={isMobile && !fullscreenActive ? (
-                <HeaderTooltip label="Open navigation">
-                  <SheetTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="w-8"
-                      aria-label="Open navigation"
-                    >
-                      <Menu aria-hidden="true" />
-                    </Button>
-                  </SheetTrigger>
-                </HeaderTooltip>
-              ) : null}
-              breadcrumbs={breadcrumbs}
-              title={title}
-              actions={
-                <>
-                  <HeaderTooltip label="GitHub repository">
-                    <LinkButton
-                      href="https://github.com/nocoo/steed"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      variant="ghost"
-                      size="icon"
-                      aria-label="GitHub repository"
-                    >
-                      <svg className="h-4 w-4" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z" />
-                      </svg>
-                    </LinkButton>
-                  </HeaderTooltip>
-                  <HexlyLink />
-                  <ThemeToggle aria-label={`Toggle theme (now ${theme})`} />
-                </>
-              }
-            />
-            <div className="flex min-h-0 flex-1 flex-col px-2 pb-2 md:px-3 md:pb-3">
-              <ContentIsland className={workspace ? "flex flex-col md:p-3 lg:px-3" : undefined}>
-                <Outlet />
-              </ContentIsland>
-            </div>
-          </AppMain>
-        </Sheet>
+          </Sheet>
+        ) : null}
+
+        <AppMain tabIndex={-1}>
+          <AppHeader
+            density={workspace ? "compact" : "comfortable"}
+            leading={
+              isMobile && !fullscreenActive ? (
+                <AppHeaderMenuButton
+                  ref={menuButton}
+                  label="Open navigation"
+                  aria-expanded={mobileOpen}
+                  aria-haspopup="dialog"
+                  aria-controls={mobileOpen ? MOBILE_SHEET_ID : undefined}
+                  onClick={() => setMobileOpen(true)}
+                />
+              ) : null
+            }
+            breadcrumbs={headerBreadcrumbs}
+            breadcrumbsLabel="Breadcrumb"
+            actions={
+              <>
+                <ProjectLinks
+                  github="nocoo/steed"
+                  hexly="steed"
+                  name="Steed"
+                  githubLabel="GitHub repository"
+                  hexlyLabel="Steed on hexly.ai"
+                />
+                <ThemeToggle aria-label="Toggle theme" />
+              </>
+            }
+          />
+          <div className="flex min-h-0 flex-1 flex-col px-2 pb-2 md:px-3 md:pb-3">
+            <ContentIsland className={workspace ? "flex flex-col md:p-3 lg:px-3" : undefined}>
+              <Outlet />
+            </ContentIsland>
+          </div>
+        </AppMain>
       </AppShell>
     </TopologyNavigationProvider>
   );

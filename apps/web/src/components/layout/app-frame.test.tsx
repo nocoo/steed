@@ -106,6 +106,11 @@ describe("AppFrame", () => {
     expect(screen.getAllByText("Connect").length).toBeGreaterThan(0);
   });
 
+  it("exposes the breadcrumb landmark", () => {
+    renderFrame("/connect");
+    expect(screen.getByRole("navigation", { name: "Breadcrumb" })).toBeInTheDocument();
+  });
+
   it("has no overview breadcrumb", () => {
     renderFrame("/connect");
     expect(screen.queryByRole("link", { name: "Overview" })).not.toBeInTheDocument();
@@ -117,6 +122,11 @@ describe("AppFrame", () => {
     expect(screen.getAllByRole("link", { name: "Topology" }).length).toBeGreaterThan(0);
   });
 
+  it("uses the global sidebar on topology diagram routes", () => {
+    renderFrame("/topology/example");
+    expect(screen.getByRole("button", { name: "Collapse sidebar" })).toBeInTheDocument();
+  });
+
   it("renders theme toggle", () => {
     renderFrame();
     expect(
@@ -126,15 +136,29 @@ describe("AppFrame", () => {
 
   it("renders GitHub link to nocoo/steed", () => {
     renderFrame();
-    const link = screen.getByRole("link", { name: "GitHub repository" });
-    expect(link).toHaveAttribute("href", "https://github.com/nocoo/steed");
+    const github = screen.getByRole("link", {
+      name: /GitHub repository.*opens in a new tab/i,
+    });
+    expect(github).toHaveAttribute("href", "https://github.com/nocoo/steed");
+  });
+
+  it("renders the hexly project link", () => {
+    renderFrame();
+    const hexly = screen.getByRole("link", {
+      name: /Steed on hexly\.ai.*opens in a new tab/i,
+    });
+    expect(hexly).toHaveAttribute("href", "https://hexly.ai/projects/steed");
   });
 
   it("shows mobile menu button on mobile viewport", () => {
     renderFrame("/topology", true);
-    expect(
-      screen.getByRole("button", { name: "Open navigation" })
-    ).toBeInTheDocument();
+    const menu = screen.getByRole("button", { name: "Open navigation" });
+    expect(menu).toBeInTheDocument();
+    expect(menu).not.toHaveAttribute("aria-controls");
+    act(() => {
+      fireEvent.click(menu);
+    });
+    expect(menu).toHaveAttribute("aria-controls", "steed-mobile-navigation-sheet");
   });
 
   it("hides mobile menu button on desktop viewport", () => {
@@ -142,6 +166,26 @@ describe("AppFrame", () => {
     expect(
       screen.queryByRole("button", { name: "Open navigation" })
     ).not.toBeInTheDocument();
+  });
+
+  it("closes the mobile drawer after in-drawer navigation", async () => {
+    renderFrame("/topology", true);
+    fireEvent.click(screen.getByRole("button", { name: "Open navigation" }));
+    await screen.findByRole("dialog");
+    fireEvent.click(screen.getByRole("link", { name: /connect/i }));
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+  });
+
+  it("closes the mobile drawer from the sidebar dismiss control", async () => {
+    renderFrame("/topology", true);
+    fireEvent.click(screen.getByRole("button", { name: "Open navigation" }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Close navigation" }));
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
   });
 
   it("returns focus to the menu button after Escape", async () => {
@@ -214,6 +258,15 @@ describe("AppFrame", () => {
     renderFrame("/topology");
     expect(screen.getByRole("button", { name: "Expand sidebar" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Collapse sidebar" })).not.toBeInTheDocument();
+  });
+
+  it("reveals the rail when the hidden edge tab is clicked", async () => {
+    renderFrame("/topology");
+    fireEvent.keyDown(window, { key: "\\" });
+    fireEvent.click(screen.getByRole("button", { name: "Reveal navigation" }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Expand sidebar" })).toBeInTheDocument();
+    });
   });
 
   it("hides and reveals topology navigation with keyboard and persistence", async () => {

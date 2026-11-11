@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { routes } from "./router";
 
@@ -19,10 +19,11 @@ describe("App", () => {
     expect(screen.getAllByRole("heading", { name: "Topology" }).length).toBeGreaterThan(0);
   });
 
-  it("renders sidebar navigation", () => {
+  it("renders sidebar navigation", async () => {
     renderApp("/topology");
     expect(screen.getByAltText("Steed")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Topology" })).toBeInTheDocument();
+    const topologyNav = await waitFor(() => screen.getByRole("link", { name: "Topology" }));
+    expect(topologyNav).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Expand sidebar" }));
     expect(screen.getByText("Steed")).toBeInTheDocument();
   });
