@@ -22,6 +22,10 @@ export function getAllNavItems(): NavItem[] {
   return NAV_GROUPS.flatMap((group) => group.items);
 }
 
+export function isNavActive(pathname: string, href: string): boolean {
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
 export function findNavItemByHref(href: string): NavItem | undefined {
   return getAllNavItems().find((item) => item.href === href);
 }
@@ -45,4 +49,16 @@ export function getHeaderTrail(pathname: string): HeaderTrail {
 
   const lastNav = findNavItemByHref(`/${segments.join("/")}`);
   return { breadcrumbs, title: lastNav ? lastNav.title : String(segments.at(-1)) };
+}
+
+export function getAppHeaderBreadcrumbs(
+  pathname: string,
+  isMobile: boolean,
+): { href?: string; label: string }[] {
+  const { breadcrumbs, title } = getHeaderTrail(pathname);
+  const all = [...breadcrumbs];
+  if (title && all.at(-1)?.label !== title) {
+    all.push({ label: title });
+  }
+  return isMobile && all.length > 1 ? all.slice(-1) : all;
 }

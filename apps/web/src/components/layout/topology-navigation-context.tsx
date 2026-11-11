@@ -11,13 +11,15 @@ export interface TopologyNavigation {
   setFullscreenActive: (active: boolean) => void;
 }
 
+const noopNavigation = () => undefined;
+
 const defaultNavigation: TopologyNavigation = {
   state: "rail",
   fullscreenActive: false,
-  toggleHidden: () => undefined,
-  toggleExpanded: () => undefined,
-  revealRail: () => undefined,
-  setFullscreenActive: () => undefined,
+  toggleHidden: noopNavigation,
+  toggleExpanded: noopNavigation,
+  revealRail: noopNavigation,
+  setFullscreenActive: noopNavigation,
 };
 
 const TopologyNavigationContext = createContext<TopologyNavigation>(defaultNavigation);

@@ -1,22 +1,51 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
-import { ThemeToggle } from "./theme-toggle";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ThemeProvider } from "@nocoo/basalt";
+import { ThemeToggle } from "@nocoo/basalt/components/theme-toggle";
 
-const state = vi.hoisted(() => ({ theme: "system", setTheme: vi.fn() }));
-vi.mock("@nocoo/basalt/providers/theme", () => ({ useTheme: () => state }));
+const originalMatchMedia = window.matchMedia;
 
 describe("theme toggle", () => {
-  it.each([["system", "light"], ["light", "dark"], ["dark", "system"]])("cycles %s to %s", (theme, next) => {
-    state.theme = theme!;
-    state.setTheme.mockClear();
-    const view = render(<ThemeToggle aria-label="Theme" />);
-    fireEvent.click(screen.getByRole("button", { name: "Theme" }));
-    expect(state.setTheme).toHaveBeenCalledWith(next);
-    view.unmount();
+  beforeEach(() => {
+    document.documentElement.classList.remove("light", "dark");
+    delete document.documentElement.dataset.mode;
+    localStorage.clear();
+    window.matchMedia = vi.fn(() => ({
+      matches: false,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
   });
-  it("provides a default accessible label", () => {
-    state.theme = "system";
-    render(<ThemeToggle />);
+
+  afterEach(() => {
+    window.matchMedia = originalMatchMedia;
+    vi.restoreAllMocks();
+  });
+
+  it.each([
+    ["system", "Switch to light theme", "Switch to dark theme", "light", "light"],
+    ["light", "Switch to dark theme", "Use system theme", "dark", "dark"],
+    ["dark", "Use system theme", "Switch to light theme", "system", "light"],
+  ] as const)("from %s cycles to the next theme", (theme, label, nextLabel, nextTheme, resolvedMode) => {
+    render(
+      <ThemeProvider defaultTheme={theme}>
+        <ThemeToggle />
+      </ThemeProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: label }));
+    expect(screen.getByRole("button", { name: nextLabel })).toBeInTheDocument();
+    expect(document.documentElement).toHaveClass(resolvedMode);
+    expect(document.documentElement).not.toHaveClass(resolvedMode === "dark" ? "light" : "dark");
+    expect(document.documentElement.dataset.mode).toBe(resolvedMode);
+    expect(localStorage.getItem("theme")).toBe(nextTheme);
+  });
+
+  it("honors a fixed accessible label", () => {
+    render(
+      <ThemeProvider defaultTheme="system">
+        <ThemeToggle aria-label="Toggle theme" />
+      </ThemeProvider>,
+    );
     expect(screen.getByRole("button", { name: "Toggle theme" })).toBeInTheDocument();
   });
 });
